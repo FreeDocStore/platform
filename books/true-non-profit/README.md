@@ -8,7 +8,7 @@ This book defines a first-principles body of knowledge for non-profits and an as
 
 Published pages live in `docs/`.
 
-When the platform GitHub Pages workflow runs, this folder is published at:
+When the platform Cloudflare Pages workflow runs, this folder is published at:
 
 ```text
 /books/true-non-profit/

@@ -83,7 +83,7 @@ brand/                Brand assets inherited from the seed repo
 
 The first book is `books/true-non-profit/docs`.
 
-GitHub Pages publishes each `books/<slug>/docs` folder under `/books/<slug>/` by assembling a Pages artifact from `site/` plus all book docs folders.
+Cloudflare Pages publishes each `books/<slug>/docs` folder under `/books/<slug>/` by assembling a Pages artifact from `site/` plus all book docs folders.
 
 ## AI Editor Flow
 

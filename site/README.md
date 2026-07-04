@@ -32,6 +32,5 @@ site/
 
 ## Deploy
 
-`/.github/workflows/deploy-site-pages.yml` publishes `site/` to GitHub Pages
-on every push to `main` that touches `site/`. Pages must be enabled in repo
-Settings (Source: GitHub Actions) once the repo flips to public.
+`/.github/workflows/deploy-store.yml` publishes `site/` and `books/*/docs`
+to Cloudflare Pages on every push to `main` that touches public content.
