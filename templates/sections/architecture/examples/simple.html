@@ -1,0 +1,90 @@
+<article class="doc">
+
+  <h1>Architecture</h1>
+  <p class="lede">
+    A single Cloudflare Worker that exposes a Slack slash command, calls Stripe's API, and writes audit rows to an existing Postgres database.
+  </p>
+
+  <h2>Summary</h2>
+  <p>
+    The tool is a stateless edge function with no datastore of its own. Slack POSTs slash-command payloads to a Cloudflare Worker, which validates the signature, queries Stripe for customer subscription state, formats the response as Slack message blocks, and returns it. An audit row is written asynchronously to the company's existing Postgres audit table via a connection string in the Worker's environment.
+  </p>
+
+  <h2>Components</h2>
+
+  <h3>sub-status worker</h3>
+  <ul>
+    <li><strong>Purpose:</strong> handles all Slack slash-command requests; runs the lookup, formats the response, writes audit row.</li>
+    <li><strong>Language / framework:</strong> TypeScript, Cloudflare Workers runtime.</li>
+    <li><strong>Depends on:</strong> Stripe API, Postgres audit table.</li>
+    <li><strong>Owner:</strong> Engineering platform team.</li>
+  </ul>
+
+  <h2>System diagram</h2>
+<pre><code class="language-mermaid">flowchart LR
+  Slack[Slack workspace] -->|POST /slash| Worker[sub-status Worker]
+  Worker -->|GET /customers| Stripe[Stripe API]
+  Worker -->|INSERT| Audit[(support_audit table)]
+  Worker -->|response_url POST| Slack
+</code></pre>
+
+  <h2>Data flow</h2>
+
+  <h3>Slash command lifecycle</h3>
+  <ol>
+    <li>Support agent types <code>/sub-status agent@example.com</code> in Slack.</li>
+    <li>Slack sends a signed POST to the Worker's public URL with the command payload.</li>
+    <li>Worker validates the Slack signing-secret HMAC; rejects on mismatch with a 401.</li>
+    <li>Worker queries Stripe's <code>/customers</code> endpoint by email.</li>
+    <li>If found, Worker fetches the customer's active subscription via <code>/subscriptions</code>.</li>
+    <li>Worker formats the response as Slack message blocks (plan name, status, renewal date) and POSTs to Slack's <code>response_url</code>.</li>
+    <li>Worker writes one row to <code>support_audit</code> with agent ID, timestamp, customer ID, action.</li>
+  </ol>
+
+  <h2>External dependencies</h2>
+  <ul>
+    <li><strong>Stripe API</strong> - source of truth for subscription data (api.stripe.com). When down: the slash command returns "Stripe is currently unreachable - try again in a moment" within 3 seconds. No retry; the agent retries manually.</li>
+    <li><strong>Postgres audit database</strong> - shared internal Postgres instance hosting the <code>support_audit</code> table (internal RDS). When down: the slash command continues and returns the lookup, but skips the audit write and emits a Worker-level error metric. Better to serve a lookup with a missing audit row than to fail the lookup.</li>
+    <li><strong>Slack Web API</strong> - delivery channel for the response message (slack.com/api). When down: the slash command times out; agent retries.</li>
+  </ul>
+
+  <h2>Tech stack</h2>
+  <ul>
+    <li><strong>Language:</strong> TypeScript 5.x</li>
+    <li><strong>Runtime:</strong> Cloudflare Workers (V8 isolates)</li>
+    <li><strong>Framework:</strong> none (handler is a plain <code>fetch</code> export)</li>
+    <li><strong>Database:</strong> Postgres (existing, shared)</li>
+    <li><strong>Key libraries:</strong> stripe (npm), @neondatabase/serverless (Postgres driver compatible with Workers)</li>
+  </ul>
+
+  <h2>Deployment topology</h2>
+  <ul>
+    <li><strong>Cloud account / region:</strong> Cloudflare account, deployed globally to all edge locations.</li>
+    <li><strong>Environments:</strong> production only (staging is a separate Slack app pointed at the same code via Wrangler env).</li>
+    <li><strong>Ingress:</strong> public HTTPS endpoint at <code>https://sub-status.&lt;your-account&gt;.workers.dev</code>; Slack signature verification gates all requests.</li>
+    <li><strong>Data residency:</strong> no customer data stored. Stripe data is fetched on-demand and not retained beyond the response. Audit rows live in the existing Postgres instance.</li>
+  </ul>
+
+  <h2>Cross-cutting concerns</h2>
+
+  <h3>Security</h3>
+  <p>
+    Slack signing-secret HMAC verification on every request. Stripe API token lives in Cloudflare Worker secrets, never in code. The Worker has read-only Stripe scope (Customers, Subscriptions). Postgres connection uses a least-privilege role with INSERT-only access to <code>support_audit</code>.
+  </p>
+
+  <h3>Availability</h3>
+  <p>
+    Cloudflare Workers' platform availability is the practical bound (~99.99%). The tool has no self-managed availability target since it is a low-volume internal lookup; if down, agents fall back to opening Stripe directly.
+  </p>
+
+  <h3>Observability</h3>
+  <p>
+    Worker logs to Cloudflare's request log (7-day retention). Custom metrics emitted via <code>analyticsEngine</code> for: lookup count, lookup-not-found count, Stripe error count, audit-write failure count. Dashboard in Cloudflare Analytics; no separate observability stack.
+  </p>
+
+  <h3>Scale</h3>
+  <p>
+    Worker isolates auto-scale; the bottleneck is Stripe's per-account API rate limit (100 read requests/sec). Internal volume is well under 1 req/sec average; no concern.
+  </p>
+
+</article>

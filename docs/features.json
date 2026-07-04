@@ -1,0 +1,10 @@
+{
+  "$schema": "https://raw.githubusercontent.com/FreeDocStore/platform/main/templates/features.schema.json",
+
+  "changelog": false,
+  "sitemap": false,
+  "pageMeta": false,
+  "references": false,
+  "nav": true,
+  "search": true
+}

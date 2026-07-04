@@ -1,0 +1,61 @@
+<article class="doc">
+
+  <h1>Glossary</h1>
+  <p class="lede">
+    Terms used throughout the sub-status Slack tool documentation. Most are standard Stripe and Slack vocabulary; a few have project-specific meaning worth pinning down.
+  </p>
+
+  <dl>
+
+    <dt id="agent">agent</dt>
+    <dd>
+      A member of the Customer Support team using the sub-status tool. Distinct from "support agent" in Stripe's documentation, which refers to a Stripe-side concept we do not use. <br />
+      <strong>Synonyms:</strong> support agent, support team member.
+    </dd>
+
+    <dt id="audit-row">audit row</dt>
+    <dd>
+      One entry in the <code>support_audit</code> Postgres table. Every successful sub-status lookup writes exactly one audit row; failed lookups write a row only if the lookup itself succeeded but the audit-write path was the failure point. <br />
+      <strong>See also:</strong> <a href="#audit-write-failure">audit-write failure</a>.
+    </dd>
+
+    <dt id="audit-write-failure">audit-write failure</dt>
+    <dd>
+      The case where a sub-status lookup succeeds but the corresponding row cannot be written to the audit table (typically because the audit DB is briefly unavailable). Per ADR-3, the lookup result is still returned to the agent and a metric is emitted. <br />
+      <strong>See also:</strong> <a href="#audit-row">audit row</a>.
+    </dd>
+
+    <dt id="customer">customer</dt>
+    <dd>
+      A Stripe customer record - the entity returned by Stripe's <code>/customers</code> endpoint. In this project, "customer" always refers to the Stripe sense, never to other potential meanings (Salesforce account, internal CRM record).
+    </dd>
+
+    <dt id="lookup">lookup</dt>
+    <dd>
+      One execution of the <code>/sub-status</code> slash command. Each lookup involves: signature verification, one Stripe call, one response to Slack, one audit row.
+    </dd>
+
+    <dt id="plan">plan</dt>
+    <dd>
+      The product tier a customer is currently subscribed to. Reported to the agent in the slash command response. In Stripe terms, the plan name is read from the customer's active subscription's <code>price.product</code>.
+    </dd>
+
+    <dt id="renewal-date">renewal date</dt>
+    <dd>
+      The date the customer's current subscription billing period ends and the next period begins. For dunning customers, this is the date Stripe will retry the failed payment, not the original renewal date. <br />
+      <strong>Example:</strong> "Renewal date: 2026-05-12" in the slash command response means the next billing event is scheduled for that date.
+    </dd>
+
+    <dt id="signing-secret">signing secret</dt>
+    <dd>
+      The shared secret used to verify that a slash-command request actually came from Slack. Stored in Cloudflare Worker secrets, never logged. The HMAC verification uses the algorithm Slack documents (v0 signature scheme).
+    </dd>
+
+    <dt id="slash-command">slash command</dt>
+    <dd>
+      The Slack mechanism that lets a user trigger a registered handler by typing <code>/sub-status &lt;email&gt;</code> in any channel where the app is installed. The Slack app sends an HTTP POST to the registered URL; the handler returns either an immediate response or invokes the response_url asynchronously.
+    </dd>
+
+  </dl>
+
+</article>

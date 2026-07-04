@@ -1,0 +1,73 @@
+<article class="doc">
+
+  <h1>Context</h1>
+  <p class="lede">
+    A regulated-industry case management platform that replaces a paper-and-spreadsheet workflow for ~200 caseworkers across one state agency.
+  </p>
+
+  <h2>Background</h2>
+  <p>
+    The agency manages safeguarding cases for vulnerable clients. The current workflow is partly paper (intake forms, consent capture) and partly spreadsheet (case tracking, supervisor allocations). State-level audits in 2024 and 2025 flagged inconsistent record-keeping and gaps in audit trails. The agency was given a 24-month window to move to a digital case management platform that meets the new safeguarding-standard data handling rules.
+  </p>
+  <p>
+    A commercial off-the-shelf vendor was evaluated in early 2025 and rejected on cost (annual licensing exceeded the agency's IT budget by ~3x) and integration friction (no path to the agency's existing finance system). The agency leadership chose to commission a custom platform with a focused feature scope.
+  </p>
+  <p>
+    The agency's CTO selected an external delivery partner in March 2026 after a procurement process. This document is the start of the partner's KB for the engagement.
+  </p>
+
+  <h2>Sponsor and stakeholders</h2>
+
+  <h3>Sponsor</h3>
+  <p>
+    External engagement. <strong>Hannah Reilly, CTO of the agency,</strong> is the executive sponsor and budget holder. Her primary interest is delivering a platform that passes the next state audit (Q2 2027) without escalation. She has explicit authority to deprioritise scope but not to extend the timeline.
+  </p>
+
+  <h3>Other stakeholders</h3>
+  <ul>
+    <li><strong>Marcus Tan, Director of Safeguarding</strong> - operational owner of the new platform. Cares about caseworker adoption and not increasing time-on-task during transition. Will block features that complicate the day-to-day.</li>
+    <li><strong>Caseworker representative committee (5 members)</strong> - voice of the day-to-day users. Care about workflow speed, mobile usability on agency tablets, and minimising training overhead.</li>
+    <li><strong>Supervisor cohort (12 supervisors)</strong> - care about caseload visibility and reassignment workflows. Frustrated by current spreadsheet allocation; this is a strong supporter group.</li>
+    <li><strong>State audit oversight body</strong> - external regulator. Cares about audit-trail completeness and data residency. Will conduct annual audits and ad-hoc spot checks.</li>
+    <li><strong>Agency security team</strong> - cares about identity provider integration, MFA on supervisor accounts, and pen-test cadence.</li>
+    <li><strong>Agency finance</strong> - cares only about the integration with their existing reconciliation system. Wants read-only access; will block any write integration in v1.</li>
+    <li><strong>Agency communications</strong> - cares about messaging during transition; not a technical stakeholder but holds veto on rollout timing.</li>
+  </ul>
+
+  <h2>Business motivation</h2>
+  <p>
+    The state audit window closes Q2 2027. A failed audit triggers state-level intervention with downstream funding implications and potential leadership change. Successfully delivering the platform passes the audit and unlocks an additional state grant tied to digital transformation milestones (estimated $1.2M over three years). The platform itself is expected to reduce caseworker time-on-task by ~30% based on caseworker self-reports during discovery, recovering roughly 40 FTE-hours per week across the team.
+  </p>
+
+  <h2>Adjacent systems and prior art</h2>
+
+  <h3>Existing systems</h3>
+  <ul>
+    <li><strong>Agency identity provider (SAML 2.0 SSO)</strong> - the platform integrates as a service provider; no separate user management.</li>
+    <li><strong>Finance reconciliation system</strong> - read-only API integration for billing line-up. The integration contract is fixed; we adapt to it.</li>
+    <li><strong>Existing intranet portal</strong> - users will be linked to the new platform from the intranet's "tools" panel.</li>
+    <li><strong>Document storage (agency-managed Azure Files)</strong> - case attachments live here; the platform stores references, not blobs.</li>
+  </ul>
+
+  <h3>Prior attempts</h3>
+  <ul>
+    <li><strong>Vendor evaluation, Q1 2025</strong> - shortlist of three vendors evaluated against MoSCoW requirements list. All three rejected: two on price, one on data-residency (US-hosted, fails the state's residency rules).</li>
+    <li><strong>Internal "case tracker" spreadsheet (since 2018)</strong> - the platform replaces this. Lessons: supervisors rely heavily on the per-region pivot view; replicate it.</li>
+    <li><strong>Paper intake archive</strong> - the historical record is paper. Migration of records older than 2024 is explicitly out of scope (see Requirements).</li>
+  </ul>
+
+  <h2>External constraints</h2>
+  <ul>
+    <li><strong>State data-residency rules.</strong> All data at rest and in transit must remain within the state's jurisdiction. Cloud region selection is constrained to a small set of approved Azure regions.</li>
+    <li><strong>Audit window.</strong> Pilot ready by Q3 2026, full rollout by end of Q1 2027, audit-readiness by Q2 2027. Non-negotiable - tied to state oversight calendar.</li>
+    <li><strong>Procurement framework.</strong> The engagement falls under a state-government procurement framework with mandatory monthly reporting on milestones, spend, and risk.</li>
+    <li><strong>Agency change-management policy.</strong> All UI changes affecting caseworkers must be communicated 14 days before deploy via the agency's internal comms team. Constrains release cadence in the rollout phase.</li>
+    <li><strong>Election cycle.</strong> The state minister responsible for the agency rotates every 4 years; the next rotation is mid-2027. Project must be operational and stable before that handover or risk strategic reset.</li>
+  </ul>
+
+  <h2>Definitions</h2>
+  <p>
+    See <a href="glossary.html">Glossary</a> for safeguarding-specific terminology (case, intake, risk-tier, presenting issue, outcome code, etc).
+  </p>
+
+</article>

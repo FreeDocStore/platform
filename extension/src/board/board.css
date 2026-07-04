@@ -1,0 +1,240 @@
+/* Tasks board. Self-contained dark theme matching the side panel's
+   palette so the two surfaces feel like one product. */
+:root {
+  --bg: #0f1117;
+  --surface: #181b24;
+  --surface2: #1e2230;
+  --border: #2a2e3d;
+  --text: #e1e4ed;
+  --text-muted: #8b90a0;
+  --accent: #06f4b1;
+  --blue: #1f6feb;
+  --amber: #d8a657;
+  --green: #3fb950;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font: 13px/1.5 system-ui, -apple-system, sans-serif;
+}
+
+.board-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--border);
+}
+.board-header h1 { font-size: 16px; margin: 0; }
+.board-header-right { display: flex; align-items: center; gap: 16px; }
+.repo-filter { display: flex; align-items: center; gap: 6px; color: var(--text-muted); }
+.repo-filter select {
+  background: var(--surface); color: var(--text);
+  border: 1px solid var(--border); border-radius: 6px; padding: 4px 8px;
+}
+.task-count { color: var(--text-muted); }
+
+.icon-btn {
+  background: transparent; border: 0; color: var(--text-muted);
+  font-size: 20px; line-height: 1; cursor: pointer; padding: 2px 6px;
+}
+.icon-btn:hover { color: var(--text); }
+.icon-btn.spinning { animation: spin 0.8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Columns */
+.board {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(220px, 1fr));
+  gap: 14px;
+  padding: 18px 20px;
+  align-items: start;
+}
+.column {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px;
+  min-height: 120px;
+}
+.column-head {
+  display: flex; align-items: center; justify-content: space-between;
+  font-weight: 600; margin: 2px 4px 10px;
+}
+.column-head .count {
+  color: var(--text-muted); font-weight: 500;
+  background: var(--surface2); border-radius: 999px; padding: 1px 8px; font-size: 12px;
+}
+.column-empty { color: var(--text-muted); font-size: 12px; padding: 8px 4px; }
+
+/* Cards */
+.card {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+  cursor: pointer;
+}
+.card:hover { border-color: var(--accent); }
+.card.status-proposed  { border-left-color: var(--amber); }
+.card.status-in_review { border-left-color: var(--blue); }
+.card.status-deployed  { border-left-color: var(--green); }
+.card.status-done      { border-left-color: var(--text-muted); }
+.card-title { font-weight: 600; margin-bottom: 4px; }
+.card-meta { color: var(--text-muted); font-size: 12px; display: flex; flex-wrap: wrap; gap: 4px 10px; }
+.by-who { color: var(--accent); display: inline-flex; align-items: center; gap: 4px; }
+.detail-row .gd-avatar { margin: 0 2px; }
+/* "You're mentioned" affordance: an amber left-rail accent + a small chip next
+   to the title, so a teammate can spot at a glance which cards tagged them. */
+.card.mentions-me, .list-row.mentions-me {
+  box-shadow: inset 3px 0 0 var(--amber);
+  border-color: color-mix(in srgb, var(--amber) 50%, var(--border));
+}
+.mention-chip {
+  margin-left: 6px; padding: 0 6px; border-radius: 999px; font-size: 11px;
+  font-weight: 600; vertical-align: middle;
+  color: #000; background: var(--amber);
+}
+.card-sel {
+  margin-top: 6px; padding: 5px 8px; border-radius: 6px;
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+  color: var(--text); font-size: 12px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* Detail drawer */
+.detail-scrim {
+  position: fixed; inset: 0; background: rgba(0,0,0,.45);
+  z-index: 10;
+}
+.detail-scrim[hidden] { display: none; }
+.detail {
+  position: fixed; top: 0; right: 0; bottom: 0; width: min(480px, 92vw);
+  background: var(--surface); border-left: 1px solid var(--border);
+  display: flex; flex-direction: column; box-shadow: -8px 0 24px rgba(0,0,0,.4);
+  /* Above the scrim — it comes after this element in the DOM, so without an
+     explicit z-index the scrim would paint over the drawer (dimming it and
+     eating scroll/clicks). */
+  z-index: 11;
+  min-height: 0; /* let .detail-body's overflow:auto actually scroll */
+}
+.detail[hidden] { display: none; }
+.detail-head {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  gap: 10px; padding: 16px 18px; border-bottom: 1px solid var(--border);
+}
+.detail-head h2 { font-size: 15px; margin: 0; }
+.detail-body { padding: 16px 18px; overflow: auto; }
+.detail-body h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--text-muted); margin: 18px 0 6px; }
+.detail-body h3:first-child { margin-top: 0; }
+.detail-row { margin: 4px 0; }
+.detail-link { color: var(--accent); text-decoration: none; }
+.detail-link:hover { text-decoration: underline; }
+.badge {
+  display: inline-block; padding: 1px 8px; border-radius: 999px;
+  font-size: 12px; font-weight: 600; border: 1px solid var(--border);
+}
+.badge.status-proposed  { color: var(--amber); border-color: var(--amber); }
+.badge.status-in_review { color: var(--blue); border-color: var(--blue); }
+.badge.status-deployed  { color: var(--green); border-color: var(--green); }
+.badge.status-done      { color: var(--text-muted); }
+.badge.status-cancelled { color: var(--text-muted); text-decoration: line-through; }
+.thread-msg {
+  border: 1px solid var(--border); border-radius: 8px;
+  padding: 8px 10px; margin-bottom: 8px; white-space: pre-wrap;
+}
+.thread-msg .role { font-size: 11px; color: var(--text-muted); margin-bottom: 3px; display: flex; align-items: center; gap: 6px; }
+.sel-quote {
+  border-left: 3px solid var(--accent); padding: 4px 10px;
+  background: var(--surface2); border-radius: 0 6px 6px 0; white-space: pre-wrap;
+}
+.empty-state { color: var(--text-muted); padding: 40px 20px; text-align: center; }
+
+/* ── View toggle (Kanban ⇄ List) ───────────────────────────────────── */
+.view-toggle {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.view-btn {
+  background: var(--surface);
+  color: var(--text-muted);
+  border: 0;
+  padding: 4px 12px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.view-btn + .view-btn { border-left: 1px solid var(--border); }
+.view-btn[aria-pressed="true"] { background: var(--accent); color: #000; font-weight: 600; }
+.view-btn:hover:not([aria-pressed="true"]) { color: var(--text); }
+
+/* ── List view ─────────────────────────────────────────────────────── */
+.board.as-list { display: block; }
+.list { display: flex; flex-direction: column; gap: 8px; max-width: 900px; }
+.list-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 10px 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+}
+.list-row:hover { border-color: var(--accent); }
+.list-row.status-proposed  { border-left-color: var(--amber); }
+.list-row.status-in_review { border-left-color: var(--blue); }
+.list-row.status-deployed  { border-left-color: var(--green); }
+.list-row.status-done      { border-left-color: var(--text-muted); }
+.list-row.status-cancelled { border-left-color: var(--text-muted); opacity: 0.6; }
+.list-row .badge { flex: 0 0 auto; margin-top: 1px; }
+.list-main { min-width: 0; flex: 1 1 auto; }
+.list-title { font-weight: 600; margin-bottom: 3px; }
+.list-meta { color: var(--text-muted); font-size: 12px; display: flex; flex-wrap: wrap; gap: 4px 10px; }
+
+/* ── Archive ───────────────────────────────────────────────────────── */
+.archived-toggle { color: var(--text-muted); display: inline-flex; align-items: center; gap: 5px; cursor: pointer; }
+.card.archived, .list-row.archived { opacity: 0.5; }
+.detail-actions {
+  margin-top: 20px; padding-top: 14px; border-top: 1px solid var(--border);
+  display: flex; flex-wrap: wrap; gap: 8px;
+}
+.detail-stage {
+  background: transparent; color: var(--text);
+  border: 1px solid var(--border); border-radius: 6px;
+  padding: 6px 14px; font-size: 13px; cursor: pointer;
+}
+.detail-stage:hover { border-color: var(--accent); color: var(--accent); }
+.detail-archive {
+  background: transparent; color: var(--text-muted);
+  border: 1px solid var(--border); border-radius: 6px;
+  padding: 6px 14px; font-size: 13px; cursor: pointer;
+}
+.detail-archive:hover { color: var(--danger); border-color: var(--danger); }
+
+/* ── Responsive ────────────────────────────────────────────────────────
+   The Kanban is a fixed 4-column grid at full width; below that it steps
+   down to 2 columns then a single stacked column so it never overflows in a
+   narrow window or on mobile. The header wraps instead of squashing, and the
+   list view (already block + flex rows) just tightens its padding. */
+@media (max-width: 1000px) {
+  .board:not(.as-list) { grid-template-columns: repeat(2, minmax(200px, 1fr)); }
+}
+@media (max-width: 620px) {
+  .board-header { flex-wrap: wrap; gap: 10px; padding: 12px 14px; }
+  .board-header-right { flex-wrap: wrap; gap: 10px; }
+  .board { grid-template-columns: 1fr; gap: 10px; padding: 12px 14px; }
+  .board:not(.as-list) .column { min-height: 0; }
+  .list { max-width: none; }
+  .list-row { padding: 9px 10px; gap: 9px; }
+  .detail { width: 100vw; } /* full-width drawer on phones */
+}

@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow, noarchive, nosnippet">
+<meta name="googlebot" content="noindex, nofollow">
+<title>Install FreeDocStore</title>
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="stylesheet" href="styles.css">
+<style>
+  .install-cta {
+    display: inline-block;
+    padding: 12px 22px;
+    border-radius: 8px;
+    background: var(--accent);
+    color: var(--bg);
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 15px;
+    margin: 8px 8px 8px 0;
+  }
+  .install-cta.secondary {
+    background: transparent;
+    color: var(--text);
+    border: 1px solid var(--border);
+  }
+  .install-cta:hover:not(:disabled) { filter: brightness(1.1); }
+  /* Disabled cta: covers both <button disabled> and <a aria-disabled> */
+  .install-cta:disabled,
+  .install-cta[aria-disabled="true"] {
+    opacity: 0.45;
+    cursor: not-allowed;
+    pointer-events: none;
+  }
+  /* Buttons inherit from form controls; reset font/border so the
+     <button> placeholder matches the <a class="install-cta"> live one. */
+  button.install-cta {
+    font: inherit;
+    border: 0;
+  }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <button class="menu-toggle" onclick="document.querySelector('.sidebar').classList.toggle('open')" aria-label="Toggle menu">&#9776;</button>
+  <h1>
+    <a href="index.html"><img src="logo.svg" alt="Open Frontier One" class="topbar-logo"></a>
+    <span class="badge">FreeDocStore</span>
+  </h1>
+  <nav class="topbar-links">
+    <a href="components.html">Components</a>
+    <a href="content.html">Content</a>
+    <a href="writing.html">Writing</a>
+    <a href="infrastructure.html">Infrastructure</a>
+    <a href="extension.html">Extension</a>
+    <a href="install.html" class="active">Install</a>
+    
+    
+  </nav>
+</header>
+
+<nav class="sidebar" id="sidebar">
+  <div class="nav-group">
+    <div class="nav-group-title">Install</div>
+    <a href="#chrome-web-store" class="active">Chrome Web Store</a>
+    <a href="#zip-download">Download .zip</a>
+    <a href="#load-unpacked">Load unpacked</a>
+    <a href="#after-install">After install</a>
+    <a href="#updating">Updating</a>
+  </div>
+</nav>
+
+<main class="content">
+
+  <section id="overview">
+    <h2>Install the FreeDocStore extension</h2>
+    <p>The browser extension lets you chat with an AI agent to edit any docs page directly from the rendered site. Two install paths: the Chrome Web Store (recommended for everyone) or a self-host .zip download (for power users who don't want to wait on store review for a patch).</p>
+  </section>
+
+  <section id="chrome-web-store">
+    <h2>Chrome Web Store (recommended)</h2>
+    <div class="card highlight">
+      <p>One-click install, automatic updates, no developer-mode warning.</p>
+      <p>
+        <button class="install-cta" type="button" disabled data-cws-link>Install from Chrome Web Store (pending)</button>
+      </p>
+      <p style="color: var(--text-muted); font-size: 13px; margin-top: 0;">
+        Will be listed as <strong>unlisted</strong> - reachable only via this link, not via store search. Until the listing is live, use the .zip download below.
+      </p>
+    </div>
+    <p>Compatible with any Chromium browser that supports Manifest V3 and the <code>chrome.sidePanel</code> API: Chrome 120+, Edge, Brave, Arc.</p>
+  </section>
+
+  <section id="zip-download">
+    <h2>Download .zip (power users)</h2>
+    <p>Use this when you need a same-day patch that hasn't cleared store review, or if you don't want to depend on the Chrome Web Store.</p>
+    <div class="card">
+      <p>
+        <a class="install-cta secondary" href="https://github.com/FreeDocStore/platform/releases/latest">Download latest release</a>
+      </p>
+      <p style="color: var(--text-muted); font-size: 13px; margin: 0;">
+        Pick the <code>freedocstore-v*.zip</code> asset on the latest release. The zip contains a ready-to-load <code>dist/</code> folder.
+      </p>
+    </div>
+  </section>
+
+  <section id="load-unpacked">
+    <h2>Load the .zip into Chrome</h2>
+    <p>Skip this section if you used the Chrome Web Store path.</p>
+    <ol>
+      <li>Unzip the downloaded <code>freedocstore-v*.zip</code>. You get a folder with <code>manifest.json</code> at the top level.</li>
+      <li>Open <code>chrome://extensions</code>.</li>
+      <li>Toggle <strong>Developer mode</strong> (top-right).</li>
+      <li>Click <strong>Load unpacked</strong>.</li>
+      <li>Pick the unzipped folder.</li>
+      <li>Pin the extension to your toolbar so the icon is always visible.</li>
+    </ol>
+    <div class="card">
+      <p style="margin: 0;"><strong>Heads up:</strong> Chrome shows a yellow "disable developer-mode extensions" banner every browser launch when you have unpacked extensions installed. The Chrome Web Store path avoids that. If the banner is annoying, switch to the store install once it's published.</p>
+    </div>
+  </section>
+
+  <section id="after-install">
+    <h2>After install</h2>
+    <ol>
+      <li>Open any FreeDocStore-enabled docs site.</li>
+      <li>Click the <strong>FreeDocStore</strong> toolbar icon. Chrome opens a side panel.</li>
+      <li>The banner under the header shows the repo and source path resolved from the URL.</li>
+      <li>Click the gear icon to open the options page and sign in with GitHub (one-time device-flow auth).</li>
+      <li>Pick a backend (Claude, OpenAI) and start chatting.</li>
+    </ol>
+    <p>For backend setup, auth, and what each adapter does, see <a href="extension.html">Extension</a>.</p>
+  </section>
+
+  <section id="updating">
+    <h2>Updating</h2>
+    <p><strong>Chrome Web Store install:</strong> Chrome auto-updates the extension in the background. Nothing to do.</p>
+    <p><strong>.zip install:</strong> download the new release, replace the unzipped folder in place, and click the <strong>Reload</strong> arrow on the FreeDocStore card in <code>chrome://extensions</code>.</p>
+  </section>
+
+</main>
+
+<footer>
+  <p>FreeDocStore - Install</p>
+  <p style="margin-top: 4px;">by Open Frontier One</p>
+</footer>
+
+</body>
+</html>

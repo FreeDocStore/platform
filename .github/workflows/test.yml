@@ -1,0 +1,57 @@
+name: Tests
+
+on:
+  pull_request:
+    paths:
+      - 'templates/search/scripts/**'
+      - 'tests/**'
+      - 'extension/**'
+      - '.github/workflows/test.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'templates/search/scripts/**'
+      - 'tests/**'
+      - 'extension/**'
+      - '.github/workflows/test.yml'
+
+jobs:
+  extension:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: extension
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Tests include generate-changelog end-to-end cases that walk
+          # real git history via initGitRepo in tmpdirs, plus docs-lint
+          # fixtures read from tests/fixtures/. Full history isn't required
+          # (fixtures are self-contained), but fetch-depth:0 keeps parity
+          # with the old pytest job in case future tests rely on blame/log.
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Configure git identity (needed for generate-changelog fixtures)
+        run: |
+          git config --global user.email "ci@example.com"
+          git config --global user.name "CI"
+          git config --global commit.gpgsign false
+
+      - name: Install
+        run: npm ci --no-audit --no-fund || npm install --no-audit --no-fund
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build
+
+      - name: Test
+        run: npm test
+
+      - name: Dead-code gate
+        run: npm run deadcode

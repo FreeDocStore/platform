@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow, noarchive, nosnippet">
+<meta name="googlebot" content="noindex, nofollow">
+<title>Components - FreeDocStore</title>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header class="topbar">
+  <button class="menu-toggle" onclick="document.querySelector('.sidebar').classList.toggle('open')" aria-label="Toggle menu">&#9776;</button>
+  <h1>
+    <a href="index.html"><img src="logo.svg" alt="Open Frontier One" class="topbar-logo"></a>
+    <span class="badge">FreeDocStore</span>
+  </h1>
+  <nav class="topbar-links">
+    <a href="components.html" class="active">Components</a>
+    <a href="content.html">Content</a>
+    <a href="writing.html">Writing</a>
+    <a href="infrastructure.html">Infrastructure</a>
+    <a href="extension.html">Extension</a>
+  </nav>
+</header>
+
+<nav class="sidebar" id="sidebar">
+  <div class="nav-group">
+    <div class="nav-group-title">On this page</div>
+    <a href="#topbar-nav">Topbar &amp; Sidebar</a>
+    <a href="#cards">Cards &amp; Grids</a>
+    <a href="#tables">Tables</a>
+    <a href="#typography">Typography</a>
+    <a href="#tags-callouts">Tags &amp; Callouts</a>
+  </div>
+</nav>
+
+<main class="content">
+  <section id="topbar-nav">
+    <h2>Topbar &amp; Sidebar</h2>
+
+    <h3>Topbar</h3>
+    <p>The topbar is the fixed header you see at the top. It always contains:</p>
+    <div class="grid-2">
+      <div class="card">
+        <h4>Structure</h4>
+        <ul>
+          <li><strong>Open Frontier One logo</strong> - always present, left-aligned, <strong>links to <code>index.html</code></strong>. Uses <code>logo.svg</code> with class <code>.topbar-logo</code></li>
+          <li><strong>Badge</strong> - project name in uppercase, accent-colored</li>
+          <li><strong>Hamburger menu</strong> - appears on mobile (&lt;900px)</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h4>HTML</h4>
+        <pre><code>&lt;header class="topbar"&gt;
+  &lt;button class="menu-toggle" ...&gt;&amp;#9776;&lt;/button&gt;
+  &lt;h1&gt;
+    &lt;a href="index.html"&gt;&lt;img src="logo.svg" alt="Open Frontier One" class="topbar-logo"&gt;&lt;/a&gt;
+    &lt;span class="badge"&gt;YOUR PROJECT&lt;/span&gt;
+  &lt;/h1&gt;
+&lt;/header&gt;</code></pre>
+      </div>
+    </div>
+
+    <h3>Topbar Navigation (Multi-Page Sites)</h3>
+    <p>When a site has multiple pages, add a <code>&lt;nav class="topbar-links"&gt;</code> inside the header. The <strong>core rule</strong>:</p>
+
+    <div class="callout">
+      <div class="callout-label">Topbar = which page, sidebar = where on this page</div>
+      <p style="margin:0;">The topbar switches between pages. The sidebar navigates within the current page. Never mix the two. The logo/badge always links to <code>index.html</code> - do <strong>not</strong> add a separate "Home", "Overview", or "Knowledge Base" text link in the topbar. Clicking the logo is how you go home.</p>
+    </div>
+
+    <h4>Pattern A: Flat Links (up to ~7 pages)</h4>
+    <p>For sites with a manageable number of pages, use flat links directly in the topbar.</p>
+    <div class="card highlight">
+      <pre><code>&lt;nav class="topbar-links"&gt;
+  &lt;a href="process.html"&gt;Process&lt;/a&gt;
+  &lt;a href="pricing.html" class="active"&gt;Pricing&lt;/a&gt;
+  &lt;a href="team-models.html"&gt;Team Models&lt;/a&gt;
+  &lt;a href="portfolio.html"&gt;Portfolio&lt;/a&gt;
+  &lt;a href="glossary.html"&gt;Glossary&lt;/a&gt;
+  &lt;a href="changelog.html"&gt;Log&lt;/a&gt;
+&lt;/nav&gt;</code></pre>
+      <p><strong>Example:</strong> a knowledge base, an internal handbook</p>
+    </div>
+
+    <h4>Pattern B: Dropdowns (8+ pages)</h4>
+    <p>When a site grows beyond ~7 pages, group related pages into dropdown menus using <code>nav.css</code>. Keep top-level items to 5&ndash;7 (mix of dropdowns and flat links).</p>
+    <div class="card highlight">
+      <pre><code>&lt;!-- Add nav.css alongside styles.css --&gt;
+&lt;link rel="stylesheet" href="nav.css"&gt;
+
+&lt;nav class="topbar-links"&gt;
+  &lt;div class="nav-drop"&gt;
+    &lt;a href="#" class="nav-drop-trigger"&gt;Product&lt;/a&gt;
+    &lt;div class="nav-drop-menu"&gt;
+      &lt;a href="concept.html"&gt;Concept&lt;/a&gt;
+      &lt;a href="dimensions.html" class="active"&gt;Dimensions&lt;/a&gt;
+      &lt;a href="factors.html"&gt;Factors&lt;/a&gt;
+    &lt;/div&gt;
+  &lt;/div&gt;
+  &lt;div class="nav-drop"&gt;
+    &lt;a href="#" class="nav-drop-trigger"&gt;Build&lt;/a&gt;
+    &lt;div class="nav-drop-menu"&gt;
+      &lt;a href="architecture.html"&gt;Architecture&lt;/a&gt;
+      &lt;a href="privacy.html"&gt;Privacy&lt;/a&gt;
+    &lt;/div&gt;
+  &lt;/div&gt;
+  &lt;a href="competitors.html"&gt;Competitors&lt;/a&gt;
+  &lt;a href="glossary.html"&gt;Glossary&lt;/a&gt;
+  &lt;a href="changelog.html"&gt;Log&lt;/a&gt;
+&lt;/nav&gt;</code></pre>
+      <p><strong>Examples:</strong> a product site (Platform, Identity, Risk dropdowns), a workflow handbook (Product, Build dropdowns)</p>
+    </div>
+
+    <p>Copy <code>templates/nav.css</code> into your <code>docs/</code> directory and link it after <code>styles.css</code>. The CSS handles hover/focus reveal, the down-arrow indicator, and dark-themed dropdown menus.</p>
+
+    <h4>Guidelines</h4>
+    <div class="grid-2">
+      <div class="card">
+        <h4>Do</h4>
+        <ul>
+          <li>Keep link labels short (1&ndash;2 words)</li>
+          <li>Limit visible top-level items to 5&ndash;7 (use dropdowns to stay under)</li>
+          <li>Set <code>class="active"</code> on the link matching the current page (inside dropdown menus too)</li>
+          <li>Use the same topbar HTML on every page in the site</li>
+          <li>Let the logo/badge be the only way to go home</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h4>Don't</h4>
+        <ul>
+          <li>Add an "Overview", "Home", or "Knowledge Base" link - the logo does this</li>
+          <li>Put section anchors (<code>#something</code>) in topbar - those belong in the sidebar</li>
+          <li>Use dropdowns with only 1&ndash;2 items - keep them flat</li>
+          <li>Exceed ~4 items per dropdown - split into two groups or promote some to flat links</li>
+          <li>Forget to update topbar links on all pages when adding a new chapter</li>
+        </ul>
+      </div>
+    </div>
+
+    <h4>Single-Page vs Multi-Page</h4>
+    <div class="grid-2">
+      <div class="card">
+        <h4>Single-Page Site (no topbar links)</h4>
+        <p>One <code>index.html</code>. All content in sections. Sidebar handles all navigation.</p>
+        <p><strong>Examples:</strong> a customer-facing knowledge base, an internal reference site</p>
+      </div>
+      <div class="card highlight">
+        <h4>Multi-Page Site (with topbar links)</h4>
+        <p>Multiple <code>.html</code> files. Topbar links switch between pages. Sidebar handles within-page navigation.</p>
+        <p><strong>Examples:</strong> small reference site (flat), engineering handbook (flat), product docs (dropdowns), commercial site (flat)</p>
+      </div>
+    </div>
+
+    <h3>Sidebar Navigation</h3>
+    <p>The sidebar groups links under uppercase category labels. Each link targets a <code>&lt;section id="..."&gt;</code> on the current page. The active link highlights automatically as you scroll.</p>
+
+    <h4>Index page sidebar</h4>
+    <p>On the main <code>index.html</code>, the sidebar groups the major sections of the overview page.</p>
+    <div class="card">
+      <pre><code>&lt;nav class="sidebar" id="sidebar"&gt;
+  &lt;div class="nav-group"&gt;
+    &lt;div class="nav-group-title"&gt;Overview&lt;/div&gt;
+    &lt;a href="#about"&gt;About&lt;/a&gt;
+    &lt;a href="#problem"&gt;Problem&lt;/a&gt;
+    &lt;a href="#solution"&gt;Solution&lt;/a&gt;
+  &lt;/div&gt;
+  &lt;div class="nav-group"&gt;
+    &lt;div class="nav-group-title"&gt;Resources&lt;/div&gt;
+    &lt;a href="#kb-map"&gt;KB Map&lt;/a&gt;
+  &lt;/div&gt;
+&lt;/nav&gt;</code></pre>
+    </div>
+
+    <h4>Sub-page sidebar</h4>
+    <p>On sub-pages, the sidebar shows an "On this page" group with anchors for that page's sections. No back link is needed - the logo and topbar handle navigation between pages.</p>
+    <div class="card">
+      <pre><code>&lt;nav class="sidebar" id="sidebar"&gt;
+  &lt;div class="nav-group"&gt;
+    &lt;div class="nav-group-title"&gt;On this page&lt;/div&gt;
+    &lt;a href="#overview"&gt;Overview&lt;/a&gt;
+    &lt;a href="#details"&gt;Details&lt;/a&gt;
+    &lt;a href="#status"&gt;Status&lt;/a&gt;
+  &lt;/div&gt;
+&lt;/nav&gt;</code></pre>
+    </div>
+
+    <div class="callout">
+      <div class="callout-label">No back links in sidebar</div>
+      <p style="margin:0;">Do <strong>not</strong> add a "&#8592; Knowledge Base" or "&#8592; Overview" link in the sidebar. The topbar and logo already provide navigation between pages. Adding back-links clutters the sidebar and creates an inconsistency - is it a section anchor or a page link? Keep it clean: <strong>sidebar = anchors on this page, only</strong>.</p>
+    </div>
+  </section>
+
+  <section id="cards">
+    <h2>Cards &amp; Grids</h2>
+    <p>Cards are the primary content container. Use them to group related information.</p>
+
+    <h3>Basic Card</h3>
+    <p>A standard card with a border. This is one:</p>
+    <div class="card">
+      <h4>This Is a Basic Card</h4>
+      <p style="margin:0;">Use <code>.card</code> for general content blocks. Add a heading with <code>&lt;h4&gt;</code> and content below it.</p>
+    </div>
+
+    <h3>Highlighted Card</h3>
+    <p>Add <code>.highlight</code> for emphasis - accent-colored border and subtle background tint:</p>
+    <div class="card highlight">
+      <h4>This Is a Highlighted Card</h4>
+      <p style="margin:0;">Use <code>.card.highlight</code> for important content, key takeaways, or primary actions.</p>
+    </div>
+
+    <h3>Grid Layouts</h3>
+    <p>Place cards in a grid using <code>.grid-2</code> (two columns) or <code>.grid-3</code> (three columns). Grids collapse to single column on mobile.</p>
+    <div class="grid-3">
+      <div class="card">
+        <h4>Grid Column 1</h4>
+        <p style="margin:0;"><code>.grid-3</code> gives you three equal columns.</p>
+      </div>
+      <div class="card">
+        <h4>Grid Column 2</h4>
+        <p style="margin:0;">Each child element becomes a column.</p>
+      </div>
+      <div class="card">
+        <h4>Grid Column 3</h4>
+        <p style="margin:0;">Collapses to single column on mobile.</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <h4>HTML</h4>
+      <pre><code>&lt;div class="grid-2"&gt;
+  &lt;div class="card"&gt;...&lt;/div&gt;
+  &lt;div class="card"&gt;...&lt;/div&gt;
+&lt;/div&gt;
+
+&lt;div class="grid-3"&gt;
+  &lt;div class="card"&gt;...&lt;/div&gt;
+  &lt;div class="card"&gt;...&lt;/div&gt;
+  &lt;div class="card"&gt;...&lt;/div&gt;
+&lt;/div&gt;</code></pre>
+    </div>
+  </section>
+
+  <section id="tables">
+    <h2>Tables</h2>
+    <p>Use tables for structured data: tech stacks, environment variables, API endpoints, comparisons. Always wrap in <code>.table-wrap</code> for horizontal scroll on small screens.</p>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Class</th><th>Purpose</th><th>When to Use</th></tr></thead>
+        <tbody>
+          <tr><td><code>.table-wrap</code></td><td>Scrollable container</td><td>Always - wrap every table</td></tr>
+          <tr><td><code>&lt;th&gt;</code></td><td>Column header</td><td>Always - first row of every table</td></tr>
+          <tr><td><code>&lt;td&gt;</code></td><td>Data cell</td><td>For each piece of data</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <h4>HTML</h4>
+      <pre><code>&lt;div class="table-wrap"&gt;
+  &lt;table&gt;
+    &lt;thead&gt;&lt;tr&gt;&lt;th&gt;Column 1&lt;/th&gt;&lt;th&gt;Column 2&lt;/th&gt;&lt;/tr&gt;&lt;/thead&gt;
+    &lt;tbody&gt;
+      &lt;tr&gt;&lt;td&gt;Data&lt;/td&gt;&lt;td&gt;Data&lt;/td&gt;&lt;/tr&gt;
+    &lt;/tbody&gt;
+  &lt;/table&gt;
+&lt;/div&gt;</code></pre>
+    </div>
+  </section>
+
+  <section id="typography">
+    <h2>Typography</h2>
+    <p>Consistent heading hierarchy keeps content scannable.</p>
+
+    <div class="card">
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Element</th><th>Styling</th><th>Usage</th></tr></thead>
+          <tbody>
+            <tr><td><code>&lt;h2&gt;</code></td><td>22px, white, accent underline</td><td>Section titles - one per <code>&lt;section&gt;</code></td></tr>
+            <tr><td><code>&lt;h3&gt;</code></td><td>17px, accent-colored</td><td>Subsection titles within a section</td></tr>
+            <tr><td><code>&lt;h4&gt;</code></td><td>15px, white</td><td>Card headings, small groupings</td></tr>
+            <tr><td><code>&lt;p&gt;</code></td><td>15px, light gray</td><td>Body text</td></tr>
+            <tr><td><code>&lt;code&gt;</code></td><td>13px, monospace, dark bg</td><td>Inline code, file names, commands</td></tr>
+            <tr><td><code>&lt;pre&gt;&lt;code&gt;</code></td><td>Block code with padding</td><td>Code examples, shell commands</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <blockquote>Blockquotes use a left accent border and italic text. Use them for important notes or quotes.</blockquote>
+  </section>
+
+  <section id="tags-callouts">
+    <h2>Tags &amp; Callouts</h2>
+
+    <h3>Tags</h3>
+    <p>Small inline labels for categorization:</p>
+    <div class="card">
+      <p>
+        <span class="tag tag-primary">Primary</span> - use <code>.tag.tag-primary</code> for core/important items<br>
+        <span class="tag tag-secondary">Secondary</span> - use <code>.tag.tag-secondary</code> for supplementary items<br>
+        <span class="tag tag-lang">Category</span> - use <code>.tag.tag-lang</code> for categories or tech labels
+      </p>
+    </div>
+
+    <h3>Callouts</h3>
+    <p>For important notes that need to stand out from normal content:</p>
+    <div class="callout">
+      <div class="callout-label">This is a callout</div>
+      <p style="margin:0;">Use <code>.callout</code> with a <code>.callout-label</code> for key information, tips, or warnings. It has an accent border and subtle background.</p>
+    </div>
+  </section>
+</main>
+
+<footer>
+  FreeDocStore &middot; by Open Frontier One
+</footer>
+
+<script>
+  const sections = document.querySelectorAll('section[id]');
+  const navLinks = document.querySelectorAll('.sidebar a');
+  window.addEventListener('scroll', () => {
+    let current = '';
+    sections.forEach(s => {
+      if (window.scrollY >= s.offsetTop - 100) current = s.getAttribute('id');
+    });
+    navLinks.forEach(a => {
+      a.classList.toggle('active', a.getAttribute('href') === '#' + current);
+    });
+  });
+</script>
+</body>
+</html>

@@ -1,0 +1,116 @@
+{
+  "_comment": "Single source of truth for the Glassdocs add-on catalog. Read by the Glassdocs extension (system prompt + Options UI). Add-ons are toggled ONLY by the chat agent - never edit features.json by hand. See .github/VISION.md.",
+  "addOns": [
+    {
+      "key": "search",
+      "name": "Search",
+      "description": "Client-side full-text search via Pagefind. Adds a search box to the topbar and a keyboard shortcut (Cmd/Ctrl+K).",
+      "generates": "Pagefind index + search UI on every page",
+      "askPrompts": [
+        "enable search on this site",
+        "turn off search"
+      ]
+    },
+    {
+      "key": "nav",
+      "name": "Topbar nav",
+      "description": "Renders the site topbar from a single docs/nav.json file. One source of truth for menu items, with auto-validation that every page is either in the nav or in navSkip.",
+      "generates": "Injected nav block in every docs/*.html page at deploy time",
+      "askPrompts": [
+        "enable the nav add-on",
+        "use a managed topbar"
+      ]
+    },
+    {
+      "key": "changelog",
+      "name": "Changelog",
+      "description": "Auto-generates a changelog page from git commit history. Categorises changes by file type. Skips commits with [skip ci] (or any of the GitHub skip-CI directives).",
+      "generates": "docs/changelog.html",
+      "askPrompts": [
+        "enable the changelog",
+        "turn off the auto changelog"
+      ]
+    },
+    {
+      "key": "sitemap",
+      "name": "Sitemap",
+      "description": "Auto-generates a sitemap page indexing every page on the site, with summaries pulled from the head of each file.",
+      "generates": "docs/sitemap.html",
+      "askPrompts": [
+        "enable the sitemap",
+        "show me what pages are on this site"
+      ]
+    },
+    {
+      "key": "pageMeta",
+      "name": "Page metadata",
+      "description": "Adds a small footer to every page with the last-updated date (from git) and an Edit on GitHub link.",
+      "generates": "Footer block injected into every docs/*.html page",
+      "askPrompts": [
+        "add edit-on-github links",
+        "show last-updated dates on each page"
+      ]
+    },
+    {
+      "key": "references",
+      "name": "References",
+      "description": "Renders docs/references/index.html from a manifest.json catalog of downloadable source files (PDFs, decks, attachments) with title, description, tags, and upload date.",
+      "generates": "docs/references/index.html (when docs/references/manifest.json exists)",
+      "askPrompts": [
+        "set up a references page",
+        "show downloadable source files"
+      ]
+    },
+    {
+      "key": "toc",
+      "name": "Table of contents",
+      "description": "Auto-generates a per-page 'On this page' panel from h2/h3 headings inside <main>. Inserts smooth-scroll anchor links and ensures every targeted heading has an id. Skips pages with fewer than 2 headings or with the <!-- @no-toc --> marker.",
+      "generates": "Inline <aside class=\"auto-toc\"> block injected into every qualifying docs/*.html page at deploy time",
+      "askPrompts": [
+        "enable table of contents on each page",
+        "turn off the per-page toc"
+      ]
+    },
+    {
+      "key": "codeBlocks",
+      "name": "Code blocks",
+      "description": "Adds a hover-revealed Copy button to every <pre> block in <main>, plus Prism syntax highlighting for <pre><code class=\"language-foo\"> blocks. Bundled languages: html, css, javascript, typescript, bash, json, yaml, python, go, rust. Self-hosted assets (no CDN, no CSP changes). Per-page opt-out via <!-- @no-codeblocks -->.",
+      "generates": "Inline style+script block injected into <head> of pages with <pre> in <main>; Prism JS+CSS copied into docs/codeblocks/",
+      "askPrompts": [
+        "enable syntax highlighting and copy buttons on code blocks",
+        "turn off code-block copy buttons"
+      ]
+    },
+    {
+      "key": "callouts",
+      "name": "Callouts",
+      "description": "Styled blocks for Note, Tip, Warning, Danger via class shortcuts. Author writes <div class=\"callout warn\">...</div> and gets a coloured left-border box with an icon. Pure CSS, no JS, no images. Variants: note (blue), info (alias for note), tip (green), warn (amber), danger (red). Optional title row via <strong class=\"callout-title\">.",
+      "generates": "Inline <style> block injected into <head> of pages that use any .callout class",
+      "askPrompts": [
+        "enable callouts (note, tip, warn, danger blocks)",
+        "turn off callouts"
+      ]
+    },
+    {
+      "key": "prevNext",
+      "name": "Prev/Next nav",
+      "description": "Adds a Previous / Next link pair at the end of every page that appears in nav.json, using the order of nav entries as the sequential reading flow. First page has no Prev, last has no Next. Pages outside nav (404, sitemap, changelog) are skipped. Per-page opt-out via <!-- @no-prev-next -->.",
+      "generates": "Inline <style> + <nav class=\"prev-next\"> block injected just before </main> on every page in nav.json",
+      "askPrompts": [
+        "enable prev/next page navigation",
+        "turn off the prev/next links"
+      ]
+    },
+    {
+      "key": "branding",
+      "name": "Branding",
+      "description": "Sitewide brand customisation. Reads features.json.branding (logo, logoAlt, accent, lineColor, text, bg, textMuted) and injects CSS variables into <head> + rewrites the topbar logo src/alt across every page. CSS vars cascade-override the playbook's default styles.css values, so any subset of keys can be set. Use to skin the playbook for a client or a specific project.",
+      "generates": "Inline <style id=\"branding-vars\"> block in <head> (when colors are set) + rewritten <img class=\"topbar-logo\"> on every page (when logo or logoAlt is set)",
+      "askPrompts": [
+        "set the brand color to #ff5722",
+        "change the line color to #444",
+        "use logo.svg as the brand logo"
+      ]
+    }
+  ]
+}

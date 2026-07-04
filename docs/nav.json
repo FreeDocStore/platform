@@ -1,0 +1,13 @@
+{
+  "items": [
+    { "href": "components.html",     "label": "Components" },
+    { "href": "content.html",        "label": "Content" },
+    { "href": "writing.html",        "label": "Writing" },
+    { "href": "infrastructure.html", "label": "Infrastructure" },
+    { "href": "extension.html",      "label": "Extension" },
+    { "href": "install.html",        "label": "Install" }
+  ],
+  "navSkip": [
+    "index.html"
+  ]
+}

@@ -1,0 +1,845 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Infrastructure - FreeDocStore</title>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header class="topbar">
+  <button class="menu-toggle" onclick="document.querySelector('.sidebar').classList.toggle('open')" aria-label="Toggle menu">&#9776;</button>
+  <h1>
+    <a href="index.html"><img src="logo.svg" alt="Open Frontier One" class="topbar-logo"></a>
+    <span class="badge">FreeDocStore</span>
+  </h1>
+  <nav class="topbar-links">
+    <a href="components.html">Components</a>
+    <a href="content.html">Content</a>
+    <a href="writing.html">Writing</a>
+    <a href="infrastructure.html" class="active">Infrastructure</a>
+    <a href="extension.html">Extension</a>
+  </nav>
+</header>
+
+<nav class="sidebar" id="sidebar">
+  <div class="nav-group">
+    <div class="nav-group-title">On this page</div>
+    <a href="#deployment">Deployment &amp; CI/CD</a>
+    <a href="#reusable-workflows">Reusable Workflows</a>
+    <a href="#quality">Quality &amp; Safety</a>
+    <a href="#cloudflare-pages">Cloudflare Pages</a>
+    <a href="#zero-trust">Zero Trust &amp; Access</a>
+  </div>
+</nav>
+
+<main class="content">
+
+  <!-- DEPLOYMENT & CI/CD -->
+  <section id="deployment">
+    <h2>Deployment &amp; CI/CD</h2>
+    <p>Every repo deploys to Cloudflare Pages via a <strong>centralised reusable workflow</strong> in FreeDocStore. Each repo's <code>docs-deploy.yml</code> is just a thin caller - all deployment logic, Access protection, and rollback lives in one place.</p>
+
+    <h3>Standard Workflows</h3>
+    <div class="card highlight">
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Workflow</th><th>Location</th><th>What It Does</th></tr></thead>
+          <tbody>
+            <tr><td><strong>deploy-pages.yml</strong></td><td>FreeDocStore (reusable)</td><td>Secure-by-default deploy: Access &rarr; pre-flight &rarr; deploy &rarr; verify</td></tr>
+            <tr><td><strong>docs-deploy.yml</strong></td><td>Each repo (caller)</td><td>Calls <code>deploy-pages.yml</code> with project name</td></tr>
+            <tr><td><strong>claude.yml</strong></td><td>Each repo</td><td>Claude Code Action (<code>@claude</code> in issues/PRs)</td></tr>
+            <tr><td><strong>claude-code-review.yml</strong></td><td>Each repo</td><td>Automated code review via Claude</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <h3>Publishing a New Site - Step by Step</h3>
+    <div class="card highlight">
+      <h4>1. Create docs/ and add content</h4>
+      <pre><code>mkdir docs
+cp freedocstore/docs/index.html docs/index.html
+# Edit title, badge text, sidebar nav, and content</code></pre>
+    </div>
+    <div class="card highlight">
+      <h4>2. Create docs-deploy.yml - just set your project name</h4>
+      <pre><code>mkdir -p .github/workflows
+cp freedocstore/templates/workflows/docs-deploy.yml .github/workflows/</code></pre>
+      <p>Then edit <code>docs-deploy.yml</code> - only one value to change:</p>
+      <pre><code>name: Docs Deploy
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    uses: FreeDocStore/platform/.github/workflows/deploy-pages.yml@main
+    with:
+      project-name: your-project-name
+    secrets: inherit</code></pre>
+    </div>
+    <div class="card highlight">
+      <h4>3. Push to main</h4>
+      <pre><code>git add docs/ .github/workflows/
+git commit -m "Add docs site and docs-deploy workflow"
+git push origin main
+# GitHub Actions deploys automatically
+# Access protection is created automatically on first deploy</code></pre>
+    </div>
+
+    <h3>Feature Flags (<code>docs/features.json</code>)</h3>
+    <p>Deploy-time add-ons (changelog, sitemap, nav, search, toc, codeBlocks, etc.) are toggled via a single <code>docs/features.json</code> per KB. Drop the file in, list the add-ons you want on, and the reusable workflow reads it at deploy time. Missing keys fall through to the corresponding workflow input (legacy KBs that haven't migrated yet keep working). Schema: <code>templates/features.schema.json</code> in FreeDocStore; canonical catalog with descriptions: <code>templates/add-ons.json</code> (read by the chat extension's system prompt and Options UI).</p>
+    <div class="card">
+      <pre><code>{
+  "$schema": "https://raw.githubusercontent.com/FreeDocStore/platform/main/templates/features.schema.json",
+  "changelog": true,
+  "sitemap": true,
+  "pageMeta": true,
+  "references": false,
+  "nav": true,
+  "search": true,
+  "toc": true,
+  "codeBlocks": true,
+  "callouts": true,
+  "prevNext": true,
+  "branding": {
+    "logo": "logo.svg",
+    "accent": "#06f4b1",
+    "lineColor": "#2a2e3d"
+  }
+}</code></pre>
+    </div>
+    <p>Why one JSON per KB instead of flags in each repo's <code>docs-deploy.yml</code>? Discoverability (one file tells you what this site does), git history that's not buried in CI syntax, and the same file can later drive runtime behaviour if we want (e.g., the chat extension reading it to adapt). Secrets and CI-only concerns (Access email lists, office CIDRs) stay in YAML where they belong.</p>
+
+    <h4>Available Features</h4>
+    <div class="card highlight">
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Key</th><th>What it does</th><th>Turns on via chat</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><code>changelog</code></td>
+              <td>Generates <code>docs/changelog.html</code> from git history (one card per commit, grouped by file type, with AEST timestamps). Add a <em>Log</em> link to your topbar to surface it.</td>
+              <td><em>"enable the changelog feature"</em></td>
+            </tr>
+            <tr>
+              <td><code>sitemap</code></td>
+              <td>Generates <code>docs/sitemap.html</code> listing every page grouped by topbar section, with title + first paragraph as the summary. Auto-linked, no manual maintenance.</td>
+              <td><em>"turn on sitemap"</em></td>
+            </tr>
+            <tr>
+              <td><code>pageMeta</code></td>
+              <td>Injects a footer block into every <code>docs/*.html</code> with a <em>"Updated &lt;date&gt;"</em> stamp (from <code>git log -1</code>) and an <em>"Edit on GitHub"</em> link. Auto-detects the repo from the origin remote.</td>
+              <td><em>"enable page metadata"</em></td>
+            </tr>
+            <tr>
+              <td><code>references</code></td>
+              <td>Generates <code>docs/references/index.html</code> from <code>docs/references/manifest.json</code>. Use for downloadable attachments (PDFs, DOCX). No-op when the manifest is absent.</td>
+              <td><em>"turn on references"</em></td>
+            </tr>
+            <tr>
+              <td><code>nav</code></td>
+              <td>Renders the topbar from <code>docs/nav.json</code> on every page instead of hand-maintaining per-page markup. Enforces two lint rules at deploy: every page must appear in nav or <code>navSkip</code>; every href must resolve. See <a href="#nav-configuration">Nav Configuration</a>.</td>
+              <td><em>"enable nav rendering"</em></td>
+            </tr>
+            <tr>
+              <td><code>search</code></td>
+              <td>Pagefind client-side search. Injects the search input into the topbar, builds a WASM-backed index at deploy time. Works offline after first load, no server required.</td>
+              <td><em>"turn on search"</em></td>
+            </tr>
+            <tr>
+              <td><code>toc</code></td>
+              <td>Auto-generates an "On this page" panel from <code>h2</code>/<code>h3</code> headings inside <code>&lt;main&gt;</code>. Inserts smooth-scroll anchor links and ensures every targeted heading has an <code>id</code>. Skips pages with fewer than 2 headings or marked <code>&lt;!-- @no-toc --&gt;</code>. Pair with <code>tocPlacement: "rail"</code> for the React/Tailwind/Stripe-style sticky right-side panel; default <code>"inline"</code> is a banner at the top of <code>&lt;main&gt;</code>.</td>
+              <td><em>"enable table of contents on each page"</em></td>
+            </tr>
+            <tr>
+              <td><code>codeBlocks</code></td>
+              <td>Hover-revealed Copy buttons on every <code>&lt;pre&gt;</code> block in <code>&lt;main&gt;</code>, plus Prism syntax highlighting for <code>&lt;pre&gt;&lt;code class="language-foo"&gt;</code>. Bundled languages: html, css, javascript, typescript, bash, json, yaml, python, go, rust. Self-hosted (no CDN, no CSP changes). Per-page opt-out via <code>&lt;!-- @no-codeblocks --&gt;</code>. (Legacy <code>codeblocks</code> key still works as a backward-compat alias.)</td>
+              <td><em>"add copy buttons and syntax highlighting to code blocks"</em></td>
+            </tr>
+            <tr>
+              <td><code>callouts</code></td>
+              <td>Styled boxes for <code>Note</code>, <code>Tip</code>, <code>Warning</code>, <code>Danger</code> via class shortcuts. Author writes <code>&lt;div class="callout warn"&gt;...&lt;/div&gt;</code> and gets a coloured left-border box with an icon. Pure CSS, no JS, no images. Variants: <code>note</code> (blue), <code>info</code> (alias for note), <code>tip</code> (green), <code>warn</code> (amber), <code>danger</code> (red).</td>
+              <td><em>"enable callouts (note, tip, warn, danger blocks)"</em></td>
+            </tr>
+            <tr>
+              <td><code>prevNext</code></td>
+              <td>Adds Previous / Next links at the end of every page that appears in <code>docs/nav.json</code>, using nav order as the sequential reading flow. First page has no Prev, last has no Next. Pages outside nav (404, sitemap, changelog) are skipped. Per-page opt-out via <code>&lt;!-- @no-prev-next --&gt;</code>.</td>
+              <td><em>"enable prev/next page navigation"</em></td>
+            </tr>
+            <tr>
+              <td><code>branding</code></td>
+              <td>Sitewide brand customisation: any subset of <code>logo</code>, <code>logoAlt</code>, <code>accent</code>, <code>lineColor</code>, <code>text</code>, <code>bg</code>, <code>textMuted</code>. Injects CSS variables into <code>&lt;head&gt;</code> + rewrites the topbar logo <code>src</code>/<code>alt</code>. Configured via the <code>branding</code> object in <code>features.json</code> (not a boolean toggle).</td>
+              <td><em>"set the brand color to #ff5722"</em></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <h4>How to enable a feature</h4>
+    <p>Three routes, pick whichever fits your workflow:</p>
+    <div class="grid-2">
+      <div class="card">
+        <h4>Via chat (fastest)</h4>
+        <p>Open the FreeDocStore side panel on your KB, switch to <strong>Edit</strong> mode, and prompt:</p>
+        <pre><code>turn on sitemap and pageMeta</code></pre>
+        <p>The agent reads <code>docs/features.json</code>, toggles the keys, and shows a preview. Click Apply to open a PR (or push directly, per your commit-mode setting).</p>
+      </div>
+      <div class="card">
+        <h4>Edit <code>docs/features.json</code> by hand</h4>
+        <pre><code>{
+  "sitemap": true,
+  "pageMeta": true
+}</code></pre>
+        <p>Commit + push. Cloudflare Pages redeploys within ~30 s and the feature kicks in. Keys you don't set fall through to the defaults in your <code>docs-deploy.yml</code>.</p>
+      </div>
+    </div>
+
+    <h4>How to request a NEW add-on</h4>
+    <p>An add-on not in the table above is a FreeDocStore change, not a per-KB change. New add-ons need coordinated edits across multiple files: an entry in <code>templates/add-ons.json</code> (catalog), a property in <code>templates/features.schema.json</code>, a generator script in <code>templates/search/scripts/</code>, a gated step in <code>.github/workflows/deploy-pages.yml</code>, and tests in <code>extension/tests/</code>. File an issue on <code>FreeDocStore/platform</code> describing the add-on + the shape of its output, and either open a PR or ask the FreeDocStore agent (Edit mode) to scaffold it. <code>inject-toc.mjs</code> and <code>inject-codeblocks.mjs</code> are the cleanest reference implementations to copy from.</p>
+
+    <h3>Reusable Workflow Options</h3>
+    <p>The centralised workflow (<code>deploy-pages.yml</code>) accepts these inputs. Any value also expressible via <code>features.json</code> is documented as such; the file wins when both are set.</p>
+    <div class="card">
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Input</th><th>Required</th><th>Default</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>project-name</code></td><td>Yes</td><td>&mdash;</td><td>Cloudflare Pages project name (becomes <code>&lt;name&gt;.pages.dev</code>)</td></tr>
+            <tr><td><code>deploy-dir</code></td><td>No</td><td><code>docs</code></td><td>Directory to deploy</td></tr>
+            <tr><td><code>fetch-brand-assets</code></td><td>No</td><td><code>true</code></td><td>Pull styles.css, logo.svg, favicon.svg, nav.css, robots.txt, _headers from FreeDocStore at deploy time</td></tr>
+            <tr><td><code>wrangler-version</code></td><td>No</td><td>latest</td><td>Pin a specific Wrangler version</td></tr>
+            <tr><td><code>pre-deploy-steps</code></td><td>No</td><td><code>[]</code></td><td>JSON array of shell commands to run before deploy (builds, PDF generation, etc.)</td></tr>
+            <tr><td><code>generate-changelog</code></td><td>No</td><td><code>false</code></td><td>Auto-generate <code>changelog.html</code> from git history at deploy time</td></tr>
+            <tr><td><code>generate-sitemap</code></td><td>No</td><td><code>false</code></td><td>Auto-generate <code>sitemap.html</code> indexing all pages at deploy time</td></tr>
+            <tr><td><code>inject-page-meta</code></td><td>No</td><td><code>false</code></td><td>Inject last-updated stamps and "Edit on GitHub" links into page footers</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <h4>Examples</h4>
+    <div class="grid-2">
+      <div class="card">
+        <h4>Minimal (most repos)</h4>
+        <pre><code>with:
+  project-name: your-pages-project</code></pre>
+      </div>
+      <div class="card">
+        <h4>With generators</h4>
+        <pre><code>with:
+  project-name: your-other-project
+  generate-changelog: true
+  generate-sitemap: true
+  inject-page-meta: true</code></pre>
+      </div>
+    </div>
+
+    <div class="callout">
+      <div class="callout-label">Generators live in FreeDocStore, not in your repo</div>
+      <p style="margin:0;">Changelog, sitemap, and page-meta scripts are maintained centrally in FreeDocStore and run automatically by the reusable workflow when you enable the flags above. <strong>Do not copy generator scripts into individual repos.</strong> If you need custom build steps that are truly project-specific, use <code>pre-deploy-steps</code> instead.</p>
+    </div>
+
+    <h3>Secure-by-Default Deployment</h3>
+    <p>All Open Frontier One sites use a <strong>secure-by-default</strong> deployment workflow. No site is ever publicly accessible - the workflow enforces this with a 4-step guarantee:</p>
+
+    <div class="card highlight">
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Step</th><th>What It Does</th><th>If It Fails</th></tr></thead>
+          <tbody>
+            <tr><td><strong>1. Ensure Access</strong></td><td>Creates/verifies Cloudflare Access app + <code>@your-company.com</code> policy</td><td>Deployment blocked</td></tr>
+            <tr><td><strong>2. Pre-flight</strong></td><td>Curls the live URL - must NOT return HTTP 200 (public)</td><td>Deployment blocked</td></tr>
+            <tr><td><strong>3. Deploy</strong></td><td>Pushes to Cloudflare Pages via Wrangler</td><td>Workflow fails</td></tr>
+            <tr><td><strong>4. Post-deploy</strong></td><td>Curls the live URL again - must NOT return HTTP 200</td><td>Deployment rolled back (deleted)</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="callout">
+      <div class="callout-label">Hard rule</div>
+      <p style="margin:0;">If anything fails, the site stays down. A broken deploy is better than a public deploy. All four steps live in <code>deploy-pages.yml</code> in this repo - no repo can skip or override them. To change deployment behaviour, update the reusable workflow once and every repo picks it up automatically.</p>
+    </div>
+
+    <h4>How it works</h4>
+    <div class="grid-2">
+      <div class="card">
+        <h4>Pre-flight check</h4>
+        <p>Before deploying, the workflow curls the site. If it returns <code>200</code> (publicly accessible), the deploy is blocked. Expected responses:</p>
+        <ul>
+          <li><code>302/303</code> - Access login redirect (protected, good)</li>
+          <li><code>000</code> - Site doesn't exist yet (first deploy, safe)</li>
+          <li><code>4xx/5xx</code> - Site is down (safe to proceed)</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h4>Post-deploy rollback</h4>
+        <p>After deploying, the workflow curls the site again. If it returns <code>200</code>, the latest deployment is automatically <strong>deleted</strong> via the Cloudflare API, taking the site down immediately.</p>
+      </div>
+    </div>
+
+    <h4>Customise one value</h4>
+    <div class="card">
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Value</th><th>Change To</th><th>Example</th></tr></thead>
+          <tbody>
+            <tr><td><code>PROJECT_NAME</code> (env var)</td><td>Your Cloudflare Pages project name</td><td><code>your-pages-project</code></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>The domain, Access app name, and policy are all derived from <code>PROJECT_NAME</code> automatically.</p>
+    </div>
+
+    <h3>Required Secrets</h3>
+    <p>Configure these at your GitHub org or repo level. The reusable deploy workflow expects them by name.</p>
+    <div class="card highlight">
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Secret</th><th>Used By</th><th>Notes</th></tr></thead>
+          <tbody>
+            <tr><td><code>CLOUDFLARE_API_TOKEN</code></td><td>deploy + Access step</td><td>Scope to Pages + Access (Read/Edit)</td></tr>
+            <tr><td><code>CLOUDFLARE_ACCOUNT_ID</code></td><td>deploy + Access step</td><td>Your Cloudflare account ID</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <h3>Cloudflare Pages Conventions</h3>
+    <div class="grid-2">
+      <div class="card">
+        <h4>Project Naming</h4>
+        <ul>
+          <li>Project name = repo name</li>
+          <li>URL becomes: <code>{project-name}.pages.dev</code></li>
+          <li>Example: repo <code>your-repo</code> &rarr; <code>your-repo.pages.dev</code></li>
+        </ul>
+      </div>
+      <div class="card">
+        <h4>Deploy Directory</h4>
+        <ul>
+          <li>Always deploy from <code>docs/</code></li>
+          <li>No build step needed - static HTML</li>
+          <li>Add <code>docs/_headers</code> for custom headers if needed</li>
+          <li><strong><code>docs/</code> must be self-contained</strong> - all publishing scripts, assets, and build tools live inside it (e.g. <code>docs/scripts/</code>), never in the repo root</li>
+        </ul>
+      </div>
+    </div>
+
+  </section>
+
+  <section id="reusable-workflows">
+    <h2>How Reusable Workflows Work</h2>
+    <p>GitHub Actions supports <strong>reusable workflows</strong> - a workflow in one repo that other repos can call like a function. This is how every repo deploys with a single line of config while all logic lives in FreeDocStore.</p>
+
+    <h3>The Concept</h3>
+    <div class="grid-2">
+      <div class="card highlight">
+        <h4>Reusable Workflow (callee)</h4>
+        <p>Lives in FreeDocStore at <code>.github/workflows/deploy-pages.yml</code>. Declares <code>on: workflow_call</code> instead of <code>on: push</code>. Defines inputs (like function parameters) and runs all the actual deployment logic.</p>
+        <pre><code># deploy-pages.yml (in freedocstore)
+on:
+  workflow_call:
+    inputs:
+      project-name:
+        required: true
+        type: string
+      deploy-dir:
+        required: false
+        type: string
+        default: "docs"</code></pre>
+      </div>
+      <div class="card highlight">
+        <h4>Caller Workflow</h4>
+        <p>Lives in each project repo at <code>.github/workflows/docs-deploy.yml</code>. A thin wrapper that triggers on <code>push</code> and calls the reusable workflow with a project name.</p>
+        <pre><code># docs-deploy.yml (in each repo)
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    uses: FreeDocStore/platform/.github/workflows/deploy-pages.yml@main
+    with:
+      project-name: your-pages-project
+    secrets: inherit</code></pre>
+      </div>
+    </div>
+
+    <h3>How <code>workflow_call</code> Works</h3>
+    <div class="card">
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Concept</th><th>What It Means</th><th>Our Usage</th></tr></thead>
+          <tbody>
+            <tr><td><code>on: workflow_call</code></td><td>Makes a workflow callable by other workflows (like exporting a function)</td><td><code>deploy-pages.yml</code> declares this trigger</td></tr>
+            <tr><td><code>uses: owner/repo/.github/workflows/file.yml@ref</code></td><td>Calls a reusable workflow from another repo at a specific git ref</td><td>Each repo calls <code>FreeDocStore/platform/...@main</code></td></tr>
+            <tr><td><code>inputs:</code></td><td>Typed parameters the caller must/can provide (string, boolean, number)</td><td><code>project-name</code> (required), <code>deploy-dir</code>, <code>fetch-brand-assets</code>, etc.</td></tr>
+            <tr><td><code>secrets: inherit</code></td><td>Passes all of the caller's secrets to the reusable workflow automatically</td><td>Passes <code>CLOUDFLARE_API_TOKEN</code> and <code>CLOUDFLARE_ACCOUNT_ID</code> from org secrets</td></tr>
+            <tr><td><code>@main</code> ref</td><td>Always uses the latest version on the <code>main</code> branch</td><td>Every repo gets updates automatically when changes land in FreeDocStore</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="callout">
+      <div class="callout-label">Why @main instead of tags</div>
+      <p style="margin:0;">Repos referencing <code>@main</code> - this means any push to <code>deploy-pages.yml</code> in FreeDocStore immediately affects every repo's next deploy. This is convenient but risky: a broken commit breaks all deploys. <a href="https://github.com/FreeDocStore/platform/issues/6">Issue #6</a> tracks moving to tagged releases (<code>@v1</code>, <code>@v2</code>) so repos can pin to a known-good version and upgrade deliberately.</p>
+    </div>
+
+    <h3>How <code>secrets: inherit</code> Works</h3>
+    <div class="card">
+      <p>When a caller workflow specifies <code>secrets: inherit</code>, GitHub automatically passes <strong>all secrets available to the caller</strong> into the reusable workflow. For Open Frontier One repos:</p>
+      <ol>
+        <li><strong>Org-level secrets</strong> (<code>CLOUDFLARE_API_TOKEN</code>, <code>CLOUDFLARE_ACCOUNT_ID</code>, <code>SLACK_TOKEN</code>, <code>SLACK_CHANNEL</code>) are set on the TheRocketLab GitHub organisation and available to all repos</li>
+        <li><strong>Repo-level secrets</strong> (<code>ANTHROPIC_API_KEY</code>) are set per-repo and only available in that repo</li>
+        <li>The reusable workflow accesses them via <code>${{ secrets.CLOUDFLARE_API_TOKEN }}</code> - same syntax as normal workflows</li>
+      </ol>
+      <p>The alternative is declaring each secret explicitly in the <code>workflow_call</code> definition, but <code>inherit</code> is simpler when you trust the caller.</p>
+    </div>
+
+    <h3>Cross-Repo Permissions</h3>
+    <div class="card">
+      <p>For <code>uses: FreeDocStore/platform/...@main</code> to work:</p>
+      <ul>
+        <li>The <strong>FreeDocStore</strong> repo must be <strong>internal or public</strong> within the org (private repos cannot share reusable workflows unless you enable "Accessible from repositories in the organisation" under Actions settings)</li>
+        <li>The caller repo's Actions settings must allow workflows from TheRocketLab</li>
+        <li>The <code>permissions:</code> block in the reusable workflow defines what GitHub token scopes it needs (<code>contents: read</code>, <code>deployments: write</code>)</li>
+      </ul>
+    </div>
+
+    <h3>What the Reusable Workflow Actually Does</h3>
+    <p>The <code>deploy-pages.yml</code> workflow runs these steps in order, all in a single job:</p>
+    <div class="card highlight">
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>#</th><th>Step</th><th>What Happens</th><th>Condition</th></tr></thead>
+          <tbody>
+            <tr><td>1</td><td><strong>Checkout</strong></td><td>Checks out the caller repo's code (not FreeDocStore)</td><td>Always</td></tr>
+            <tr><td>2</td><td><strong>Fetch brand assets</strong></td><td>Checks out FreeDocStore via sparse checkout and copies styles.css, logo.svg, favicon.svg, nav.css, robots.txt, _headers into deploy dir</td><td>Always (default)</td></tr>
+            <tr><td>3</td><td><strong>Pre-deploy build</strong></td><td>Runs each command from <code>pre-deploy-steps</code> JSON array via <code>jq -r '.[]'</code> piped to <code>eval</code></td><td><code>pre-deploy-steps != '[]'</code></td></tr>
+            <tr><td>4</td><td><strong>Ensure Access</strong></td><td>Calls Cloudflare API to find or create an Access self-hosted app + email domain policy</td><td>Always</td></tr>
+            <tr><td>5</td><td><strong>Pre-flight check</strong></td><td>Curls <code>https://{project}.pages.dev</code> - blocks if HTTP 200 (publicly accessible)</td><td>Access is ready</td></tr>
+            <tr><td>6</td><td><strong>Create Pages project</strong></td><td>Runs <code>wrangler pages project create</code> if this is first deploy</td><td>First deploy only</td></tr>
+            <tr><td>7</td><td><strong>Deploy</strong></td><td>Uses <code>cloudflare/wrangler-action@v3</code> to run <code>wrangler pages deploy</code></td><td>Always</td></tr>
+            <tr><td>8</td><td><strong>Create Access app (first deploy)</strong></td><td>Now that Pages project exists, creates the Access app + policy. Rolls back deploy if this fails.</td><td>First deploy only</td></tr>
+            <tr><td>9</td><td><strong>Post-deploy verify</strong></td><td>Curls the live URL again - if HTTP 200, deletes the deployment via API</td><td>Always</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <h3>The <code>pre-deploy-steps</code> Input</h3>
+    <div class="card">
+      <p>This input accepts a JSON array of shell commands that run before deployment. The workflow parses it with <code>jq</code> and executes each command via <code>eval</code>:</p>
+      <pre><code># In the workflow:
+echo '${{ inputs.pre-deploy-steps }}' | jq -r '.[]' | while IFS= read -r cmd; do
+  echo "Running: $cmd"
+  eval "$cmd"
+done</code></pre>
+      <div class="callout">
+        <div class="callout-label">Security note: eval</div>
+        <p style="margin:0;">The use of <code>eval</code> here means the caller can execute arbitrary shell commands in the runner. This is acceptable because callers are trusted (they're our own repos), but it's flagged in <a href="https://github.com/FreeDocStore/platform/issues/1">Issue #1</a> for replacement with a safer mechanism like composite actions or a matrix strategy.</p>
+      </div>
+    </div>
+
+    <h3>Updating the Workflow</h3>
+    <div class="card">
+      <p>Because all repos use <code>@main</code>, updating the deployment process is a single commit:</p>
+      <ol>
+        <li>Edit <code>.github/workflows/deploy-pages.yml</code> in FreeDocStore</li>
+        <li>Push to <code>main</code></li>
+        <li>Every repo's next deploy picks up the change automatically</li>
+      </ol>
+      <p>No repo needs to be touched. This is the main advantage of the reusable workflow pattern - <strong>one change, all repos updated</strong>.</p>
+    </div>
+  </section>
+
+  <section id="quality">
+    <h2>Quality &amp; Safety</h2>
+    <p>Two quality gates run on every change to FreeDocStore and every deploy from a project repo: the <strong>compliance lint</strong> and the <strong>unit test suite</strong>. Both are enforced automatically - there is no way to accidentally ship a broken generator or a non-compliant site.</p>
+
+    <h3>Compliance Lint</h3>
+    <p>The lint runs as the first step of every deploy (in <code>deploy-pages.yml</code>). If any check fails, the deploy is blocked before any Cloudflare side-effects happen. Logic lives in <code>templates/search/scripts/docs-lint.sh</code> so it is testable and also runnable locally.</p>
+
+    <div class="card highlight">
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Rule</th><th>Severity</th><th>Rationale</th></tr></thead>
+          <tbody>
+            <tr><td>Workflow must be named <code>docs-deploy.yml</code>, not <code>deploy.yml</code></td><td>FAIL</td><td>Avoids clash with project app deploy workflows</td></tr>
+            <tr><td>No brand assets tracked in <code>docs/</code> (styles.css, logo.svg, favicon.svg, nav.css, robots.txt, _headers)</td><td>FAIL</td><td>These are injected by the workflow at deploy time</td></tr>
+            <tr><td>No publishing scripts in top-level <code>scripts/</code> (generate-*, inject-*, add-heading-ids)</td><td>FAIL</td><td>Generators live centrally in FreeDocStore</td></tr>
+            <tr><td>Every HTML page has <code>&lt;meta name="robots" content="noindex,&hellip;"&gt;</code></td><td>FAIL</td><td>Sites are internal - never index</td></tr>
+            <tr><td>Missing <code>&lt;meta name="googlebot"&gt;</code></td><td>WARN</td><td>Optional - <code>robots</code> already covers Google</td></tr>
+            <tr><td>Pages with standard topbar link to <code>styles.css</code></td><td>FAIL</td><td>Shared stylesheet is the source of truth; print-style pages with <code>@page</code> or <code>*-pdf.html</code> are exempt</td></tr>
+            <tr><td>Pages with standard topbar link to <code>favicon.svg</code></td><td>FAIL</td><td>Tabs should show the site icon</td></tr>
+            <tr><td>No financial/contractual files (sow, proposal, estimate, rate-card, pricing, quote, invoice, contract)</td><td>FAIL</td><td>Only permitted in dedicated commercial sites via <code>allow-financial: true</code></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <h4>Opt-out flags (use sparingly)</h4>
+    <div class="card">
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Flag</th><th>When to use</th></tr></thead>
+          <tbody>
+            <tr><td><code>allow-financial: true</code></td><td>Dedicated commercial repos that are the canonical home for SOWs/proposals/rates</td></tr>
+            <tr><td><code>allow-inline-styles: true</code></td><td>Legacy migration escape hatch; not needed today</td></tr>
+            <tr><td><code>skip-lint: true</code></td><td>Only FreeDocStore itself - it IS the source of brand assets</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <h4>Running the lint locally</h4>
+    <div class="card">
+      <pre><code># From any repo root:
+bash ~/work/freedocstore/templates/search/scripts/docs-lint.sh
+
+# For commercial repos:
+ALLOW_FINANCIAL=true bash ~/work/freedocstore/templates/search/scripts/docs-lint.sh</code></pre>
+    </div>
+
+    <h3>Unit Tests</h3>
+    <p>Every generator, the lint shell script, and the Access-policy sync script are covered by <code>node:test</code> (Node's built-in test runner - no external dependency). Tests run on every PR to FreeDocStore via <code>.github/workflows/test.yml</code>. Any change that breaks a generator, the lint, or the Cloudflare Access policy sync is caught before merge.</p>
+
+    <div class="card highlight">
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Test file</th><th>What it covers</th></tr></thead>
+          <tbody>
+            <tr><td><code>generate-changelog.test.mjs</code></td><td>Badge extraction, topbar active-link rewriting, file categorisation, commit filtering, date formatting, end-to-end CLI</td></tr>
+            <tr><td><code>generate-sitemap.test.mjs</code></td><td>Nav-drop and standalone link parsing, page meta extraction, section grouping, sitemap/404 exclusion</td></tr>
+            <tr><td><code>generate-references.test.mjs</code></td><td>Manifest validation, URL-encoding parity with urllib, HTML escaping, rendered output</td></tr>
+            <tr><td><code>inject-nav.test.mjs</code></td><td>nav.json parsing, active-link rendering, dropdown + flat, lint rules (coverage + broken-href)</td></tr>
+            <tr><td><code>inject-page-meta.test.mjs</code></td><td>GitHub remote detection (SSH/HTTPS), footer injection/creation, idempotency, AEST date formatting, Z-suffix</td></tr>
+            <tr><td><code>inject-search.test.mjs</code></td><td>Pagefind CSS/search-div/script injection, idempotency, topbar detection</td></tr>
+            <tr><td><code>inject-toc.test.mjs</code></td><td>Heading scan (h2/h3 inside &lt;main&gt;), slug + collision-safe id assignment, opt-out marker, idempotent rerun, stale-strip on heading drop, end-to-end CLI</td></tr>
+            <tr><td><code>inject-codeblocks.test.mjs</code></td><td>Detection of &lt;pre&gt; in &lt;main&gt;, payload injection into &lt;head&gt;, idempotency, opt-out marker, vendored Prism asset install (no CDN regression guard), CLI smoke for sites with + without code</td></tr>
+            <tr><td><code>inject-callouts.test.mjs</code></td><td>Class-detection (single + double quote, mixed-class), CSS payload injection into &lt;head&gt;, idempotent rerun, opt-out marker, stale-strip, all-variant CSS rule presence, end-to-end CLI</td></tr>
+            <tr><td><code>inject-prev-next.test.mjs</code></td><td>flatNavEntries with dropdowns, neighborsFor (first/middle/last/single), HTML escaping, idempotent rerun, neighbor-change replacement, stale-strip on nav removal, opt-out marker, missing-nav graceful no-op, end-to-end CLI</td></tr>
+            <tr><td><code>inject-branding.test.mjs</code></td><td>hasAnyBranding (typo-fail-loud), renderStyleBlock (CSS-var emission, attribute-escape XSS guard), rewriteLogo (class-token boundary, attr-order tolerance, alt + src rewrite), idempotent rerun, stale style-block strip, missing/malformed features.json graceful, end-to-end CLI</td></tr>
+            <tr><td><code>normalize-title.test.mjs</code></td><td>Badge extraction, title replacement, <code>*-pdf.html</code> and <code>@page</code> exemptions</td></tr>
+            <tr><td><code>check-undefined-classes.test.mjs</code></td><td>HTML/CSS class extraction, SAFE list, extra-css flag, per-page reporting</td></tr>
+            <tr><td><code>text.test.mjs</code></td><td>HTML-to-visible-text stripping, numeric + named entity decoding, title extraction</td></tr>
+            <tr><td><code>generator-contracts.test.mjs</code></td><td>Every generator must emit playbook-compliant HTML (robots meta, topbar, footer, favicon, styles)</td></tr>
+            <tr><td><code>docs-lint.test.mjs</code></td><td>Fixture-based end-to-end tests of <code>docs-lint.sh</code> across every rule scenario</td></tr>
+            <tr><td><code>sync-access-policies.test.mjs</code></td><td>Cloudflare Access policy sync: result-null handling, API error surfacing, dynamic precedence, delete warnings</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <p style="margin-top:16px;"><strong>300+ tests, &lt;6 seconds runtime, Node stdlib only (no npm test deps).</strong></p>
+
+    <h4>Running tests locally</h4>
+    <div class="card">
+      <pre><code># In FreeDocStore:
+cd extension
+npm test
+
+# Single file:
+npm test -- tests/generate-changelog.test.mjs</code></pre>
+    </div>
+
+    <div class="callout">
+      <div class="callout-label">Bugs caught by tests</div>
+      <p style="margin:0;">Writing the tests surfaced real bugs in the generators: generate-sitemap regex silently dropped nav-drop groups; generate-changelog dropped the initial commit (missing <code>--root</code>); inject-page-meta date formatting failed on older runtimes due to <code>Z</code>-suffix handling; inject-nav used string concatenation where HTML escaping was needed for ampersands. All fixed and covered by regression tests.</p>
+    </div>
+  </section>
+
+  <section id="cloudflare-pages">
+    <h2>Cloudflare Pages Deep Dive</h2>
+    <p>Every Open Frontier One documentation site is hosted on <strong>Cloudflare Pages</strong> - Cloudflare's static site hosting platform. No servers, no containers - just static files served from Cloudflare's global edge network.</p>
+
+    <h3>What Is Cloudflare Pages</h3>
+    <div class="card">
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Aspect</th><th>Detail</th></tr></thead>
+          <tbody>
+            <tr><td><strong>What it hosts</strong></td><td>Static files (HTML, CSS, JS, images) - no server-side code</td></tr>
+            <tr><td><strong>URL format</strong></td><td><code>&lt;project-name&gt;.pages.dev</code></td></tr>
+            <tr><td><strong>Deploy method</strong></td><td><code>wrangler pages deploy &lt;directory&gt; --project-name=&lt;name&gt;</code></td></tr>
+            <tr><td><strong>CDN</strong></td><td>Automatically served from 300+ Cloudflare edge locations worldwide</td></tr>
+            <tr><td><strong>HTTPS</strong></td><td>Automatic - every <code>.pages.dev</code> site gets a free TLS certificate</td></tr>
+            <tr><td><strong>Custom domains</strong></td><td>Supported but not used - all our sites use <code>.pages.dev</code></td></tr>
+            <tr><td><strong>Preview deploys</strong></td><td>Supported per-branch but not used - we only deploy from <code>main</code></td></tr>
+            <tr><td><strong>Build pipeline</strong></td><td>We skip Cloudflare's build - we build in GitHub Actions and push pre-built files</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <h3>How a Pages Project Gets Created</h3>
+    <div class="card">
+      <p>On <strong>first deploy</strong>, the reusable workflow creates the Pages project automatically:</p>
+      <pre><code>npx wrangler pages project create "$PROJECT_NAME" --production-branch main</code></pre>
+      <p>This creates an empty project in the Cloudflare account. Subsequent deploys push files into it:</p>
+      <pre><code>wrangler pages deploy docs/ --project-name=your-pages-project</code></pre>
+      <p>The <code>cloudflare/wrangler-action@v3</code> GitHub Action handles authentication using <code>CLOUDFLARE_API_TOKEN</code> and <code>CLOUDFLARE_ACCOUNT_ID</code>.</p>
+    </div>
+
+    <h3>How Wrangler Deploys Work</h3>
+    <div class="card">
+      <ol>
+        <li>Wrangler hashes every file in the deploy directory</li>
+        <li>Only uploads files that have changed (content-addressable storage)</li>
+        <li>Creates a new deployment pointing to the uploaded files</li>
+        <li>The new deployment is instantly live on the <code>.pages.dev</code> URL</li>
+        <li>Previous deployments are retained (you can roll back in the Cloudflare dashboard)</li>
+      </ol>
+    </div>
+
+    <h3>Pages Project Configuration</h3>
+    <div class="card">
+      <p>Open Frontier One Pages projects have <strong>no build configuration</strong> in Cloudflare - all builds happen in GitHub Actions. The Cloudflare dashboard shows:</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Setting</th><th>Value</th><th>Why</th></tr></thead>
+          <tbody>
+            <tr><td>Production branch</td><td><code>main</code></td><td>Only production deploys, no preview branches</td></tr>
+            <tr><td>Build command</td><td><em>(none)</em></td><td>We deploy pre-built files from GitHub Actions</td></tr>
+            <tr><td>Build output directory</td><td><em>(none)</em></td><td>Wrangler <code>pages deploy</code> specifies the directory directly</td></tr>
+            <tr><td>Root directory</td><td><code>/</code></td><td>Default</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <h3>The <code>_headers</code> File</h3>
+    <div class="card">
+      <p>Cloudflare Pages supports a <code>_headers</code> file in the deploy directory to set HTTP response headers. This is how we add security headers to sites:</p>
+      <pre><code># docs/_headers
+/*
+  X-Frame-Options: DENY
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=()
+  Content-Security-Policy: default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; worker-src 'self' blob:</code></pre>
+      <p>See <a href="https://github.com/FreeDocStore/platform/issues/4">Issue #4</a> - not all sites have this yet.</p>
+    </div>
+
+    <h3>Rollback Mechanism</h3>
+    <div class="card">
+      <p>When the post-deploy check fails (site returns HTTP 200 = publicly accessible), the workflow deletes the latest deployment via the Cloudflare API:</p>
+      <pre><code># Get the latest deployment ID
+DEPLOYMENTS=$(curl -s \
+  "https://api.cloudflare.com/client/v4/accounts/${ACCOUNT_ID}/pages/projects/${PROJECT}/deployments" \
+  -H "Authorization: Bearer ${TOKEN}")
+LATEST_ID=$(echo "$DEPLOYMENTS" | jq -r '.result[0].id // empty')
+
+# Delete it - takes the site down immediately
+curl -s -X DELETE \
+  "https://api.cloudflare.com/client/v4/accounts/${ACCOUNT_ID}/pages/projects/${PROJECT}/deployments/${LATEST_ID}?force=true" \
+  -H "Authorization: Bearer ${TOKEN}"</code></pre>
+      <p>This is a hard delete - the deployment is removed, not just deactivated. The previous deployment (if any) becomes the live version.</p>
+    </div>
+
+    <h3>API Token Permissions</h3>
+    <div class="card">
+      <p>The <code>CLOUDFLARE_API_TOKEN</code> needs these permissions to manage Pages and Access:</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Permission</th><th>Used For</th></tr></thead>
+          <tbody>
+            <tr><td>Cloudflare Pages: Edit</td><td>Creating projects, deploying, deleting deployments</td></tr>
+            <tr><td>Access: Apps and Policies: Edit</td><td>Creating/reading Access applications and policies</td></tr>
+            <tr><td>Account Settings: Read</td><td>Listing account details</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="callout">
+        <div class="callout-label">Token scope</div>
+        <p style="margin:0;">The token is currently scoped to the <strong>entire account</strong>, not just docs repos. <a href="https://github.com/FreeDocStore/platform/issues/8">Issue #8</a> tracks scoping it down to only the repos that need it. <a href="https://github.com/FreeDocStore/platform/issues/10">Issue #10</a> tracks adding a TTL and rotation process.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="zero-trust">
+    <h2>Cloudflare Zero Trust &amp; Access</h2>
+    <p>A FreeDocStore-deployed <code>.pages.dev</code> site can be protected by <strong>Cloudflare Access</strong>, part of Cloudflare's Zero Trust platform. When configured this way, the site is not publicly accessible - users must authenticate with a <code>@your-company.com</code> email before seeing any content.</p>
+
+    <h3>What Is Cloudflare Access</h3>
+    <div class="card">
+      <p>Cloudflare Access is an identity-aware proxy that sits in front of web applications. It checks who you are <strong>before</strong> any request reaches the origin server (or in our case, the Pages static files).</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Concept</th><th>What It Means</th><th>Our Setup</th></tr></thead>
+          <tbody>
+            <tr><td><strong>Self-hosted application</strong></td><td>An Access app that protects a domain you control</td><td>One app per <code>.pages.dev</code> site</td></tr>
+            <tr><td><strong>Policy</strong></td><td>Rules that determine who can access the application</td><td>"Allow if email domain = <code>openfrontier.one</code>"</td></tr>
+            <tr><td><strong>Session duration</strong></td><td>How long a user stays authenticated before re-prompting</td><td>24 hours</td></tr>
+            <tr><td><strong>Identity provider</strong></td><td>How users prove their identity</td><td>One-time PIN (OTP) sent to email</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <h3>The Authentication Flow</h3>
+    <p>When someone visits a protected site, this is exactly what happens:</p>
+    <div class="card highlight">
+      <ol>
+        <li>User navigates to <code>https://your-project.pages.dev</code></li>
+        <li>Cloudflare's edge intercepts the request - checks for a valid <code>CF_Authorization</code> cookie</li>
+        <li>No valid cookie found &rarr; <strong>302 redirect</strong> to <code>https://your-team.cloudflareaccess.com/cdn-cgi/access/login/your-project.pages.dev</code></li>
+        <li>User sees the Cloudflare Access login page - enters their <code>@your-company.com</code> email</li>
+        <li>Cloudflare sends a <strong>one-time PIN</strong> to that email address</li>
+        <li>User enters the PIN on the login page</li>
+        <li>Cloudflare verifies the PIN, checks the email domain against the policy (<code>openfrontier.one</code>)</li>
+        <li>If allowed: sets a signed <strong>JWT cookie</strong> (<code>CF_Authorization</code>) with a 24-hour TTL</li>
+        <li>User is redirected back to the original URL - this time the cookie is present, so the request passes through to the Pages content</li>
+        <li>For the next 24 hours, all requests include the cookie and pass through without re-authentication</li>
+      </ol>
+    </div>
+
+    <h3>How Access Apps Are Created</h3>
+    <p>The reusable workflow creates Access apps automatically via the Cloudflare API. Here's exactly what it does:</p>
+
+    <h4>Step 1: Check if an Access app already exists</h4>
+    <div class="card">
+      <pre><code># List all Access apps in the account
+curl -s "https://api.cloudflare.com/client/v4/accounts/${ACCOUNT_ID}/access/apps" \
+  -H "Authorization: Bearer ${TOKEN}"
+
+# Find one whose self_hosted_domains includes our domain
+# e.g., "your-project.pages.dev"
+APP_ID=$(... | jq -r '.result[] | select(.self_hosted_domains[]? == $DOMAIN) | .id')</code></pre>
+    </div>
+
+    <h4>Step 2: Create the app if it doesn't exist</h4>
+    <div class="card">
+      <pre><code>curl -s -X POST "https://api.cloudflare.com/client/v4/accounts/${ACCOUNT_ID}/access/apps" \
+  -H "Authorization: Bearer ${TOKEN}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "your-pages-project",
+    "domain": "your-project.pages.dev",
+    "type": "self_hosted",
+    "session_duration": "24h"
+  }'</code></pre>
+      <p>This registers the domain with Cloudflare Access. From this moment, any request to that domain is intercepted by Access.</p>
+    </div>
+
+    <h4>Step 3: Add the email domain policy</h4>
+    <div class="card">
+      <pre><code>curl -s -X POST "https://api.cloudflare.com/client/v4/accounts/${ACCOUNT_ID}/access/apps/${APP_ID}/policies" \
+  -H "Authorization: Bearer ${TOKEN}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Allow Open Frontier One emails",
+    "decision": "allow",
+    "include": [{
+      "email_domain": {
+        "domain": "openfrontier.one"
+      }
+    }]
+  }'</code></pre>
+      <p>This creates an "Allow" policy that grants access to anyone with an <code>@your-company.com</code> email. All other emails are denied.</p>
+    </div>
+
+    <h3>Access App Anatomy</h3>
+    <div class="card">
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Field</th><th>Value</th><th>Meaning</th></tr></thead>
+          <tbody>
+            <tr><td><code>name</code></td><td>e.g. <code>your-pages-project</code></td><td>Display name in the Zero Trust dashboard</td></tr>
+            <tr><td><code>domain</code></td><td>e.g. <code>your-project.pages.dev</code></td><td>The domain Access protects - must match the Pages project URL</td></tr>
+            <tr><td><code>type</code></td><td><code>self_hosted</code></td><td>Means we control the origin (Pages) and Access sits in front of it</td></tr>
+            <tr><td><code>session_duration</code></td><td><code>24h</code></td><td>User re-authenticates after 24 hours</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <h3>Policy Structure</h3>
+    <div class="card">
+      <p>Each Access app has one or more policies. Ours uses a single "Allow" policy with an email domain include rule:</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Field</th><th>Value</th><th>Meaning</th></tr></thead>
+          <tbody>
+            <tr><td><code>decision</code></td><td><code>allow</code></td><td>Grant access if the include rules match</td></tr>
+            <tr><td><code>include</code></td><td><code>email_domain: openfrontier.one</code></td><td>Match any email ending in <code>@your-company.com</code></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>Other policy types exist (Deny, Bypass, Service Auth) but we only use Allow. You can add additional include rules (specific emails, IP ranges, identity provider groups) in the <a href="https://one.dash.cloudflare.com">Zero Trust dashboard</a> &rarr; Access &rarr; Applications &rarr; select app &rarr; Policies.</p>
+    </div>
+
+    <h3>The First-Deploy Race Condition</h3>
+    <div class="card">
+      <p>There's a known ~15-second window where a new site could be publicly accessible:</p>
+      <ol>
+        <li>Pages project doesn't exist yet &rarr; Access app can't be created (domain must exist first)</li>
+        <li>Workflow creates the Pages project and deploys content</li>
+        <li><strong>Site is live and unprotected for ~15 seconds</strong></li>
+        <li>Workflow creates the Access app immediately after deploy</li>
+        <li>Site is now protected</li>
+      </ol>
+      <p>This is tracked as <a href="https://github.com/FreeDocStore/platform/issues/11">Issue #11</a> and accepted as a known risk because:</p>
+      <ul>
+        <li>It only happens on the very first deploy of a brand-new site</li>
+        <li>The URL isn't published or linked anywhere during this window</li>
+        <li>The content is internal documentation, not secrets or credentials</li>
+        <li>If the Access app creation fails, the workflow <strong>rolls back the deployment entirely</strong></li>
+      </ul>
+    </div>
+
+    <h3>Where to Manage Access</h3>
+    <div class="card">
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Task</th><th>Where</th></tr></thead>
+          <tbody>
+            <tr><td>View all Access apps</td><td><a href="https://one.dash.cloudflare.com">Zero Trust dashboard</a> &rarr; Access &rarr; Applications</td></tr>
+            <tr><td>Edit a policy (add a user, change rules)</td><td>Applications &rarr; select app &rarr; Policies tab</td></tr>
+            <tr><td>View login audit logs</td><td>Logs &rarr; Access</td></tr>
+            <tr><td>Revoke a user's session</td><td>Applications &rarr; select app &rarr; Overview &rarr; Revoke tokens</td></tr>
+            <tr><td>Change session duration</td><td>Applications &rarr; select app &rarr; Overview &rarr; Session Duration</td></tr>
+            <tr><td>Add a new identity provider</td><td>Settings &rarr; Authentication &rarr; Login methods</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <h3>Zero Trust Dashboard URL</h3>
+    <div class="card highlight">
+      <p>All Access management happens at: <a href="https://one.dash.cloudflare.com">https://one.dash.cloudflare.com</a></p>
+      <p>Navigate to: <strong>Zero Trust</strong> &rarr; <strong>Access</strong> &rarr; <strong>Applications</strong> to see all protected sites.</p>
+      <p>The team URL for login pages is: <code>https://your-team.cloudflareaccess.com</code></p>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  FreeDocStore &middot; by Open Frontier One
+</footer>
+
+<script>
+  // Highlight active nav item on scroll
+  const sections = document.querySelectorAll('section[id]');
+  const navLinks = document.querySelectorAll('.sidebar a');
+  window.addEventListener('scroll', () => {
+    let current = '';
+    sections.forEach(s => {
+      if (window.scrollY >= s.offsetTop - 100) current = s.getAttribute('id');
+    });
+    navLinks.forEach(a => {
+      a.classList.toggle('active', a.getAttribute('href') === '#' + current);
+    });
+  });
+</script>
+</body>
+</html>

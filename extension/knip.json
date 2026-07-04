@@ -1,0 +1,27 @@
+{
+  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "entry": [
+    "src/background/service-worker.ts",
+    "src/content/content.ts",
+    "src/sidepanel/sidepanel.ts",
+    "src/options/options.ts",
+    "src/board/board.ts",
+    "scripts/*.mjs",
+    "tests/*.test.mjs"
+  ],
+  "project": ["src/**/*.ts"],
+  "rules": {
+    "files": "error",
+    "dependencies": "error",
+    "unlisted": "error",
+    "binaries": "error",
+    "unresolved": "error",
+    "exports": "off",
+    "types": "off",
+    "nsExports": "off",
+    "nsTypes": "off",
+    "enumMembers": "off",
+    "classMembers": "off",
+    "duplicates": "off"
+  }
+}

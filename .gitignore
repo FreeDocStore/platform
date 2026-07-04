@@ -1,0 +1,23 @@
+# macOS
+.DS_Store
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Wrangler / Cloudflare local cache
+.wrangler/
+
+# Dependencies (when extension is migrated)
+node_modules/
+
+# Logs
+*.log
+npm-debug.log*

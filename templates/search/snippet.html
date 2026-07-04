@@ -1,0 +1,16 @@
+<!--
+  Pagefind search snippet for Rocket Lab doc sites.
+  Copy these three blocks into every static HTML page.
+  Dark theming is inherited from the shared Glassdocs stylesheet
+  (.site-search), so no extra CSS is needed.
+-->
+
+<!-- 1. In <head>, after the shared stylesheet link -->
+<link href="/pagefind/pagefind-ui.css" rel="stylesheet">
+
+<!-- 2. Inside <header class="topbar">, after the .topbar-links nav -->
+<div class="site-search" id="search"></div>
+
+<!-- 3. Just before </body> -->
+<script>window.addEventListener("DOMContentLoaded",function(){var mac=/Mac|iPhone|iPad|iPod/i.test(navigator.platform);var hint=mac?"\u2318K":"Ctrl+K";new PagefindUI({element:"#search",showSubResults:true,showImages:false,resetStyles:false,translations:{placeholder:"Search "+hint}});document.addEventListener("keydown",function(e){var i=document.querySelector("#search input");if((e.metaKey||e.ctrlKey)&&(e.key==="k"||e.key==="K")){e.preventDefault();if(i){i.focus();i.select();}}else if(e.key==="Escape"&&i&&document.activeElement===i){i.blur();}});});</script>
+<script src="/pagefind/pagefind-ui.js"></script>

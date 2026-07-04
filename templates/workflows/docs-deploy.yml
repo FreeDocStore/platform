@@ -1,0 +1,20 @@
+name: Docs Deploy
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    uses: Glassdocs/glassdocs/.github/workflows/deploy-pages.yml@main
+    with:
+      project-name: {{PROJECT_NAME}}
+      # fetch-brand-assets is true by default - styles.css, logo.svg, favicon.svg, nav.css, robots.txt, _headers are injected automatically
+      # generate-changelog: true     # Auto-generate changelog.html from git history
+      # generate-sitemap: true       # Auto-generate sitemap.html indexing all pages
+      # inject-page-meta: true       # Add last-updated stamps and Edit on GitHub links
+      # generate-references: false   # Disable KB references generator (on by default; no-op without docs/references/manifest.json)
+      # deploy-dir: docs             # Default: docs
+      # wrangler-version: "3.99.0"   # Pin wrangler version if needed
+      # pre-deploy-steps: '["cd docs && npm ci && npm run build"]'  # Custom build steps
+    secrets: inherit

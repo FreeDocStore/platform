@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow, noarchive, nosnippet">
+<meta name="googlebot" content="noindex, nofollow">
+<title>Writing Guide - FreeDocStore</title>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header class="topbar">
+  <button class="menu-toggle" onclick="document.querySelector('.sidebar').classList.toggle('open')" aria-label="Toggle menu">&#9776;</button>
+  <h1>
+    <a href="index.html"><img src="logo.svg" alt="Open Frontier One" class="topbar-logo"></a>
+    <span class="badge">FreeDocStore</span>
+  </h1>
+  <nav class="topbar-links">
+    <a href="components.html">Components</a>
+    <a href="content.html">Content</a>
+    <a href="writing.html" class="active">Writing</a>
+    <a href="infrastructure.html">Infrastructure</a>
+    <a href="extension.html">Extension</a>
+    <a href="install.html">Install</a>
+  </nav>
+</header>
+
+<nav class="sidebar" id="sidebar">
+  <div class="nav-group">
+    <div class="nav-group-title">On this page</div>
+    <a href="#dashes">The Dash Problem</a>
+    <a href="#ai-tells">Other AI Tells</a>
+    <a href="#practical-test">Practical Test</a>
+    <a href="#rules">Publishing Rules</a>
+  </div>
+</nav>
+
+<main class="content">
+
+  <section id="dashes">
+    <h2>The Dash Problem</h2>
+    <p>AI tools are everywhere in our workflow. That's fine. What's not fine is publishing text that reads like it came straight out of a model. This guide covers the tells and how to avoid them.</p>
+
+    <h3>What Dashes Actually Are</h3>
+    <p>The names come from old metal typesetting, where character widths were measured in ems and ens:</p>
+    <div class="card highlight">
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Character</th><th>Name</th><th>Width origin</th><th>Keyboard</th><th>HTML entity</th></tr></thead>
+          <tbody>
+            <tr><td><code>-</code></td><td>Hyphen</td><td>Narrow</td><td>Direct key</td><td><code>-</code></td></tr>
+            <tr><td>&ndash;</td><td>En dash</td><td>Width of the letter N</td><td>Option+Hyphen (Mac)</td><td><code>&amp;ndash;</code></td></tr>
+            <tr><td>&mdash;</td><td>Em dash</td><td>Width of the letter M</td><td>Option+Shift+Hyphen (Mac)</td><td><code>&amp;mdash;</code></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <h3>What Each One Is For</h3>
+    <div class="grid-3">
+      <div class="card">
+        <h4>Hyphen (-)</h4>
+        <p>Joins compound words and prefixes:</p>
+        <p><code>well-being</code>, <code>client-side</code>, <code>re-evaluate</code></p>
+      </div>
+      <div class="card">
+        <h4>En dash (&ndash;)</h4>
+        <p>Connects ranges and pairs:</p>
+        <p><code>2024&ndash;2026</code>, <code>10&ndash;15 hours</code>, <code>Sydney&ndash;Melbourne</code></p>
+      </div>
+      <div class="card">
+        <h4>Em dash (&mdash;)</h4>
+        <p>Creates a break in thought or aside:</p>
+        <p><code>The result was clear&mdash;we needed a rewrite.</code></p>
+      </div>
+    </div>
+
+    <h3>Why Em Dashes Are a Problem</h3>
+    <p>Em dashes are legitimate punctuation. Plenty of good human writers use them. The issue is that language models use them <em>constantly</em> as default glue for clarifications, contrasts, and asides. When readers see em dashes on every page, in every paragraph, the text starts to feel synthetic.</p>
+    <p>One em dash in a page is fine. Five is a pattern. Ten is a red flag.</p>
+
+    <h3>Our Rules</h3>
+    <div class="card highlight">
+      <ol>
+        <li><strong>Don't use em dashes in running text.</strong> Almost every em dash can be replaced by a full stop, colon, semicolon, comma, or parentheses. Pick whichever fits the sentence.</li>
+        <li><strong>En dashes are fine in ranges.</strong> <code>2024&ndash;2026</code>, <code>40&ndash;60h</code>, <code>pp. 12&ndash;15</code>. That's what they're for.</li>
+        <li><strong>Don't use en dashes as punctuation.</strong> If you're tempted to write "the app &ndash; which launched last month &ndash; is growing", use commas or parentheses.</li>
+        <li><strong>When you need a light separator and nothing else works</strong>, use a hyphen with spaces: <code>the app - now in beta - is growing</code>. This is what people actually type.</li>
+        <li><strong>In HTML table cells</strong>, a plain hyphen <code>-</code> works as an empty-cell placeholder.</li>
+      </ol>
+    </div>
+
+    <h3>Before and After</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Before (AI-ish)</th><th>After (human)</th></tr></thead>
+        <tbody>
+          <tr><td>Privacy is the architecture &mdash; not a toggle.</td><td>Privacy is the architecture, not a toggle.</td></tr>
+          <tr><td>The sync runs hourly &mdash; every deploy triggers a rebuild.</td><td>The sync runs hourly. Every deploy triggers a rebuild.</td></tr>
+          <tr><td>BLE discovery &mdash; the mechanism behind nearby detection &mdash; is handled by the transport layer.</td><td>BLE discovery (the mechanism behind nearby detection) is handled by the transport layer.</td></tr>
+          <tr><td>The result was clear &mdash; we needed a rewrite.</td><td>The result was clear: we needed a rewrite.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="ai-tells">
+    <h2>Beyond Dashes: Other AI Tells</h2>
+    <p>Em dashes are the most obvious giveaway, but they're a symptom. The real issue is that AI-generated text has a recognisable <em>texture</em>.</p>
+
+    <div class="grid-2">
+      <div class="card">
+        <h4>Over-consistent rhythm</h4>
+        <p>AI produces sentences with uniform length and cadence. Too many follow the same shape: "X is not Y. It is Z."</p>
+        <p><strong>Fix:</strong> Vary sentence length. Mix short punchy statements with longer ones. Let some paragraphs be one sentence.</p>
+      </div>
+      <div class="card">
+        <h4>Relentless clarity</h4>
+        <p>Everything explained cleanly, no rough edges, no assumptions about the reader. Real writing trusts the reader more.</p>
+        <p><strong>Fix:</strong> Not every term needs defining. If you're writing for developers, write like a developer talking to another developer.</p>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <div class="card">
+        <h4>Repetitive rhetorical structures</h4>
+        <p>Watch for these appearing over and over:</p>
+        <ul>
+          <li>"not just X, but Y"</li>
+          <li>"the difference between X and Y"</li>
+          <li>"X. Here's why."</li>
+          <li>"Let's break this down."</li>
+        </ul>
+        <p><strong>Fix:</strong> Read your text aloud. If you hear the same pattern three times, rewrite the third one differently.</p>
+      </div>
+      <div class="card">
+        <h4>Uniform tone across pages</h4>
+        <p>Human multi-page docs drift a bit between sections or authors. A technical architecture page reads differently from a user-facing overview. AI stays unnaturally even.</p>
+        <p><strong>Fix:</strong> Let technical pages be drier. Let overviews be warmer. Don't sand everything to the same finish.</p>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <div class="card">
+        <h4>Overuse of tidy labels</h4>
+        <p>"Design Principles", "Implications", "Why This Matters", "TL;DR", "Key Takeaways" are useful individually. When every page is organised this neatly, it feels templated.</p>
+        <p><strong>Fix:</strong> Use descriptive headings specific to the content. "How BLE discovery works" beats "Technical Overview".</p>
+      </div>
+      <div class="card">
+        <h4>Clean but generic examples</h4>
+        <p>"Short sleep", "no calls today", "30-minute walk" read as plausible but synthetic. They're the kind of examples a model generates without real data.</p>
+        <p><strong>Fix:</strong> Use real examples from the product wherever possible. Specific beats generic.</p>
+      </div>
+    </div>
+
+    <div class="card highlight">
+      <h4>Minimal messiness</h4>
+      <p>Human drafts have uneven emphasis, slightly inconsistent terminology, occasional shortcuts, and the odd awkward transition. AI removes too much of that.</p>
+      <p><strong>Fix:</strong> Don't over-polish. A doc that reads like it was written by a real person in a real afternoon is more trustworthy than one that reads like it was generated and reviewed by committee.</p>
+    </div>
+  </section>
+
+  <section id="practical-test">
+    <h2>The Practical Test</h2>
+    <p>Read your page and ask:</p>
+    <div class="card highlight">
+      <ol>
+        <li>Could a reader tell this was AI-assisted just from the writing style?</li>
+        <li>Do more than two em dashes appear on this page?</li>
+        <li>Does every paragraph follow the same structure?</li>
+        <li>Would this sound natural if you read it aloud to a colleague?</li>
+      </ol>
+      <p>If the answer to 1, 2, or 3 is yes, or 4 is no, edit it down. The goal isn't to hide that you used AI. The goal is to publish text that sounds like it was written by someone who cares about the subject, not by a tool that processes tokens.</p>
+    </div>
+  </section>
+
+  <section id="rules">
+    <h2>Publishing Rules</h2>
+    <p>Hard rules for everything we publish across all Open Frontier One knowledge bases.</p>
+
+    <div class="card highlight">
+      <h4>Content format</h4>
+      <ul>
+        <li><strong>All browsable content must be HTML pages in <code>docs/</code>.</strong> Never publish standalone markdown files as site content. Markdown is only for repo-level files that GitHub renders (README.md, CONTRIBUTING.md).</li>
+        <li>Every page uses the shared <code>styles.css</code>, topbar with logo and badge, sidebar navigation, and footer.</li>
+      </ul>
+    </div>
+
+    <div class="card highlight">
+      <h4>No financial or contractual content in project repos</h4>
+      <ul>
+        <li><strong>Statements of work, proposals, estimates, rate cards, pricing, and any contractual documents must only live in a dedicated commercial site, not in project KBs.</strong> Individual project knowledge bases are for technical documentation, architecture, and project knowledge only.</li>
+        <li>This includes SOW HTML pages, proposal PDFs, internal estimates, signed contracts, and any content containing dollar amounts, payment terms, or engagement models.</li>
+        <li>If a project KB currently has this content, it needs to be migrated out and removed from the project repo.</li>
+      </ul>
+    </div>
+
+    <div class="card highlight">
+      <h4>docs/ is self-contained - nothing else publishing-related in the repo</h4>
+      <ul>
+        <li><strong>Everything related to docs publishing must live inside <code>docs/</code>.</strong> No publishing scripts, build tools, generators, stylesheets, or assets outside of it. The repo root belongs to the project's code, not its documentation site.</li>
+        <li><strong>Do not copy build scripts into individual repos.</strong> Generators for changelogs, sitemaps, and page metadata are maintained centrally in FreeDocStore and run by the reusable workflow at deploy time. Enable them with flags like <code>generate-changelog: true</code> in <code>docs-deploy.yml</code>.</li>
+        <li>The only exception is <code>.github/workflows/docs-deploy.yml</code>, which must live in its standard location to trigger CI.</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h4>Writing quality</h4>
+      <ul>
+        <li>Avoid em dashes in running text. Use full stops, colons, commas, or parentheses.</li>
+        <li>En dashes only in numeric ranges.</li>
+        <li>Vary sentence rhythm. Don't let every paragraph follow the same structure.</li>
+        <li>Use real, specific examples over generic placeholders.</li>
+        <li>Let some human messiness through. Over-polished text reads as generated.</li>
+      </ul>
+    </div>
+
+    <div class="callout">
+      <div class="callout-label">A good target</div>
+      <p style="margin:0;">If a reader notices the punctuation pattern at all, it's probably too much.</p>
+    </div>
+  </section>
+
+
+</main>
+
+<footer>
+  FreeDocStore &middot; by Open Frontier One
+</footer>
+
+<script>
+  const sections = document.querySelectorAll('section[id]');
+  const navLinks = document.querySelectorAll('.sidebar a');
+  window.addEventListener('scroll', () => {
+    let current = '';
+    sections.forEach(s => {
+      if (window.scrollY >= s.offsetTop - 100) current = s.getAttribute('id');
+    });
+    navLinks.forEach(a => {
+      a.classList.toggle('active', a.getAttribute('href') === '#' + current);
+    });
+  });
+</script>
+</body>
+</html>

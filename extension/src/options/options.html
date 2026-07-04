@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Docs Chat - Options</title>
+<link rel="stylesheet" href="options.css">
+</head>
+<body>
+
+<header>
+  <h1>Docs Chat - Options</h1>
+  <p class="subtitle">All settings are stored in <code>chrome.storage.sync</code>. Encrypted at rest by Chrome; scoped to this browser profile.</p>
+</header>
+
+<nav class="tabs" role="tablist" aria-label="Settings sections">
+  <button type="button" class="tab" role="tab" data-tab="general" aria-selected="true">General</button>
+  <button type="button" class="tab" role="tab" data-tab="backends" aria-selected="false">AI &amp; GitHub</button>
+  <button type="button" class="tab" role="tab" data-tab="addons" aria-selected="false">Add-ons</button>
+  <button type="button" class="tab" role="tab" data-tab="advanced" aria-selected="false">Advanced</button>
+</nav>
+
+<main>
+  <form id="options-form">
+
+    <!-- ── General ──────────────────────────────────────────────── -->
+    <section class="tab-panel" data-panel="general">
+
+      <!-- Appearance: theme + chat font size. Applied live on save. -->
+      <fieldset>
+        <legend>Appearance</legend>
+        <label class="radio">
+          <input type="radio" name="theme" value="dark" id="theme-dark">
+          Dark (default)
+        </label>
+        <label class="radio">
+          <input type="radio" name="theme" value="light" id="theme-light">
+          Light
+        </label>
+
+        <label>
+          Chat font size (px)
+          <input type="number" id="font-size" min="8" max="48" step="1" placeholder="13">
+          <small>Any number from 8 to 48. Example: 13 (default), 16 for easier reading. Affects chat messages and the prompt box only.</small>
+        </label>
+
+        <label class="checkbox">
+          <input type="checkbox" id="compact">
+          Compact mode
+          <small>Tighter padding and less vertical whitespace. Fits more chat on screen.</small>
+        </label>
+      </fieldset>
+
+      <!-- Chat behaviour: keybinds, post-action, direct-push safety. -->
+      <fieldset>
+        <legend>Chat behaviour</legend>
+
+        <label>
+          Send key
+          <select id="send-key">
+            <option value="enter">Enter sends, Shift+Enter newline (default)</option>
+            <option value="mod-enter">Cmd/Ctrl+Enter sends, Enter newline</option>
+          </select>
+        </label>
+
+        <label class="checkbox">
+          <input type="checkbox" id="open-pr-in-new-tab">
+          Open PR or commit in a new tab after success (default off)
+        </label>
+
+        <label class="checkbox">
+          <input type="checkbox" id="auto-continue">
+          After you Apply a change in an edit thread, let the agent
+          automatically take the next step needed to finish the request —
+          e.g. adding a new page to the site menu (default on). Each step
+          still shows a preview you Apply.
+        </label>
+      </fieldset>
+
+      <!-- Commit mode (applies to all adapters that publish changes) -->
+      <fieldset>
+        <legend>Commit mode</legend>
+        <label class="radio">
+          <input type="radio" name="commit-mode" value="pr" id="commit-mode-pr">
+          Open a pull request (default, safe)
+        </label>
+        <label class="radio">
+          <input type="radio" name="commit-mode" value="direct" id="commit-mode-direct">
+          Push directly to the default branch
+        </label>
+        <small>Direct push skips review and triggers the Cloudflare Pages deploy immediately.</small>
+      </fieldset>
+
+      <fieldset>
+        <legend>Chat history</legend>
+        <small>
+          The 🗑 button in the side panel clears the chat on <strong>this
+          device only</strong>. Conversations are also mirrored to your repo at
+          <code>.glassdocs/chat/history.json</code> on the
+          <code>glassdocs-chat</code> branch (so teammates and Claude Code see
+          the same context). To remove that copy, do it in GitHub:
+        </small>
+        <ul class="hint-list">
+          <li>Delete <code>.glassdocs/chat/history.json</code> on the
+            <code>glassdocs-chat</code> branch (a new commit), or</li>
+          <li>Delete the whole <code>glassdocs-chat</code> branch to drop all of
+            it, including past versions retained in that branch's git history.</li>
+        </ul>
+        <small>Note: deleting the file leaves earlier versions in the branch's
+          commit history; delete the branch to remove those too.</small>
+      </fieldset>
+    </section>
+
+    <!-- ── AI & GitHub ──────────────────────────────────────────── -->
+    <section class="tab-panel" data-panel="backends" hidden>
+
+      <!-- Active model backend (moved here from the side-panel header) -->
+      <fieldset>
+        <legend>Model</legend>
+        <label>
+          AI backend
+          <select id="adapter-select">
+            <option value="claude">Claude</option>
+            <option value="openai">OpenAI</option>
+          </select>
+          <small>Which model answers questions and makes edits. Configure its key below.</small>
+        </label>
+      </fieldset>
+
+      <!-- Claude backend -->
+      <fieldset>
+        <legend>Claude (direct)</legend>
+
+        <label>
+          Anthropic API key
+          <input type="password" id="claude-api-key" autocomplete="off" placeholder="sk-ant-...">
+          <small>From <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">console.anthropic.com/settings/keys</a>. Stored locally; sent only to Anthropic.</small>
+        </label>
+
+        <label>
+          Claude model
+          <select id="claude-model">
+            <option value="claude-sonnet-4-6">Sonnet 4.6 (default)</option>
+            <option value="claude-opus-4-6">Opus 4.6 (best quality)</option>
+            <option value="claude-haiku-4-5">Haiku 4.5 (cheapest)</option>
+          </select>
+        </label>
+
+        <div class="auth-block">
+          <h3>GitHub authentication</h3>
+          <p class="auth-status" id="gh-status">Not signed in. Either sign in via the GitHub App or paste a PAT below.</p>
+
+          <button type="button" id="gh-signin" class="secondary">Sign in with GitHub</button>
+          <button type="button" id="gh-signout" class="secondary" hidden>Sign out</button>
+
+          <details class="advanced-override">
+            <summary>Advanced: use a different GitHub App</summary>
+            <label>
+              GitHub App Client ID
+              <input type="text" id="gh-client-id" autocomplete="off" placeholder="Iv23li...">
+              <small>Pre-filled with the built-in RocketLab Docs Chat App. Only change this if you're running a fork that uses a different App.</small>
+            </label>
+          </details>
+
+          <!-- Device flow display: shown after clicking Sign in. We auto-open
+               the pre-filled verification URL in a new tab, so the code
+               display is just a backup in case that tab was blocked. -->
+          <div id="gh-device" class="device-panel" hidden>
+            <p class="device-prompt">If GitHub didn't open in a new tab, open <a id="gh-verification-uri" target="_blank" rel="noopener">github.com/login/device</a> and paste this code:</p>
+            <div class="device-code">
+              <code id="gh-user-code"></code>
+              <button type="button" id="gh-copy-code" class="secondary small">Copy</button>
+            </div>
+            <p class="device-status" id="gh-device-status">Waiting for authorization&hellip;</p>
+            <button type="button" id="gh-cancel" class="secondary small">Cancel</button>
+          </div>
+
+          <label>
+            &hellip;or personal access token (fallback)
+            <input type="password" id="claude-github-token" autocomplete="off" placeholder="github_pat_...">
+            <small>Needs <code>contents: write</code> and <code>pull_requests: write</code> on the target repos. Create at <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">github.com/settings/personal-access-tokens/new</a>.</small>
+          </label>
+        </div>
+      </fieldset>
+
+      <!-- OpenAI backend -->
+      <fieldset>
+        <legend>OpenAI (direct)</legend>
+
+        <label>
+          OpenAI API key
+          <input type="password" id="openai-api-key" autocomplete="off" placeholder="sk-...">
+          <small>From <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener">platform.openai.com/api-keys</a></small>
+        </label>
+
+        <label>
+          OpenAI model
+          <select id="openai-model">
+            <option value="gpt-5.4">gpt-5.4 (default)</option>
+            <option value="gpt-5.1-codex">gpt-5.1-codex</option>
+            <option value="gpt-5">gpt-5</option>
+            <option value="gpt-4.1">gpt-4.1 (legacy)</option>
+          </select>
+        </label>
+
+        <p class="auth-status">GitHub auth is shared with the Claude block above - sign in there once, both adapters use it.</p>
+      </fieldset>
+    </section>
+
+    <!-- ── Add-ons ──────────────────────────────────────────────── -->
+    <section class="tab-panel" data-panel="addons" hidden>
+      <fieldset>
+        <legend>Available add-ons</legend>
+        <p>Things Glassdocs can do for you. <strong>Don't edit anything by hand</strong> - ask the Glassdocs agent in the side panel to enable or disable any of these on the current site.</p>
+        <ul id="addons-list" class="addons-list"><li>Loading&hellip;</li></ul>
+        <small>Examples: <em>"enable search on this site"</em>, <em>"turn off the changelog"</em>, <em>"what add-ons does this site have on?"</em></small>
+      </fieldset>
+    </section>
+
+    <!-- ── Advanced ─────────────────────────────────────────────── -->
+    <section class="tab-panel" data-panel="advanced" hidden>
+
+      <!-- Microphone / dictation guide -->
+      <fieldset>
+        <legend>Microphone &amp; dictation</legend>
+        <p>Click the mic icon in the chat to dictate prompts instead of typing. Chrome has a quirk that makes this confusing on first use:</p>
+        <ul class="guide-list">
+          <li>Microphone permission is granted <strong>per origin</strong>.</li>
+          <li>The mic icon in the address bar grants the <strong>page</strong> (e.g. <code>*.pages.dev</code>) - that does <strong>not</strong> cover the side panel.</li>
+          <li>The side panel runs in the <strong>extension's own origin</strong> (<code>chrome-extension://&hellip;</code>) and needs a separate Allow.</li>
+          <li>Chrome's normal "Allow" prompt sometimes does not appear inside side panels. The fix is a one-time visit to the extension's microphone setting.</li>
+        </ul>
+        <p><button type="button" id="mic-settings-btn" class="secondary">Open this extension's microphone setting</button></p>
+        <p><small>Set Microphone to <em>Allow</em> on the page that opens, then click the mic icon in the chat again. Once granted, Chrome remembers - you only do this once.</small></p>
+      </fieldset>
+
+      <fieldset>
+        <legend>Developer / debug</legend>
+
+        <label>
+          Debug sink URL
+          <input type="url" id="debug-sink-url" autocomplete="off" placeholder="http://localhost:8787/event">
+          <small>
+            When set, the side panel streams diagnostic events and the live
+            conversation to this <strong>local</strong> endpoint (e.g. the
+            glassdocs debug bridge). <strong>Must be loopback</strong>
+            (<code>localhost</code> / <code>127.0.0.1</code>); a remote URL is
+            ignored. Token-shaped secrets are scrubbed before sending. Off by
+            default.
+          </small>
+        </label>
+
+        <label class="checkbox">
+          <input type="checkbox" id="debug-allow-inject">
+          Allow remote prompt injection (reverse channel)
+          <small>
+            Lets an external driver (via the debug bridge's <code>/inject</code>)
+            submit prompts as if you typed them. This is <strong>remote control
+            of the agent</strong> - keep off unless you're actively debugging.
+            Requires a valid loopback sink above. Commits still require a manual
+            Apply.
+          </small>
+        </label>
+      </fieldset>
+
+      <section class="danger">
+        <h3>Reset</h3>
+        <p>Wipe all stored settings including tokens. Cannot be undone.</p>
+        <button type="button" id="reset-btn" class="danger">Clear all settings</button>
+      </section>
+    </section>
+
+    <!-- Save (always visible, saves every tab) -->
+    <div class="actions">
+      <button type="submit" class="primary">Save</button>
+      <span class="save-status" id="save-status"></span>
+    </div>
+  </form>
+</main>
+
+<script type="module" src="options.js"></script>
+</body>
+</html>

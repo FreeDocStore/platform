@@ -1,0 +1,96 @@
+<article class="doc">
+
+  <h1>Glossary</h1>
+  <p class="lede">
+    Terms used throughout the case management platform's knowledge base. Definitions reflect the agency's safeguarding domain and the specific lifecycle the platform implements - not generic dictionary meanings. Where the platform's usage differs from the broader industry, the difference is called out.
+  </p>
+
+  <p>
+    Synonyms are listed where multiple names are in circulation in the agency or in legacy docs. Use the canonical term in all new documentation, code, and conversations.
+  </p>
+
+  <dl>
+
+    <dt id="active">active</dt>
+    <dd>
+      One of the five case states (Intake, Open, Active, On Hold, Closed). A case is Active when the assigned caseworker is currently engaged with the client - intake is complete, work is in progress, and no formal hold has been placed. <br />
+      <strong>See also:</strong> <a href="#case-state">case state</a>, <a href="#on-hold">on hold</a>.
+    </dd>
+
+    <dt id="case">case</dt>
+    <dd>
+      A record of the agency's engagement with one client, from intake through closure. Each case has exactly one assigned caseworker at any moment, one risk tier, one outcome code (when closed), and an unbounded number of audit entries, attachments, and supervisor reviews. <br />
+      <strong>Synonyms:</strong> matter (legacy term, do not use), engagement (legacy term, do not use). <br />
+      <strong>See also:</strong> <a href="#case-state">case state</a>, <a href="#client">client</a>, <a href="#caseworker">caseworker</a>.
+    </dd>
+
+    <dt id="case-state">case state</dt>
+    <dd>
+      One of: Intake, Open, Active, On Hold, Closed. State transitions are explicit user actions (per FR-5) and emit audit entries. The state machine does not allow arbitrary jumps; for example, a Closed case cannot return to Active without explicit reopen action which itself emits a state-transition audit entry. <br />
+      <strong>See also:</strong> <a href="#active">active</a>, <a href="#on-hold">on hold</a>, <a href="#closed">closed</a>.
+    </dd>
+
+    <dt id="caseworker">caseworker</dt>
+    <dd>
+      An agency staff member who handles cases day-to-day. The platform's primary user role. Caseworkers see only cases assigned to them or shared with them; they cannot view the full agency caseload (that is the supervisor view). <br />
+      <strong>Synonyms:</strong> case manager (sometimes used by senior staff; canonical term is caseworker).
+    </dd>
+
+    <dt id="client">client</dt>
+    <dd>
+      The person whose situation the case concerns. The recipient of the agency's safeguarding services. Has a name, demographic record, and a list of associated cases (a single client may have multiple cases over time). The client is NOT a user of the platform; clients do not log in. <br />
+      <strong>Synonyms:</strong> service user (used in legacy state safeguarding documentation; canonical term is client).
+    </dd>
+
+    <dt id="closed">closed</dt>
+    <dd>
+      A terminal case state. A case becomes Closed when the caseworker submits a closure summary and an outcome code (per FR-7). Closed cases are read-only except for the explicit reopen action. The audit trail and attachments remain accessible indefinitely; the case row itself is retained per the 7-year compliance window. <br />
+      <strong>See also:</strong> <a href="#outcome-code">outcome code</a>.
+    </dd>
+
+    <dt id="intake">intake</dt>
+    <dd>
+      Both (a) the initial case state, and (b) the multi-step form caseworkers complete to create a new case. Intake includes client demographics, presenting issue, risk assessment, and consent capture. The intake form supports partial save and resume across sessions; intake is not considered complete until the caseworker explicitly submits.
+    </dd>
+
+    <dt id="on-hold">on hold</dt>
+    <dd>
+      A case state indicating that work is intentionally paused, typically because the client is unreachable or because external factors block progress. Cases On Hold remain assigned but do not appear on a caseworker's active workload. Returning to Active requires a state-transition action and emits an audit entry.
+    </dd>
+
+    <dt id="outcome-code">outcome code</dt>
+    <dd>
+      One of a controlled vocabulary of closure reasons (resolved, referred-to-other-agency, client-disengaged, escalated, etc.). The full list is maintained by the agency's safeguarding director and updated annually as state policy evolves; the current list lives in the platform's reference data. <br />
+      <strong>See also:</strong> <a href="#closed">closed</a>.
+    </dd>
+
+    <dt id="presenting-issue">presenting issue</dt>
+    <dd>
+      The caseworker's structured description of why the client is engaging the agency at this point in time. One of the mandatory intake fields. Drives initial risk-tier assignment. Distinct from "underlying issue," which may emerge during ongoing case work and is captured separately.
+    </dd>
+
+    <dt id="reassignment">reassignment</dt>
+    <dd>
+      The supervisor action of moving a case from one caseworker to another. Reassignment requires a reason (free-text, mandatory) and emits notifications to both the previous and new caseworker (per FR-6). Reassignment is logged as a single audit entry; the reason text is part of the audit record.
+    </dd>
+
+    <dt id="risk-tier">risk tier</dt>
+    <dd>
+      The mandatory risk classification assigned during intake (per FR-3). Drives caseload prioritisation, supervisor-review cadence, and per-tier escalation paths. The tier values and their thresholds are defined by the state safeguarding standard; the platform does not modify them. <br />
+      <strong>Synonyms:</strong> risk rating (informal use only). <br />
+      <strong>See also:</strong> <a href="#presenting-issue">presenting issue</a>.
+    </dd>
+
+    <dt id="state-audit">state audit</dt>
+    <dd>
+      The annual review conducted by the state oversight body of the agency's case-handling practices. The platform's audit log is the canonical evidence source. The audit window opens in Q2 each year; the platform must remain operational and audit-accessible during this window.
+    </dd>
+
+    <dt id="supervisor">supervisor</dt>
+    <dd>
+      An agency staff member with authority over a region's caseload. Supervisors see the full set of cases in their region (caseworkers see only their own), can reassign cases, can review closure submissions before final close, and have MFA enforced on their accounts (NFR-4).
+    </dd>
+
+  </dl>
+
+</article>

@@ -1,0 +1,65 @@
+<article class="doc">
+
+  <h1>Requirements</h1>
+  <p class="lede">
+    A small internal tool that lets the support team look up customer
+    subscription status without leaving Slack.
+  </p>
+
+  <h2>Goals</h2>
+  <p>
+    Reduce the time a support agent spends answering "what plan is this
+    customer on?" from ~90 seconds (open Stripe, search, copy plan name)
+    to under 5 seconds (Slack slash command, paste customer email).
+  </p>
+
+  <h2>Functional requirements</h2>
+
+  <h3>Lookup</h3>
+  <ul>
+    <li><strong>FR-1.</strong> A Slack slash command <code>/sub-status &lt;email&gt;</code> returns the customer's plan name, billing status, and renewal date. <em>(Must)</em></li>
+    <li><strong>FR-2.</strong> If the email matches no customer, the command replies with "No customer found - check the address." <em>(Must)</em></li>
+    <li><strong>FR-3.</strong> Lookup also accepts the Stripe customer ID (<code>cus_*</code>) for cases where the agent already has it. <em>(Should)</em></li>
+  </ul>
+
+  <h3>Permissions</h3>
+  <ul>
+    <li><strong>FR-4.</strong> The command works only in the <code>#support</code> channel and any channel matching <code>#support-*</code>. <em>(Must)</em></li>
+  </ul>
+
+  <h2>Non-functional requirements</h2>
+
+  <h3>Performance</h3>
+  <ul>
+    <li><strong>NFR-1.</strong> The slash command responds within Slack's 3-second timeout for 99% of requests, falling back to an async response on slower lookups.</li>
+  </ul>
+
+  <h3>Security</h3>
+  <ul>
+    <li><strong>NFR-2.</strong> The Slack app does not store customer data; each request fetches fresh from Stripe via the company's existing API token (no new credentials issued).</li>
+    <li><strong>NFR-3.</strong> Audit log: every lookup writes a row to the existing <code>support_audit</code> table with agent ID, timestamp, and customer ID.</li>
+  </ul>
+
+  <h2>Constraints</h2>
+  <ul>
+    <li><strong>Budget:</strong> Internal tool, no separate budget. Built using existing Stripe + Slack accounts.</li>
+    <li><strong>Timeline:</strong> Two-week build window; ship the next sprint.</li>
+    <li><strong>Stack:</strong> Must run as a Cloudflare Worker (existing infra). No new vendors.</li>
+    <li><strong>Integrations:</strong> Stripe API and Slack API only. No CRM lookup in v1.</li>
+  </ul>
+
+  <h2>Out of scope</h2>
+  <ul>
+    <li>Updating subscriptions from Slack (read-only tool).</li>
+    <li>Looking up cancelled customers older than 18 months.</li>
+    <li>Multi-account support - the tool reads from the single Stripe production account only.</li>
+    <li>Self-service customer access. This is for support agents only.</li>
+  </ul>
+
+  <h2>Open questions</h2>
+  <ul>
+    <li><strong>Q-1.</strong> Should the response include the customer's CSM/AE? Need to confirm whether that field is consistently populated in Stripe metadata. <em>(Owner: support lead, due: end of week)</em></li>
+    <li><strong>Q-2.</strong> Do we need rate limiting? Stripe API has its own limits; unclear whether the support team's typical volume comes anywhere close. <em>(Owner: engineering, due: before launch)</em></li>
+  </ul>
+
+</article>

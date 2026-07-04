@@ -1,0 +1,11 @@
+name: Docs Lint (self)
+
+on:
+  pull_request:
+    paths:
+      - 'docs/**'
+      - '.github/workflows/**'
+
+jobs:
+  lint:
+    uses: ./.github/workflows/docs-lint.yml

@@ -1,0 +1,13 @@
+/* Shared stylesheet for the undefined-classes fixture. */
+.topbar { display: flex; }
+.topbar-links { gap: 1rem; }
+.badge { background: #eee; }
+.card { padding: 1rem; }
+.content { max-width: 60ch; }
+.container { max-width: 80ch; }
+.doc-title { font-size: 2rem; }
+.grid-2 { display: grid; }
+.nav-group { margin: 0; }
+.nav-group-title { font-weight: 600; }
+.sidebar { position: sticky; }
+.topbar-logo { height: 24px; }

@@ -1,0 +1,83 @@
+# ═══════════════════════════════════════════════════════════════════════
+# Reusable docs compliance linter
+#
+# Checks a repo against Glassdocs best practices before merge:
+#   - No brand assets tracked in docs/ (they're injected at deploy time)
+#   - Workflow is named docs-deploy.yml (not deploy.yml)
+#   - Pages with standard topbar link to shared styles.css
+#   - No publishing scripts outside docs/ folder
+#   - No financial/contractual content (unless allow-financial: true)
+#
+# Usage in caller repo (.github/workflows/docs-lint.yml):
+#   on:
+#     pull_request:
+#       paths: ['docs/**', '.github/workflows/**']
+#   jobs:
+#     lint:
+#       uses: Glassdocs/glassdocs/.github/workflows/docs-lint.yml@main
+#
+# No secrets required - Glassdocs is public, so the lint script is
+# fetched via a regular unauthenticated checkout.
+# ═══════════════════════════════════════════════════════════════════════
+
+name: Docs Lint (reusable)
+
+on:
+  workflow_call:
+    inputs:
+      docs-dir:
+        description: "Docs directory (default: docs)"
+        required: false
+        type: string
+        default: "docs"
+      allow-financial:
+        description: "Allow financial/contractual content"
+        required: false
+        type: boolean
+        default: false
+      allow-inline-styles:
+        description: "Allow pages that don't link shared styles.css (for legacy migrations)"
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      # Glassdocs is a public repo, so fetching the lint script needs
+      # no authentication. Sparse-checkout pulls only what we need.
+      - name: Check out Glassdocs (for shared lint script)
+        uses: actions/checkout@v4
+        with:
+          repository: Glassdocs/glassdocs
+          ref: main
+          path: .glassdocs
+          sparse-checkout: |
+            templates/search/scripts/
+
+      - name: Run compliance checks
+        env:
+          DOCS_DIR: ${{ inputs.docs-dir }}
+          ALLOW_FINANCIAL: ${{ inputs.allow-financial }}
+          ALLOW_INLINE_STYLES: ${{ inputs.allow-inline-styles }}
+        run: |
+          set -uo pipefail
+          # Stream FAIL/WARN lines back as GitHub annotations.
+          out=$(bash .glassdocs/templates/search/scripts/docs-lint.sh) || rc=$?
+          rc=${rc:-0}
+          echo "$out" | while IFS= read -r line; do
+            case "$line" in
+              FAIL:*) echo "::error::${line#FAIL: }" ;;
+              WARN:*) echo "::warning::${line#WARN: }" ;;
+              *)      echo "$line" ;;
+            esac
+          done
+          if [ "$rc" -ne 0 ]; then
+            echo "::error::Docs lint failed. See https://github.com/Glassdocs/glassdocs for playbook rules."
+            exit "$rc"
+          fi

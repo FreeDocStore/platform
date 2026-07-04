@@ -1,0 +1,6 @@
+node_modules/
+dist/
+dist-zip/
+.test-bundle.mjs
+.test-bundles/
+*.tsbuildinfo

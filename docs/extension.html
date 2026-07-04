@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow, noarchive, nosnippet">
+<meta name="googlebot" content="noindex, nofollow">
+<title>Extension - FreeDocStore</title>
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header class="topbar">
+  <button class="menu-toggle" onclick="document.querySelector('.sidebar').classList.toggle('open')" aria-label="Toggle menu">&#9776;</button>
+  <h1>
+    <a href="index.html"><img src="logo.svg" alt="Open Frontier One" class="topbar-logo"></a>
+    <span class="badge">FreeDocStore</span>
+  </h1>
+  <nav class="topbar-links">
+    <a href="components.html">Components</a>
+    <a href="content.html">Content</a>
+    <a href="writing.html">Writing</a>
+    <a href="infrastructure.html">Infrastructure</a>
+    <a href="extension.html" class="active">Extension</a>
+  </nav>
+</header>
+
+<nav class="sidebar" id="sidebar">
+  <div class="nav-group">
+    <div class="nav-group-title">FreeDocStore Extension</div>
+    <a href="#overview" class="active">Overview</a>
+    <a href="#architecture">Architecture</a>
+    <a href="#install">Install</a>
+    <a href="#backends">Backends</a>
+    <a href="#auth">Authentication</a>
+    <a href="#development">Development</a>
+    <a href="#status">Status</a>
+  </div>
+</nav>
+
+<main class="content">
+
+  <section id="overview">
+    <h2>FreeDocStore Extension</h2>
+    <p>Browser extension that lets you edit docs sites by chatting with an AI agent, directly from the rendered page. No "open the repo, find the file, clone, edit, PR" detour - prompt, review, commit.</p>
+
+    <div class="card highlight">
+      <h4>Provider-agnostic</h4>
+      <p>The extension is a chat surface. The actual edits are made by a pluggable backend:</p>
+      <ul>
+        <li><strong>Claude</strong> - Anthropic API + Octokit directly. No extra infra.</li>
+        <li><strong>OpenAI</strong> - OpenAI API directly. Same multi-turn tool-loop as the Claude adapter (list pages, read files, propose edits).</li>
+        <li><strong>GitHub Coding Agent</strong> (future) - GraphQL assignment to Copilot Coding Agent / Agent HQ. Requires a user PAT with a Copilot subscription.</li>
+        <li><strong>MCP</strong> (future) - any Model Context Protocol server.</li>
+      </ul>
+    </div>
+
+    <p>Source lives at <code>extension/</code> in the <a href="https://github.com/FreeDocStore/platform">FreeDocStore repo</a>.</p>
+  </section>
+
+  <section id="architecture">
+    <h2>Architecture</h2>
+    <div class="card">
+      <pre><code>Side panel (sidepanel.html)
+Chat UI + settings
+    |
+    v  chrome.runtime messaging
+Background service worker
+  - Holds the selected adapter
+  - Persists settings in chrome.storage.sync
+  - Brokers messages
+    |
+    +--&gt; claude adapter  -----&gt; Anthropic API + Octokit
+    +--&gt; openai adapter  -----&gt; OpenAI API + Octokit
+    +--&gt; (future) github-agent, mcp
+    |
+    v
+Content script (content.ts)
+  - Reads current page (URL, title, HTML, visible text)
+  - Strips nav/header/footer before extracting prose</code></pre>
+    </div>
+
+    <h3>URL to source file resolution</h3>
+    <p>Each docs site declares its backing GitHub repo via a single meta tag in the rendered HTML: <code>&lt;meta name=&quot;docs-repo&quot; content=&quot;owner/name&quot;&gt;</code>. The extension reads this tag and uses it to fetch source files, propose edits, and open PRs. Sites built with FreeDocStore templates emit the tag automatically at deploy time. Cloudflare Pages clean URLs (no <code>.html</code> suffix) and trailing slashes are resolved automatically.</p>
+
+    <h3>Structural (bulk) edits</h3>
+    <p>A dedicated mode for changes spanning every page - nav updates, footer changes, meta tags. The agent produces a single structural diff; the extension applies it to every HTML file under <code>docs/</code> before opening one PR. This solves the "menu updates" pain point we kept hitting manually.</p>
+  </section>
+
+  <section id="install">
+    <h2>Install</h2>
+    <p>The extension is not yet on the Chrome Web Store. Install it from source as an unpacked extension.</p>
+
+    <h3>Prerequisites</h3>
+    <ul>
+      <li><strong>Chrome 120+</strong> (or any Chromium-based browser with Manifest V3 and <code>chrome.sidePanel</code>: Edge, Brave, Arc).</li>
+      <li><strong>Node 20+</strong> and <strong>npm 10+</strong> to run the build.</li>
+      <li>A local clone of <code>FreeDocStore/platform</code>.</li>
+    </ul>
+
+    <h3>Build</h3>
+    <div class="card">
+      <pre><code>git clone git@github.com:FreeDocStore/platform.git
+cd freedocstore/extension
+npm install
+npm run build</code></pre>
+    </div>
+    <p>The build writes a loadable extension into <code>extension/dist/</code>. This is what Chrome reads - not the <code>src/</code> TypeScript.</p>
+
+    <h3>Load into Chrome</h3>
+    <ol>
+      <li>Open <code>chrome://extensions</code>.</li>
+      <li>Toggle <strong>Developer mode</strong> (top-right).</li>
+      <li>Click <strong>Load unpacked</strong>.</li>
+      <li>Pick the <code>extension/dist/</code> directory (not <code>extension/</code>).</li>
+      <li>Pin the extension to your toolbar so the icon is always visible.</li>
+    </ol>
+    <p>The extension now appears as <strong>FreeDocStore</strong>.</p>
+
+    <h3>First run</h3>
+    <ol>
+      <li>Open any FreeDocStore-enabled docs site.</li>
+      <li>Click the <strong>FreeDocStore</strong> toolbar icon. Chrome opens a side panel.</li>
+      <li>The banner under the header shows the repo + source path resolved from the current URL, e.g. <code>your-org/your-repo - docs/index.html</code>.</li>
+      <li>Pick a <strong>backend</strong> in the top-right dropdown.</li>
+    </ol>
+
+    <h3>Update after new builds</h3>
+    <p><code>dist/</code> ships as a regular folder - Chrome reads it live. After <code>npm run build</code> finishes, click the <strong>Reload</strong> arrow on the FreeDocStore card in <code>chrome://extensions</code>. No need to remove and re-add.</p>
+
+    <h3>Uninstall</h3>
+    <p><code>chrome://extensions</code> &rarr; <strong>Remove</strong> on the FreeDocStore card. Settings stored in <code>chrome.storage.sync</code> are cleared automatically.</p>
+  </section>
+
+  <section id="backends">
+    <h2>Backends</h2>
+
+    <h3>Claude</h3>
+    <ol>
+      <li>Open the extension <strong>Options</strong> (right-click the toolbar icon &rarr; "Options").</li>
+      <li>Paste an <strong>Anthropic API key</strong>.</li>
+      <li>Sign in with GitHub (device flow) or paste a <strong>PAT</strong> with <code>repo</code> scope. Auth is shared with the OpenAI backend.</li>
+      <li>Pick a model (e.g. <code>claude-sonnet-4-6</code>).</li>
+    </ol>
+
+    <h3>OpenAI</h3>
+    <ol>
+      <li>Extension options &rarr; OpenAI section.</li>
+      <li>Paste an <strong>OpenAI API key</strong> (the same GitHub auth from the Claude block applies).</li>
+      <li>Pick a model (e.g. <code>gpt-5.4</code>).</li>
+    </ol>
+  </section>
+
+  <section id="auth">
+    <h2>Authentication</h2>
+
+    <div class="card highlight">
+      <p>The extension itself has no login. It is fully client-side. Auth is only needed for the external services it calls, and every credential is supplied by the user.</p>
+    </div>
+
+    <div class="card">
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Where</th><th>Credential</th><th>Where to get it</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Viewing docs sites</td><td>Cloudflare Access SSO session</td><td>Already required to open <code>*.pages.dev</code></td></tr>
+            <tr><td>Claude &rarr; Anthropic API</td><td><code>x-api-key</code> header</td><td><a href="https://console.anthropic.com/settings/keys">console.anthropic.com/settings/keys</a></td></tr>
+            <tr><td>OpenAI &rarr; OpenAI API</td><td><code>Authorization: Bearer</code> header</td><td><a href="https://platform.openai.com/api-keys">platform.openai.com/api-keys</a></td></tr>
+            <tr><td>GitHub writes (shared)</td><td>PAT or GitHub App token with <code>repo</code> scope</td><td>GitHub fine-grained tokens or an App installation. Used by both Claude and OpenAI adapters.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <h3>Storage</h3>
+    <p>Credentials are written to <code>chrome.storage.sync</code> by the extension's own service worker. Chrome encrypts this at rest and scopes it to your browser profile. If you're signed into Chrome with a Google account, the settings sync across your Chrome installs.</p>
+
+    <h3>Privacy</h3>
+    <p>The extension sends network traffic only to:</p>
+    <ul>
+      <li>The APIs you have configured (Anthropic, OpenAI, GitHub).</li>
+      <li>The current tab's page (read-only, to grab HTML and visible text).</li>
+    </ul>
+    <p>No telemetry, no phone-home, no shared server.</p>
+  </section>
+
+  <section id="development">
+    <h2>Development</h2>
+    <div class="card">
+      <pre><code>cd extension
+npm install
+npm run build       # bundles src/ into dist/
+npm test            # 29 tests, under 3 seconds
+npm run dev         # esbuild in --watch mode
+npm run typecheck   # tsc --noEmit</code></pre>
+    </div>
+    <p>Each save rebuilds <code>dist/</code>. Click <strong>Reload</strong> once after <code>dist/</code> is current; further TS edits rebuild automatically, but you still need the Reload click for the service worker and content script to refresh.</p>
+
+    <h3>Tests</h3>
+    <ul>
+      <li><code>tests/resolver.test.mjs</code> - URL &rarr; source file mapping, including clean URLs, fragments, and the project-to-repo quirks (12 tests).</li>
+      <li><code>tests/adapters.test.mjs</code> - registry correctness, validation, <code>AdapterError.cause</code> wiring (9 tests).</li>
+      <li><code>tests/settings.test.mjs</code> - deep merge so partial updates don't wipe sibling fields (8 tests).</li>
+    </ul>
+    <p>CI runs them on every PR via <code>.github/workflows/test.yml</code> alongside the Python tests for the generators.</p>
+  </section>
+
+  <section id="status">
+    <h2>Status</h2>
+    <div class="card highlight">
+      <p><strong>Both adapters are wired to real APIs.</strong> Claude and OpenAI both call live APIs and drive a multi-turn tool loop (list pages, read repo files, propose edits, open PR or push direct). Per-repo chat history, scroll memory, dictation, theme/font controls, and a diff-preview Apply/Cancel flow are all in place. The next milestone is Chrome Web Store publication and a managed gateway so non-technical users don't need to bring their own API keys.</p>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <p>FreeDocStore - Extension</p>
+  
+</footer>
+
+</body>
+</html>

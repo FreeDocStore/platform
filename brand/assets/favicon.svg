@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="Rocket Lab">
+  <title>Rocket Lab</title>
+  <!-- Rounded-square backdrop in the brand navy. Rendering as an
+       independent shape (no filters) keeps the favicon crisp at 16x16
+       on a Chrome tab and identical at 180x180 on an iOS home screen. -->
+  <rect width="32" height="32" rx="6" fill="#22276c"/>
+  <!-- Mint triangular 'A' - the most recognisable single mark from the
+       wordmark. Three straight points, so it's sharp at every size
+       instead of fuzzing like a glyph outline would. -->
+  <polygon points="6,25 16,7 26,25" fill="#06f4b1"/>
+</svg>

@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FreeDocStore - the documentation standard your AI agents can read</title>
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header class="topbar">
+  <button class="menu-toggle" onclick="document.querySelector('.sidebar').classList.toggle('open')" aria-label="Toggle menu">&#9776;</button>
+  <h1>
+    <a href="index.html"><img src="logo.svg" alt="Open Frontier One" class="topbar-logo"></a>
+    <span class="badge">FreeDocStore</span>
+  </h1>
+  <nav class="topbar-links">
+    <a href="components.html">Components</a>
+    <a href="content.html">Content</a>
+    <a href="writing.html">Writing</a>
+    <a href="infrastructure.html">Infrastructure</a>
+    <a href="extension.html">Extension</a>
+    <a href="install.html">Install</a>
+  </nav>
+</header>
+
+<nav class="sidebar" id="sidebar">
+  <div class="nav-group">
+    <div class="nav-group-title">Overview</div>
+    <a href="#about" class="active">What Is This</a>
+    <a href="#site-anatomy">Site Anatomy</a>
+    <a href="#how-to-use">How to Use</a>
+    <a href="#checklist">Site Checklist</a>
+  </div>
+</nav>
+
+<main class="content">
+
+  <!-- ABOUT -->
+  <section id="about">
+    <h2>What Is This</h2>
+    <p><strong>FreeDocStore</strong> is an open-source documentation standard for the agent era. Your AI writes code; this is how it documents what it built so humans can read, approve, and steer.</p>
+    <p>Hand-written HTML. Zero build step. A browser extension that reads the same source agents do. This site is itself built with the template it documents - what you see here is what every FreeDocStore-enabled site looks like.</p>
+
+    <div class="grid-2">
+      <div class="card highlight">
+        <h4>What It Covers</h4>
+        <ul>
+          <li>Site layout and navigation structure</li>
+          <li>UI components (cards, tables, tags)</li>
+          <li>Content structure and section order</li>
+          <li>Voice, tone, and formatting rules</li>
+        </ul>
+      </div>
+      <div class="card highlight">
+        <h4>How to Start a New Site</h4>
+        <ol>
+          <li>Copy <code>docs/index.html</code> from FreeDocStore</li>
+          <li>Change the badge text and page title</li>
+          <li>Replace sidebar nav groups with your sections</li>
+          <li>Fill in your content using the <a href="components.html">components</a></li>
+        </ol>
+      </div>
+    </div>
+  </section>
+
+  <!-- SITE ANATOMY -->
+  <section id="site-anatomy">
+    <h2>Site Anatomy</h2>
+    <p>Every site follows the same three-panel layout. This page is a live example of that layout.</p>
+
+    <div class="card highlight">
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Element</th><th>What It Does</th><th>Where You're Seeing It</th></tr></thead>
+          <tbody>
+            <tr><td><strong>Topbar</strong></td><td>Fixed header with logo, badge, and page links</td><td>The bar at the very top of this page</td></tr>
+            <tr><td><strong>Sidebar</strong></td><td>Left navigation with grouped sections</td><td>The panel on the left with section links</td></tr>
+            <tr><td><strong>Content area</strong></td><td>Main content, max 960px wide</td><td>This text you're reading right now</td></tr>
+            <tr><td><strong>Footer</strong></td><td>Centered text at the bottom</td><td>Scroll to the bottom of the page</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="callout">
+      <div class="callout-label">Multi-page architecture</div>
+      <p style="margin:0;">Each site uses separate <code>.html</code> files linked via the topbar. The sidebar handles within-page navigation. All pages share the same <code>styles.css</code> stylesheet.</p>
+    </div>
+  </section>
+
+  <!-- HOW TO USE -->
+  <section id="how-to-use">
+    <h2>How to Use</h2>
+
+    <h3>Starting a New Site</h3>
+    <div class="card">
+      <pre><code># 1. Create a docs/ directory in your project
+mkdir docs
+
+# 2. Copy required files
+cp freedocstore/docs/index.html your-project/docs/index.html
+cp freedocstore/docs/logo.svg your-project/docs/logo.svg
+cp freedocstore/templates/robots.txt your-project/docs/robots.txt
+cp freedocstore/templates/_headers your-project/docs/_headers
+
+# 3. Update the title and badge
+#    Change &lt;title&gt; and the .badge text
+
+# 4. Update sidebar nav groups
+#    Replace with your own sections
+
+# 5. Set up deploy workflow
+mkdir -p .github/workflows
+cp freedocstore/templates/workflows/docs-deploy.yml .github/workflows/
+#    Edit docs-deploy.yml: change project-name to your repo name
+
+# 6. Push to main - deploys automatically
+#    Access protection is created on first deploy</code></pre>
+    </div>
+
+    <h3>Adding to an Existing Site</h3>
+    <div class="card">
+      <p>Refer to the <a href="components.html">Components</a> page for all available building blocks. Copy the HTML structure for any component you need.</p>
+    </div>
+  </section>
+
+  <!-- SITE CHECKLIST -->
+  <section id="checklist">
+    <h2>Site Checklist</h2>
+    <p>Every FreeDocStore-enabled site <strong>must</strong> have all of the following. Use this as a pre-flight check before deploying a new site or auditing an existing one.</p>
+
+    <h3>Required Files</h3>
+    <div class="card highlight">
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>File</th><th>Purpose</th><th>Template</th></tr></thead>
+          <tbody>
+            <tr><td><code>docs/index.html</code></td><td>Main site content</td><td>Copy from FreeDocStore</td></tr>
+            <tr><td><code>docs/styles.css</code></td><td>Shared stylesheet (or use <code>fetch-brand-assets: true</code> in deploy)</td><td>Auto-fetched or copied from FreeDocStore</td></tr>
+            <tr><td><code>docs/logo.svg</code></td><td>Wordmark logo for topbar</td><td>Auto-fetched or copied from FreeDocStore</td></tr>
+            <tr><td><code>docs/robots.txt</code></td><td>Block search engine crawlers (defence-in-depth behind Access)</td><td><code>User-agent: *\nDisallow: /</code></td></tr>
+            <tr><td><code>docs/_headers</code></td><td>Security response headers (X-Frame-Options, CSP, etc.)</td><td>See below</td></tr>
+            <tr><td><code>.github/workflows/docs-deploy.yml</code></td><td>Calls the reusable deploy workflow, triggers on push to main</td><td>Copy from freedocstore/templates/workflows/</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <h3>Required <code>_headers</code> Content</h3>
+    <div class="card">
+      <pre><code>/*
+  X-Frame-Options: DENY
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=()
+  Content-Security-Policy: default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; worker-src 'self' blob:</code></pre>
+    </div>
+
+    <h3>Required HTML Elements</h3>
+    <div class="card highlight">
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Element</th><th>Requirement</th><th>Example</th></tr></thead>
+          <tbody>
+            <tr><td><strong>Meta robots</strong></td><td>Both <code>robots</code> and <code>googlebot</code> meta tags with noindex</td><td><code>&lt;meta name="robots" content="noindex, nofollow, noarchive, nosnippet"&gt;</code></td></tr>
+            <tr><td><strong>Topbar logo link</strong></td><td>Wordmark logo must link to <code>index.html</code> using <code>logo.svg</code></td><td><code>&lt;a href="index.html"&gt;&lt;img src="logo.svg" alt="Logo" class="topbar-logo"&gt;&lt;/a&gt;</code></td></tr>
+            <tr><td><strong>Badge</strong></td><td>Project name in <code>.badge</code> span</td><td><code>&lt;span class="badge"&gt;Project Name&lt;/span&gt;</code></td></tr>
+            <tr><td><strong>Menu toggle</strong></td><td>Hamburger button for mobile sidebar</td><td><code>&lt;button class="menu-toggle" ...&gt;</code></td></tr>
+            <tr><td><strong>Stylesheet</strong></td><td>Link to shared <code>styles.css</code></td><td><code>&lt;link rel="stylesheet" href="styles.css"&gt;</code></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <h3>Standard Topbar Template</h3>
+    <div class="card">
+      <p>Copy this into every page. For multi-page sites, add <code>.topbar-links</code> and set <code>.active</code> on the current page.</p>
+      <pre><code>&lt;header class="topbar"&gt;
+  &lt;button class="menu-toggle" onclick="document.querySelector('.sidebar').classList.toggle('open')" aria-label="Toggle menu"&gt;&amp;#9776;&lt;/button&gt;
+  &lt;h1&gt;
+    &lt;a href="index.html"&gt;&lt;img src="logo.svg" alt="Open Frontier One" class="topbar-logo"&gt;&lt;/a&gt;
+    &lt;span class="badge"&gt;YOUR PROJECT&lt;/span&gt;
+  &lt;/h1&gt;
+&lt;/header&gt;</code></pre>
+    </div>
+
+    <h3>Security Checklist</h3>
+    <div class="card highlight">
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Check</th><th>How to Verify</th></tr></thead>
+          <tbody>
+            <tr><td>Site returns 302 (not 200) when unauthenticated</td><td><code>curl -s -o /dev/null -w "%{http_code}" https://your-site.pages.dev</code></td></tr>
+            <tr><td><code>robots.txt</code> blocks all crawlers</td><td>File exists in <code>docs/</code> with <code>Disallow: /</code></td></tr>
+            <tr><td><code>_headers</code> sets security headers</td><td>File exists in <code>docs/</code> with X-Frame-Options, CSP, etc.</td></tr>
+            <tr><td>Meta robots noindex tags present</td><td>Both <code>robots</code> and <code>googlebot</code> meta tags in <code>&lt;head&gt;</code></td></tr>
+            <tr><td>No secrets or credentials in HTML</td><td>Manual review - no API keys, tokens, or passwords in source</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <h3>Consistency Checklist</h3>
+    <div class="card">
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Check</th><th>Standard</th></tr></thead>
+          <tbody>
+            <tr><td>Badge text</td><td>Project name, consistent across all pages of the same site</td></tr>
+            <tr><td>Shared stylesheet</td><td>Use <code>styles.css</code> from FreeDocStore (linked or fetched at deploy time)</td></tr>
+            <tr><td>Topbar chapter links (multi-page)</td><td>Same links on every page, <code>.active</code> on current page</td></tr>
+            <tr><td>Footer</td><td>Centered, simple attribution to FreeDocStore</td></tr>
+            <tr><td>Color palette</td><td>Use CSS variables from <code>styles.css</code>, never hardcode colors</td></tr>
+            <tr><td>Responsive</td><td>Sidebar collapses at 900px, hamburger menu appears, grids collapse</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="callout">
+      <div class="callout-label">docs/ must be self-contained</div>
+      <p style="margin:0;"><strong>Never place publishing-related files outside <code>docs/</code>.</strong> No build scripts, generators, assets, or stylesheets in the repo root. The repo root is for project code. Generators (changelog, sitemap, page-meta) live in FreeDocStore and run centrally via the reusable workflow - do not copy them into individual repos. The only file outside <code>docs/</code> is <code>.github/workflows/docs-deploy.yml</code>, which GitHub requires in its standard location.</p>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  FreeDocStore &middot; by Open Frontier One
+</footer>
+
+<script>
+  const sections = document.querySelectorAll('section[id]');
+  const navLinks = document.querySelectorAll('.sidebar a');
+  window.addEventListener('scroll', () => {
+    let current = '';
+    sections.forEach(s => {
+      if (window.scrollY >= s.offsetTop - 100) current = s.getAttribute('id');
+    });
+    navLinks.forEach(a => {
+      a.classList.toggle('active', a.getAttribute('href') === '#' + current);
+    });
+  });
+</script>
+</body>
+</html>

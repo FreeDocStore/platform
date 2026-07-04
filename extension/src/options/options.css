@@ -1,0 +1,360 @@
+:root {
+  --bg: #0f1117;
+  --surface: #181b24;
+  --surface2: #1e2230;
+  --border: #2a2e3d;
+  --text: #e1e4ed;
+  --text-muted: #8b90a0;
+  --accent: #06f4b1;
+  --red: #f87171;
+}
+
+/* Light theme. Applied when theme.ts sets data-theme="light" on <html>. */
+[data-theme="light"] {
+  --bg: #ffffff;
+  --surface: #f5f6f8;
+  --surface2: #ebedf0;
+  --border: #d4d7dd;
+  --text: #1a1d26;
+  --text-muted: #6a6f7a;
+  --accent: #00a876;
+  --red: #d43651;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.6;
+  font-size: 14px;
+}
+header {
+  padding: 32px 48px 16px;
+  border-bottom: 1px solid var(--border);
+}
+header h1 {
+  margin: 0 0 4px;
+  font-size: 20px;
+  font-weight: 600;
+}
+.subtitle {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+main {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 24px 48px 80px;
+}
+fieldset {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 20px 24px 24px;
+  margin: 0 0 20px;
+  background: var(--surface);
+}
+legend {
+  padding: 0 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+label {
+  display: block;
+  margin: 14px 0;
+  font-weight: 500;
+}
+fieldset > small {
+  display: block;
+  margin: 10px 0;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+.hint-list {
+  margin: 8px 0 8px 18px;
+  padding: 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+label small {
+  display: block;
+  margin-top: 4px;
+  color: var(--text-muted);
+  font-weight: 400;
+  font-size: 12px;
+}
+label a {
+  color: var(--accent);
+  text-decoration: none;
+}
+label a:hover { text-decoration: underline; }
+input, select, textarea {
+  display: block;
+  width: 100%;
+  margin-top: 6px;
+  padding: 8px 10px;
+  background: var(--surface2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-family: ui-monospace, monospace;
+  font-size: 13px;
+}
+input:focus, select:focus, textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+textarea { font-family: ui-monospace, monospace; }
+select { font-family: inherit; }
+.auth-block {
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+}
+.auth-block h3 {
+  margin: 0 0 8px;
+  font-size: 14px;
+}
+.auth-status {
+  margin: 0 0 12px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+.auth-status.ok { color: var(--accent); }
+.device-panel {
+  margin: 16px 0;
+  padding: 16px 20px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.device-prompt { margin: 0 0 10px; font-size: 13px; }
+.device-prompt a { color: var(--accent); }
+.device-code {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 10px 0;
+}
+.device-code code {
+  display: inline-block;
+  padding: 8px 14px;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: 4px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--accent);
+  font-family: ui-monospace, monospace;
+}
+.device-status {
+  margin: 8px 0 4px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.device-status.err { color: var(--red); }
+button.small {
+  padding: 4px 10px;
+  font-size: 12px;
+}
+button {
+  border: 0;
+  border-radius: 6px;
+  padding: 8px 16px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 13px;
+}
+button.primary {
+  background: var(--accent);
+  color: #000;
+}
+button.primary:hover { filter: brightness(1.1); }
+button.secondary {
+  background: var(--surface2);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+button.secondary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+button.danger {
+  background: rgba(248, 113, 113, 0.1);
+  color: var(--red);
+  border: 1px solid rgba(248, 113, 113, 0.3);
+}
+button.danger:hover {
+  background: rgba(248, 113, 113, 0.2);
+}
+/* Two-click confirm: any button picks this up while armed and waiting
+   for the second click. Solid red so the user can't miss it. */
+button.armed {
+  background: var(--red);
+  color: #1a0000;
+  border-color: var(--red);
+}
+.save-status.err { color: var(--red); }
+details summary {
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 13px;
+  margin: 10px 0;
+}
+details summary:hover { color: var(--text); }
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 8px;
+}
+.save-status {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+.save-status.ok { color: var(--accent); }
+.save-status.err { color: var(--red); }
+.danger {
+  margin-top: 40px;
+  padding: 20px 24px;
+  border: 1px solid rgba(248, 113, 113, 0.3);
+  border-radius: 10px;
+  background: rgba(248, 113, 113, 0.04);
+}
+.danger h3 {
+  margin: 0 0 6px;
+  font-size: 14px;
+  color: var(--red);
+}
+.danger p {
+  margin: 0 0 12px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+code {
+  background: var(--surface2);
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 12px;
+}
+/* Microphone & dictation guide list. Light bullet list inside the
+   options fieldset, indented to line up with the section's body text. */
+.guide-list {
+  margin: 8px 0 12px;
+  padding-left: 20px;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.guide-list li { margin: 4px 0; }
+.guide-list code {
+  font-size: 12px;
+  background: var(--surface);
+  padding: 0 4px;
+  border-radius: 3px;
+}
+
+/* Add-ons catalog list. Read-only; the UI deliberately omits copy-paste
+   snippets so users go through the docs-chat agent (per VISION.md). */
+.addons-list {
+  list-style: none;
+  padding: 0;
+  margin: 8px 0 12px;
+}
+.addon {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  background: var(--surface);
+}
+.addon-head { font-size: 14px; }
+.addon-head code {
+  margin-left: 6px;
+  background: var(--surface2);
+  padding: 0 5px;
+  border-radius: 3px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.addon-desc {
+  margin-top: 4px;
+  font-size: 13px;
+  color: var(--text);
+}
+.addon-generates {
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.addon-ask {
+  margin-top: 6px;
+  font-size: 11px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+.addon-ask-label {
+  color: var(--text-muted);
+  margin-right: 2px;
+}
+.addon-prompt {
+  background: var(--surface2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 2px 10px;
+  font-size: 11px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.1s, border-color 0.1s;
+}
+.addon-prompt:hover {
+  background: var(--surface);
+  border-color: var(--accent);
+}
+.addon-prompt.copied {
+  background: rgba(6, 244, 177, 0.18);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.addon-prompt.copy-failed {
+  background: rgba(248, 113, 113, 0.18);
+  border-color: var(--red);
+  color: var(--red);
+}
+
+/* ── Tabs ─────────────────────────────────────────────────────────── */
+.tabs {
+  display: flex;
+  gap: 2px;
+  padding: 0 20px;
+  margin: 4px 0 0;
+  border-bottom: 1px solid var(--border);
+}
+.tabs .tab {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-weight: 600;
+  padding: 10px 14px;
+  cursor: pointer;
+  margin-bottom: -1px;
+}
+.tabs .tab:hover { color: var(--text); }
+.tabs .tab[aria-selected="true"] {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+.tab-panel[hidden] { display: none; }
+.tab-panel { display: block; }

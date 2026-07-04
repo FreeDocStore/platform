@@ -1,0 +1,77 @@
+<article class="doc">
+
+  <h1>Context</h1>
+  <p class="lede">
+    A small internal Slack tool for the Support team to look up customer
+    subscription status without leaving their workflow.
+  </p>
+
+  <h2>Background</h2>
+  <p>
+    Support agents handle ~40 "what plan is this customer on?" questions per
+    day. Today the answer requires opening Stripe in another tab, searching
+    by email, and copy-pasting the plan name and renewal date back into
+    Slack. Average time to answer: 90 seconds. With a team of 8 agents,
+    that is roughly 8 hours per week of context-switching toll.
+  </p>
+  <p>
+    The Support lead asked Engineering to build a Slack slash command that
+    returns the same information in under 5 seconds. The ask is small enough
+    that it has been informally floated for 6 months but never prioritised
+    against larger work.
+  </p>
+
+  <h2>Sponsor and stakeholders</h2>
+
+  <h3>Sponsor</h3>
+  <p>
+    Internal sponsor: <strong>Maya Chen, Head of Customer Support.</strong>
+    Cares primarily about agent time-on-task and ticket resolution time.
+    Has a quarterly OKR around reducing average handle time.
+  </p>
+
+  <h3>Other stakeholders</h3>
+  <ul>
+    <li><strong>Support agents (team of 8)</strong> - want the tool to be fast and to never block their existing workflow. Will not adopt anything that adds friction.</li>
+    <li><strong>Devon Park, Engineering Manager</strong> - cares about not adding new infrastructure. The tool must run on existing Cloudflare Workers; no new vendors, no new on-call surface.</li>
+    <li><strong>Security team</strong> - cares that no customer data is stored in the tool. Audit logging is required for any read of customer subscription state.</li>
+  </ul>
+
+  <h2>Business motivation</h2>
+  <p>
+    Recovering ~8 hours/week of agent time and reducing average handle time
+    on subscription questions from 90 seconds to under 5 seconds. Maya's
+    quarterly OKR target is a 15% drop in average handle time across all
+    ticket types; subscription lookups are the largest single contributor
+    to that average, so the tool credibly contributes 5-7% of the OKR
+    movement on its own.
+  </p>
+
+  <h2>Adjacent systems and prior art</h2>
+
+  <h3>Existing systems</h3>
+  <ul>
+    <li><strong>Stripe</strong> - source of truth for all subscription data. The tool reads from Stripe via the existing company API token.</li>
+    <li><strong>Slack workspace</strong> - the tool ships as a Slack app installed in the existing company workspace.</li>
+    <li><strong>support_audit table</strong> - existing audit log used by other internal tooling. The tool writes lookups here, no new infrastructure.</li>
+  </ul>
+
+  <h3>Prior attempts</h3>
+  <ul>
+    <li><strong>"Subscription Hub" Notion page</strong> (2024) - manually-maintained sheet linking Stripe URLs by customer name. Stale within weeks; abandoned. Confirmed the manual approach does not work and the lookup needs to be live.</li>
+  </ul>
+
+  <h2>External constraints</h2>
+  <ul>
+    <li><strong>No new vendors.</strong> Engineering's Q3 mandate is "no new third-party services without committee approval." The tool must use only Stripe and Slack APIs.</li>
+    <li><strong>Two-week build window.</strong> The work is squeezed between two larger projects on Engineering's quarterly roadmap.</li>
+    <li><strong>Privacy review.</strong> Any new internal tool that accesses customer data triggers a Privacy review (~3 day SLA). Build accordingly.</li>
+  </ul>
+
+  <h2>Definitions</h2>
+  <p>
+    No project-specific terminology. Standard Stripe and Slack vocabulary
+    applies (subscription, customer, plan, slash command, ephemeral message).
+  </p>
+
+</article>

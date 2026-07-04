@@ -1,0 +1,83 @@
+<article class="doc">
+
+  <h1>Architecture</h1>
+  <p class="lede">
+    {{ One sentence describing the system shape. e.g. "A web frontend, a single backend service, a Postgres primary, and a Cloudflare Worker for edge auth." }}
+  </p>
+
+  <h2>Summary</h2>
+  <p>{{ One paragraph expanding the lede - the system shape, the deployment story in plain words, the kind of workload it handles. Reads in 30 seconds. }}</p>
+
+  <h2>Components</h2>
+
+  <h3>{{ Component name, e.g. "Web client" }}</h3>
+  <ul>
+    <li><strong>Purpose:</strong> {{ what this component does }}</li>
+    <li><strong>Language / framework:</strong> {{ ... }}</li>
+    <li><strong>Depends on:</strong> {{ which other components or external services }}</li>
+    <li><strong>Owner:</strong> {{ team or individual }}</li>
+  </ul>
+
+  <h3>{{ Next component }}</h3>
+  <ul>
+    <li><strong>Purpose:</strong> {{ ... }}</li>
+    <li><strong>Language / framework:</strong> {{ ... }}</li>
+    <li><strong>Depends on:</strong> {{ ... }}</li>
+    <li><strong>Owner:</strong> {{ ... }}</li>
+  </ul>
+
+  <h2>System diagram</h2>
+  <p>{{ Embed a Mermaid block, an inline SVG, or link an image. Show components and their connections. Avoid PNG screenshots of whiteboards - they rot. }}</p>
+
+  <h2>Data flow</h2>
+
+  <h3>{{ Key flow 1, e.g. "Request lifecycle" }}</h3>
+  <ol>
+    <li>{{ Step 1 in plain words }}</li>
+    <li>{{ Step 2 }}</li>
+    <li>{{ Step 3 }}</li>
+  </ol>
+
+  <h3>{{ Key flow 2, e.g. "Write lifecycle" or "Integration call" }}</h3>
+  <ol>
+    <li>{{ ... }}</li>
+  </ol>
+
+  <h2>External dependencies</h2>
+  <p>Third-party services and internal services this system consumes.</p>
+  <ul>
+    <li><strong>{{ Dependency name }}</strong> - {{ what it provides }} ({{ where it runs }}). When down: {{ behaviour }}.</li>
+  </ul>
+
+  <h2>Tech stack</h2>
+  <ul>
+    <li><strong>Language:</strong> {{ ... }}</li>
+    <li><strong>Runtime:</strong> {{ ... }}</li>
+    <li><strong>Framework:</strong> {{ ... }}</li>
+    <li><strong>Database:</strong> {{ ... }}</li>
+    <li><strong>Key libraries:</strong> {{ ... }}</li>
+  </ul>
+
+  <h2>Deployment topology</h2>
+  <ul>
+    <li><strong>Cloud account / region:</strong> {{ ... }}</li>
+    <li><strong>Environments:</strong> {{ e.g. "staging, production" }}</li>
+    <li><strong>Ingress:</strong> {{ how traffic enters }}</li>
+    <li><strong>Data residency:</strong> {{ where customer data lives }}</li>
+  </ul>
+
+  <h2>Cross-cutting concerns</h2>
+
+  <h3>Security</h3>
+  <p>{{ High-level model: how authentication works, where trust boundaries are, what is encrypted, what is logged. Detail in linked Security Model page. }}</p>
+
+  <h3>Availability</h3>
+  <p>{{ Target SLA / SLO. Failure modes briefly described; recovery details in linked Runbook. }}</p>
+
+  <h3>Observability</h3>
+  <p>{{ Where metrics, logs, traces go. Where dashboards live. }}</p>
+
+  <h3>Scale</h3>
+  <p>{{ Current capacity, what scales horizontally vs not, known bottlenecks. }}</p>
+
+</article>

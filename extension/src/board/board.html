@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Docs Chat — Tasks</title>
+<link rel="stylesheet" href="board.css">
+</head>
+<body>
+<header class="board-header">
+  <h1>Tasks</h1>
+  <div class="board-header-right">
+    <div class="view-toggle" role="group" aria-label="View">
+      <button type="button" id="view-kanban" class="view-btn" aria-pressed="true">Kanban</button>
+      <button type="button" id="view-list" class="view-btn" aria-pressed="false">List</button>
+    </div>
+    <label class="repo-filter">
+      <span>Repo</span>
+      <select id="repo-filter"><option value="">All repos</option></select>
+    </label>
+    <label class="repo-filter">
+      <span>Person</span>
+      <select id="person-filter"><option value="">Everyone</option></select>
+    </label>
+    <button type="button" id="sync-btn" class="icon-btn" title="Sync teammates' tasks from the repo" aria-label="Sync">⟳</button>
+    <label class="archived-toggle" title="Include cancelled edits">
+      <input type="checkbox" id="show-cancelled"> Cancelled
+    </label>
+    <label class="archived-toggle" title="Include archived edits">
+      <input type="checkbox" id="show-archived"> Archived
+    </label>
+    <span id="task-count" class="task-count"></span>
+  </div>
+</header>
+
+<main id="board" class="board"></main>
+
+<!-- Task detail drawer -->
+<aside id="detail" class="detail" hidden>
+  <div class="detail-head">
+    <h2 id="detail-title"></h2>
+    <button type="button" id="detail-close" class="icon-btn" aria-label="Close">&times;</button>
+  </div>
+  <div id="detail-body" class="detail-body"></div>
+</aside>
+<div id="detail-scrim" class="detail-scrim" hidden></div>
+
+<script type="module" src="board.js"></script>
+</body>
+</html>

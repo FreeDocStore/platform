@@ -1,0 +1,113 @@
+<article class="doc">
+
+  <h1>Decisions</h1>
+  <p class="lede">
+    Architecture Decision Records for the sub-status Slack tool. Three decisions were worth recording; everything else was either obvious or implementation detail.
+  </p>
+
+  <h2>Index</h2>
+  <ul>
+    <li><a href="#adr-1">ADR-1.</a> Run on Cloudflare Workers rather than a long-lived service - <em>Accepted</em></li>
+    <li><a href="#adr-2">ADR-2.</a> Read Stripe live on every request, never cache - <em>Accepted</em></li>
+    <li><a href="#adr-3">ADR-3.</a> Audit-write failures do not fail the lookup - <em>Accepted</em></li>
+  </ul>
+
+  <hr />
+
+  <article id="adr-1">
+    <h2>ADR-1. Run on Cloudflare Workers rather than a long-lived service</h2>
+    <p><strong>Status:</strong> Accepted</p>
+    <p><strong>Date:</strong> 2026-04-08</p>
+
+    <h3>Context</h3>
+    <p>The tool handles fewer than 50 requests per day, must respond inside Slack's 3-second window, and is bound by an explicit "no new vendors" mandate. The team already runs other Workers in production and has the operational pattern internalised.</p>
+
+    <h3>Decision</h3>
+    <p>Deploy the tool as a single Cloudflare Worker. The Worker handles the slash command directly with no auxiliary services.</p>
+
+    <h3>Consequences</h3>
+    <p><strong>Easier:</strong></p>
+    <ul>
+      <li>Zero new infrastructure - reuses the team's existing Cloudflare account, Wrangler workflow, and on-call playbook.</li>
+      <li>Cold-start latency is irrelevant on Workers; Slack's 3-second budget is comfortable.</li>
+      <li>Cost is effectively zero at this volume (well within the free tier).</li>
+    </ul>
+    <p><strong>Harder:</strong></p>
+    <ul>
+      <li>Postgres connectivity from Workers requires a serverless-compatible driver; we use <code>@neondatabase/serverless</code>, which is one more dependency to track.</li>
+      <li>If the tool ever needs to do background work (e.g., bulk audit replays), Workers' execution-time limits will force a refactor to a different runtime.</li>
+    </ul>
+
+    <h3>Alternatives considered</h3>
+    <ul>
+      <li><strong>A new Node service on the existing app-services platform</strong> - rejected on the no-new-services constraint and on overkill for the volume.</li>
+      <li><strong>Embedding the lookup in the existing internal admin tool</strong> - rejected because the admin tool is not exposed to Slack and adding Slack auth there is more work than this entire project.</li>
+    </ul>
+  </article>
+
+  <hr />
+
+  <article id="adr-2">
+    <h2>ADR-2. Read Stripe live on every request, never cache</h2>
+    <p><strong>Status:</strong> Accepted</p>
+    <p><strong>Date:</strong> 2026-04-08</p>
+
+    <h3>Context</h3>
+    <p>Subscription state can change at any time (upgrades, downgrades, cancellations, dunning). Stale data shown to a support agent is worse than slightly slower data - agents quote what they see, and quoting an out-of-date plan creates customer-service incidents. Stripe's read API is fast enough to satisfy the response budget.</p>
+
+    <h3>Decision</h3>
+    <p>Every slash command does a fresh read against Stripe's <code>/customers</code> and <code>/subscriptions</code> endpoints. No in-Worker cache, no shared cache, no read-through layer.</p>
+
+    <h3>Consequences</h3>
+    <p><strong>Easier:</strong></p>
+    <ul>
+      <li>No cache invalidation logic - the source of truth is always Stripe.</li>
+      <li>Agents can never quote stale plan data.</li>
+      <li>Audit log is exact: each lookup corresponds 1:1 with a real Stripe call.</li>
+    </ul>
+    <p><strong>Harder:</strong></p>
+    <ul>
+      <li>If usage grows beyond ~1 req/sec sustained, we will hit Stripe's per-account read rate limits and need to introduce caching - which means revisiting this decision.</li>
+      <li>Latency is bounded by Stripe's API performance, not by anything we control.</li>
+    </ul>
+
+    <h3>Alternatives considered</h3>
+    <ul>
+      <li><strong>Cache plan name and renewal date for 5 minutes in a Cloudflare KV namespace</strong> - rejected because plan changes within 5 minutes are exactly the moments support agents need accurate data (e.g., a customer just upgraded and is calling about the upgrade).</li>
+      <li><strong>Mirror Stripe webhook events into our own datastore</strong> - rejected as more infrastructure than the problem warrants. Reasonable to revisit if volume grows.</li>
+    </ul>
+  </article>
+
+  <hr />
+
+  <article id="adr-3">
+    <h2>ADR-3. Audit-write failures do not fail the lookup</h2>
+    <p><strong>Status:</strong> Accepted</p>
+    <p><strong>Date:</strong> 2026-04-09</p>
+
+    <h3>Context</h3>
+    <p>The Worker writes an audit row to the company's internal Postgres after each successful lookup. The audit table is hosted on a shared internal database that has had short outages historically (~quarterly, lasting minutes). Security requires audit logging; Support requires the lookup to work even when the audit DB is down.</p>
+
+    <h3>Decision</h3>
+    <p>The audit-write happens on a fire-and-forget code path. If the write fails, the Worker emits a metric and returns the lookup result anyway. A daily reconciliation job (existing internal tooling) catches missing audit rows and back-fills from the metric stream.</p>
+
+    <h3>Consequences</h3>
+    <p><strong>Easier:</strong></p>
+    <ul>
+      <li>Lookup availability is decoupled from audit-DB availability.</li>
+      <li>Agents are unblocked during DB incidents.</li>
+    </ul>
+    <p><strong>Harder:</strong></p>
+    <ul>
+      <li>Audit completeness depends on the daily reconciliation job, which adds a small operational responsibility.</li>
+      <li>If the reconciliation job ever lags more than 24 hours, audit gaps are possible. The existing internal tooling handles this with paging on lag, but it adds a moving part.</li>
+    </ul>
+
+    <h3>Alternatives considered</h3>
+    <ul>
+      <li><strong>Block the lookup on a successful audit write (synchronous)</strong> - rejected because every shared-DB outage would manifest as a Support tool outage.</li>
+      <li><strong>Buffer audit rows in Cloudflare KV and flush periodically</strong> - rejected because Workers KV's eventual-consistency window can lose writes within minutes; not acceptable for an audit log.</li>
+    </ul>
+  </article>
+
+</article>

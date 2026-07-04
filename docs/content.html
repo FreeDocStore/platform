@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow, noarchive, nosnippet">
+<meta name="googlebot" content="noindex, nofollow">
+<title>Content Guide - FreeDocStore</title>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header class="topbar">
+  <button class="menu-toggle" onclick="document.querySelector('.sidebar').classList.toggle('open')" aria-label="Toggle menu">&#9776;</button>
+  <h1>
+    <a href="index.html"><img src="logo.svg" alt="Open Frontier One" class="topbar-logo"></a>
+    <span class="badge">FreeDocStore</span>
+  </h1>
+  <nav class="topbar-links">
+    <a href="components.html">Components</a>
+    <a href="content.html" class="active">Content</a>
+    <a href="writing.html">Writing</a>
+    <a href="infrastructure.html">Infrastructure</a>
+    <a href="extension.html">Extension</a>
+  </nav>
+</header>
+
+<nav class="sidebar" id="sidebar">
+  <div class="nav-group">
+    <div class="nav-group-title">On This Page</div>
+    <a href="#sections">Section Structure</a>
+    <a href="#voice-tone">Voice &amp; Tone</a>
+    <a href="#formatting">Formatting Rules</a>
+    <a href="#templates">Templates</a>
+    <a href="#brand">Brand &amp; Style</a>
+  </div>
+</nav>
+
+<main class="content">
+
+  <section id="sections">
+    <h2>Section Structure</h2>
+    <p>Every project site should include these core sections. Add project-specific sections as needed.</p>
+
+    <div class="card highlight">
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Section</th><th>Purpose</th><th>Required</th></tr></thead>
+          <tbody>
+            <tr><td><strong>About / Overview</strong></td><td>What the project is and who it's for</td><td><span class="tag tag-primary">Yes</span></td></tr>
+            <tr><td><strong>Getting Started</strong></td><td>Setup, prerequisites, first run</td><td><span class="tag tag-primary">Yes</span></td></tr>
+            <tr><td><strong>Tech Stack</strong></td><td>Technologies used (table format)</td><td><span class="tag tag-primary">Yes</span></td></tr>
+            <tr><td><strong>Architecture</strong></td><td>System design, key decisions</td><td><span class="tag tag-secondary">Recommended</span></td></tr>
+            <tr><td><strong>API / Data Model</strong></td><td>Endpoints, schemas, data flow</td><td><span class="tag tag-secondary">If applicable</span></td></tr>
+            <tr><td><strong>Deployment</strong></td><td>How and where it deploys</td><td><span class="tag tag-secondary">Recommended</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section id="voice-tone">
+    <h2>Voice &amp; Tone</h2>
+    <div class="grid-2">
+      <div class="card highlight">
+        <h4>Do</h4>
+        <ul>
+          <li><strong>Clear over clever</strong> - write for scanning, not studying</li>
+          <li><strong>Direct</strong> - lead with what matters, skip filler</li>
+          <li><strong>Friendly but professional</strong> - approachable, not casual</li>
+          <li><strong>Confident</strong> - state things plainly, no hedging</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h4>Don't</h4>
+        <ul>
+          <li>Use jargon without explanation</li>
+          <li>Hedge with "maybe", "probably", "it should"</li>
+          <li>Write long paragraphs when a list works</li>
+          <li>Add filler text or unnecessary introductions</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section id="formatting">
+    <h2>Formatting Rules</h2>
+    <div class="grid-2">
+      <div class="card">
+        <h4>Headings</h4>
+        <ul>
+          <li><code>&lt;h2&gt;</code> for section titles (one per section)</li>
+          <li><code>&lt;h3&gt;</code> for subsections</li>
+          <li><code>&lt;h4&gt;</code> for card headings</li>
+          <li>Never skip heading levels</li>
+          <li>Use Title Case</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h4>Lists</h4>
+        <ul>
+          <li>Use <code>&lt;ul&gt;</code> for unordered items</li>
+          <li>Use <code>&lt;ol&gt;</code> for sequential steps</li>
+          <li>Keep list items parallel in structure</li>
+          <li>Bold the lead term if items need explanation</li>
+        </ul>
+      </div>
+    </div>
+    <div class="grid-2">
+      <div class="card">
+        <h4>Code</h4>
+        <ul>
+          <li><code>&lt;code&gt;</code> for inline references</li>
+          <li><code>&lt;pre&gt;&lt;code&gt;</code> for code blocks</li>
+          <li>Use inline code for file names, commands, variables</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h4>Links</h4>
+        <ul>
+          <li>Use descriptive link text</li>
+          <li>Never use "click here"</li>
+          <li>External links open in same tab</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section id="templates">
+    <h2>Templates</h2>
+    <p>Drop-in document templates for any project. Copy from the <a href="https://github.com/FreeDocStore/platform">FreeDocStore repo</a>.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Template</th><th>Purpose</th><th>Link</th></tr></thead>
+        <tbody>
+          <tr><td><strong>README</strong></td><td>Standard project README with all required sections</td><td><a href="https://github.com/FreeDocStore/platform/blob/main/templates/README.template.md">View</a></td></tr>
+          <tr><td><strong>CONTRIBUTING</strong></td><td>Contribution guidelines for team projects</td><td><a href="https://github.com/FreeDocStore/platform/blob/main/templates/CONTRIBUTING.md">View</a></td></tr>
+          <tr><td><strong>CHANGELOG</strong></td><td>Version history tracking</td><td><a href="https://github.com/FreeDocStore/platform/blob/main/templates/CHANGELOG.md">View</a></td></tr>
+          <tr><td><strong>ARCHITECTURE</strong></td><td>System design and technical decisions</td><td><a href="https://github.com/FreeDocStore/platform/blob/main/templates/ARCHITECTURE.md">View</a></td></tr>
+          <tr><td><strong>docs-deploy.yml</strong></td><td>Docs site deploy to Cloudflare Pages on push to main</td><td><a href="https://github.com/FreeDocStore/platform/blob/main/templates/workflows/docs-deploy.yml">View</a></td></tr>
+          <tr><td><strong>claude.yml</strong></td><td>Claude Code Action - @claude trigger on issues/PRs</td><td><a href="https://github.com/FreeDocStore/platform/blob/main/templates/workflows/claude.yml">View</a></td></tr>
+          <tr><td><strong>claude-code-review.yml</strong></td><td>Auto-review PRs with Claude on open/sync</td><td><a href="https://github.com/FreeDocStore/platform/blob/main/templates/workflows/claude-code-review.yml">View</a></td></tr>
+          <tr><td><strong>_headers</strong></td><td>Security response headers for Cloudflare Pages</td><td><a href="https://github.com/FreeDocStore/platform/blob/main/templates/_headers">View</a></td></tr>
+          <tr><td><strong>robots.txt</strong></td><td>Block search engine crawlers</td><td><a href="https://github.com/FreeDocStore/platform/blob/main/templates/robots.txt">View</a></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="brand">
+    <h2>Brand &amp; Style</h2>
+
+    <h3>Color Palette</h3>
+    <div class="card">
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Variable</th><th>Value</th><th>Usage</th></tr></thead>
+          <tbody>
+            <tr><td><code>--bg</code></td><td><code>#0f1117</code></td><td>Page background</td></tr>
+            <tr><td><code>--surface</code></td><td><code>#181b24</code></td><td>Cards, sidebar</td></tr>
+            <tr><td><code>--surface2</code></td><td><code>#1e2230</code></td><td>Table headers, code blocks</td></tr>
+            <tr><td><code>--border</code></td><td><code>#2a2e3d</code></td><td>Borders and dividers</td></tr>
+            <tr><td><code>--text</code></td><td><code>#e1e4ed</code></td><td>Primary text</td></tr>
+            <tr><td><code>--text-muted</code></td><td><code>#8b90a0</code></td><td>Secondary text, nav links</td></tr>
+            <tr><td><code>--accent</code></td><td><code>#06f4b1</code></td><td>Links, highlights, active states</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <h3>Responsive Behavior</h3>
+    <div class="card">
+      <ul>
+        <li>Breakpoint at <strong>900px</strong></li>
+        <li>Below 900px: sidebar collapses, hamburger menu appears</li>
+        <li>Grids collapse to single column</li>
+        <li>Content padding reduces for mobile</li>
+      </ul>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  FreeDocStore &middot; by Open Frontier One
+</footer>
+
+<script>
+  // Highlight active nav item on scroll
+  const sections = document.querySelectorAll('section[id]');
+  const navLinks = document.querySelectorAll('.sidebar a');
+  window.addEventListener('scroll', () => {
+    let current = '';
+    sections.forEach(s => {
+      if (window.scrollY >= s.offsetTop - 100) current = s.getAttribute('id');
+    });
+    navLinks.forEach(a => {
+      a.classList.toggle('active', a.getAttribute('href') === '#' + current);
+    });
+  });
+</script>
+</body>
+</html>

@@ -1,0 +1,92 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/Glassdocs/glassdocs/main/templates/features.schema.json",
+  "title": "Docs Playbook feature flags",
+  "description": "Opt-in toggles for deploy-time injectors and generators. Drop a features.json into docs/ and the reusable workflow reads it in place of per-feature workflow inputs. Missing keys fall through to the YAML-input default (so old repos keep working).",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+
+    "changelog": {
+      "type": "boolean",
+      "description": "Generate docs/changelog.html from git history at deploy time."
+    },
+    "sitemap": {
+      "type": "boolean",
+      "description": "Generate docs/sitemap.html indexing every page."
+    },
+    "pageMeta": {
+      "type": "boolean",
+      "description": "Inject last-updated + Edit-on-GitHub links into each page footer."
+    },
+    "references": {
+      "type": "boolean",
+      "description": "Generate docs/references/index.html from docs/references/manifest.json. No-op when manifest is absent."
+    },
+    "nav": {
+      "type": "boolean",
+      "description": "Render topbar links from docs/nav.json on every page. Lints deploy-time: every *.html must appear in nav.json or navSkip; every href must resolve."
+    },
+    "search": {
+      "type": "boolean",
+      "description": "Enable client-side search via Pagefind: inject search markup, add heading IDs, build the index."
+    },
+    "toc": {
+      "type": "boolean",
+      "description": "Inject a per-page table-of-contents from h2/h3 headings inside <main>. Ensures heading ids; skips pages under 2 headings or marked <!-- @no-toc -->."
+    },
+    "tocPlacement": {
+      "type": "string",
+      "enum": ["inline", "rail"],
+      "description": "Where the per-page TOC renders. 'inline' (default) is a banner-style block at the top of <main>; works on any layout. 'rail' is a sticky right-side panel matching the software-docs convention (React, Tailwind, Stripe, Astro Starlight defaults); requires the page to have horizontal room on the right (collapses to inline below 1024px viewport width). Only takes effect when toc=true."
+    },
+    "codeBlocks": {
+      "type": "boolean",
+      "description": "Inject hover-revealed Copy buttons + Prism syntax highlighting on <pre> blocks in <main>. Self-hosted Prism assets copied into docs/codeblocks/ at deploy. Per-page opt-out via <!-- @no-codeblocks -->. (Legacy `codeblocks` key still works as a backward-compat alias.)"
+    },
+    "callouts": {
+      "type": "boolean",
+      "description": "Inject CSS for <div class=\"callout note|tip|warn|danger\"> styled blocks. Pure CSS, no JS. Per-page opt-out via <!-- @no-callouts -->."
+    },
+    "prevNext": {
+      "type": "boolean",
+      "description": "Inject Previous/Next page navigation derived from docs/nav.json order on every page in nav. Skips pages not in nav. Per-page opt-out via <!-- @no-prev-next -->."
+    },
+    "branding": {
+      "type": "object",
+      "description": "Sitewide brand customisation. Any subset of keys may be set; missing keys leave the playbook's default styles in place.",
+      "additionalProperties": false,
+      "properties": {
+        "logo": {
+          "type": "string",
+          "description": "Replaces the src of every <img class=\"topbar-logo\">. Either a path inside docs/ (e.g. \"logo.svg\") or a full https:// URL. The file/URL must exist; the script does not fetch or validate."
+        },
+        "logoAlt": {
+          "type": "string",
+          "description": "Replaces the alt attribute on the topbar logo. Useful when the brand name differs from the default."
+        },
+        "accent": {
+          "type": "string",
+          "description": "CSS color for --accent (links, hovers, badges)."
+        },
+        "lineColor": {
+          "type": "string",
+          "description": "CSS color for --border (topbar, sidebar, cards)."
+        },
+        "text": {
+          "type": "string",
+          "description": "CSS color for --text (default body text)."
+        },
+        "bg": {
+          "type": "string",
+          "description": "CSS color for --bg (page background)."
+        },
+        "textMuted": {
+          "type": "string",
+          "description": "CSS color for --text-muted (secondary text)."
+        }
+      }
+    }
+  }
+}

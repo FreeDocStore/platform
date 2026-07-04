@@ -1,0 +1,11 @@
+{
+  "references": [
+    {
+      "file": "sample-brief.pdf",
+      "title": "Sample Brief",
+      "description": "A sample reference document for fixture tests.",
+      "uploaded_at": "2026-04-16",
+      "tags": ["fixture", "test"]
+    }
+  ]
+}

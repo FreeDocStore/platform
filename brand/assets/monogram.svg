@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="Rocket Lab">
+  <title>Rocket Lab</title>
+  <!-- Monogram for tight-space contexts: GitHub avatar, social-card
+       icons, README hero, sidebar headers. The wordmark is 7.5:1 and
+       doesn't survive those crops. -->
+
+  <!-- Navy rounded square backdrop. 18.75% corner radius matches Apple's
+       "app icon" optical rounding so it feels at home next to other
+       platform icons. -->
+  <rect width="256" height="256" rx="48" fill="#22276c"/>
+
+  <!-- The triangular 'A' lifted from the wordmark, scaled to ~70% of the
+       frame. Keeps the brand accent as the dominant visual element so
+       the monogram is instantly recognisable next to the full wordmark. -->
+  <polygon points="52,196 128,60 204,196" fill="#06f4b1"/>
+
+  <!-- Inner negative-space cross-bar so the 'A' reads as a letter, not
+       just a triangle. Matches the void a real 'A' has between its legs;
+       sits at ~66% of the triangle's height, same navy as the backdrop
+       so it cuts cleanly without a second colour. -->
+  <polygon points="86,164 128,92 170,164" fill="#22276c"/>
+</svg>

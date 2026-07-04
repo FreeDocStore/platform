@@ -1,0 +1,184 @@
+<article class="doc">
+
+  <h1>Decisions</h1>
+  <p class="lede">
+    Architecture Decision Records for the case management platform. Decisions are recorded for choices that carry significant tradeoffs (compliance, cost, vendor lock-in, future flexibility). Implementation conventions and naming choices are documented elsewhere.
+  </p>
+
+  <h2>Index</h2>
+  <ul>
+    <li><a href="#adr-1">ADR-1.</a> Single-tenant per agency, never multi-tenant - <em>Accepted</em></li>
+    <li><a href="#adr-2">ADR-2.</a> PostgreSQL primary, no document database - <em>Accepted</em></li>
+    <li><a href="#adr-3">ADR-3.</a> Server-rendered with Remix, not a SPA - <em>Accepted</em></li>
+    <li><a href="#adr-4">ADR-4.</a> Australia East only, no multi-region failover - <em>Accepted</em></li>
+    <li><a href="#adr-5">ADR-5.</a> Audit log goes to Log Analytics, not the operational database - <em>Accepted</em></li>
+  </ul>
+
+  <hr />
+
+  <article id="adr-1">
+    <h2>ADR-1. Single-tenant per agency, never multi-tenant</h2>
+    <p><strong>Status:</strong> Accepted</p>
+    <p><strong>Date:</strong> 2026-04-12</p>
+
+    <h3>Context</h3>
+    <p>The agency's data-residency rules and audit obligations are agency-specific. The state oversight body audits each agency separately. A multi-tenant deployment would entangle audit boundaries and complicate residency proofs. Future agencies might want similar platforms but their compliance frame is not guaranteed identical.</p>
+
+    <h3>Decision</h3>
+    <p>The platform is deployed as a single-tenant instance per agency. Database, blob storage, and identity integration are scoped to one agency. There is no shared layer that crosses agencies.</p>
+
+    <h3>Consequences</h3>
+    <p><strong>Easier:</strong></p>
+    <ul>
+      <li>Compliance evidence is per-instance and unambiguous - one Postgres, one blob account, one audit log workspace.</li>
+      <li>Data residency is enforced at the resource level, not the application level.</li>
+      <li>Per-agency customisation (e.g., risk tiers, outcome codes) does not require a tenant-scoped configuration system.</li>
+    </ul>
+    <p><strong>Harder:</strong></p>
+    <ul>
+      <li>Operating multiple agencies later means multiple deployments to maintain - more environments, more upgrade work.</li>
+      <li>No shared analytics across agencies (which the agency leadership would not allow anyway, but worth naming).</li>
+      <li>A future product line for the delivery partner cannot trivially share infrastructure across customers.</li>
+    </ul>
+
+    <h3>Alternatives considered</h3>
+    <ul>
+      <li><strong>Multi-tenant with row-level security</strong> - rejected because the audit and compliance boundary lives outside the application; row-level security is application-enforced and harder to defend in audit.</li>
+      <li><strong>Multi-tenant with separate databases per tenant in the same cluster</strong> - rejected for the same reason; the cluster itself becomes a shared resource that complicates residency claims.</li>
+    </ul>
+  </article>
+
+  <hr />
+
+  <article id="adr-2">
+    <h2>ADR-2. PostgreSQL primary, no document database</h2>
+    <p><strong>Status:</strong> Accepted</p>
+    <p><strong>Date:</strong> 2026-04-13</p>
+
+    <h3>Context</h3>
+    <p>Case data is highly relational (cases reference clients, who reference households, who reference services, etc.). Reporting requirements demand complex joins. Compliance demands transactional consistency for state changes. The agency's platform team supports PostgreSQL as a managed service in Azure; they do not operate any document database in production.</p>
+
+    <h3>Decision</h3>
+    <p>PostgreSQL 16 is the only operational database. All case data, audit references, and reconciliation state live there. Free-text and document-like data (e.g., long case notes) are stored as JSONB columns within the same database.</p>
+
+    <h3>Consequences</h3>
+    <p><strong>Easier:</strong></p>
+    <ul>
+      <li>One database to operate, back up, and restore. One residency boundary.</li>
+      <li>Reporting can use SQL joins directly; no cross-store joins to manage.</li>
+      <li>Transactional integrity is straightforward (case state changes + audit references in one transaction).</li>
+    </ul>
+    <p><strong>Harder:</strong></p>
+    <ul>
+      <li>Free-text search on case notes is more limited than a dedicated search engine would offer; will use Postgres full-text search initially and revisit if performance suffers.</li>
+      <li>If we ever need true document-database scale (millions of documents per case), we will need to introduce object storage with pointers - planned for blobs already, but not for searchable text.</li>
+    </ul>
+
+    <h3>Alternatives considered</h3>
+    <ul>
+      <li><strong>Postgres + Cosmos DB for case notes</strong> - rejected because the platform team would need to learn a second operational surface, and the volume does not justify it.</li>
+      <li><strong>Postgres + Elasticsearch for search</strong> - deferred. Postgres FTS is the v1 choice; Elasticsearch is on the v2 roadmap if FTS performance fails the requirements.</li>
+    </ul>
+  </article>
+
+  <hr />
+
+  <article id="adr-3">
+    <h2>ADR-3. Server-rendered with Remix, not a SPA</h2>
+    <p><strong>Status:</strong> Accepted</p>
+    <p><strong>Date:</strong> 2026-04-15</p>
+
+    <h3>Context</h3>
+    <p>Caseworkers use the platform on agency-supplied tablets over variable cellular connectivity. Page-load performance on slow networks is a stated NFR (under 800 ms p95 on 4G). SPAs ship more JavaScript per session and rely on a fast initial connection to download the bundle. Server-rendering reduces the initial payload and renders meaningful content sooner.</p>
+
+    <h3>Decision</h3>
+    <p>The web tier is built with Remix, which renders HTML on the server and progressively hydrates. Forms work without JavaScript; client-side enhancement is layered on for richer interactions but is not required for core flows.</p>
+
+    <h3>Consequences</h3>
+    <p><strong>Easier:</strong></p>
+    <ul>
+      <li>First-paint performance is consistent across network conditions.</li>
+      <li>Forms work even if hydration fails - critical for caseworkers in rural cellular dead-zones.</li>
+      <li>SEO and accessibility are easier; standard HTML semantics work out of the box.</li>
+    </ul>
+    <p><strong>Harder:</strong></p>
+    <ul>
+      <li>Real-time features (live caseload counters for supervisors) require explicit choices: WebSockets via Remix's resource routes, or polling. Not "free" the way it is in a fully client-driven SPA.</li>
+      <li>Some interaction patterns (drag-and-drop reassignment) need richer client logic, which is more work in a server-first architecture than in an SPA.</li>
+    </ul>
+
+    <h3>Alternatives considered</h3>
+    <ul>
+      <li><strong>Next.js</strong> - rejected on team familiarity; the delivery team has shipped four Remix apps and zero Next apps. Both are credible options.</li>
+      <li><strong>Single-page React app with TanStack Router</strong> - rejected on the page-load NFR; the bundle size required for the case workspace exceeded the 4G budget in early prototyping.</li>
+      <li><strong>Server-rendered Django</strong> - rejected on language alignment; the rest of the platform is TypeScript and the team prefers a single language.</li>
+    </ul>
+  </article>
+
+  <hr />
+
+  <article id="adr-4">
+    <h2>ADR-4. Australia East only, no multi-region failover</h2>
+    <p><strong>Status:</strong> Accepted</p>
+    <p><strong>Date:</strong> 2026-04-16</p>
+
+    <h3>Context</h3>
+    <p>The state's data-residency rules require that all data at rest and in transit remain within the country. Most multi-region patterns implicitly replicate to a second region for failover; doing so to a region outside the state would violate residency. The two Australian Azure regions (Australia East and Australia Southeast) are both compliant, but operating cross-region active-passive doubles infrastructure cost and complicates the audit story.</p>
+
+    <h3>Decision</h3>
+    <p>The platform deploys to Australia East only. Disaster recovery uses Azure's geo-redundant storage within Australia (snapshots replicated to Australia Southeast in cold storage). RTO is 4 hours; RPO is 15 minutes via Postgres point-in-time recovery.</p>
+
+    <h3>Consequences</h3>
+    <p><strong>Easier:</strong></p>
+    <ul>
+      <li>Single active region simplifies audit and residency claims significantly.</li>
+      <li>Lower operational cost - one production environment, not two.</li>
+      <li>No application-level changes needed for cross-region consistency.</li>
+    </ul>
+    <p><strong>Harder:</strong></p>
+    <ul>
+      <li>An Australia East regional outage takes the platform down for the duration of the outage. Caseworkers cannot work; supervisors cannot reassign. Business continuity falls back to the legacy paper process.</li>
+      <li>Recovery from a regional disaster takes hours (RTO 4h), not minutes. This is documented in the runbook as an accepted risk.</li>
+    </ul>
+
+    <h3>Alternatives considered</h3>
+    <ul>
+      <li><strong>Active-passive across Australia East and Australia Southeast</strong> - rejected on cost and complexity; the agency leadership accepts the regional outage risk in exchange for a leaner operating model.</li>
+      <li><strong>Active-active multi-region</strong> - not viable; PostgreSQL primary cannot be active in two regions simultaneously without significant write-conflict tooling, which is overkill at this scale.</li>
+    </ul>
+  </article>
+
+  <hr />
+
+  <article id="adr-5">
+    <h2>ADR-5. Audit log goes to Log Analytics, not the operational database</h2>
+    <p><strong>Status:</strong> Accepted</p>
+    <p><strong>Date:</strong> 2026-04-18</p>
+
+    <h3>Context</h3>
+    <p>The agency must retain audit records for 7 years to satisfy state safeguarding rules. Storing 7 years of audit rows in the operational Postgres database degrades performance over time and complicates backups. The audit data is append-only, queried infrequently, and retrieved primarily by auditors. Azure Log Analytics handles long-retention append-only data well and is already approved by the agency security team.</p>
+
+    <h3>Decision</h3>
+    <p>The api emits an audit event for every record-mutating action. Events are written to a dedicated Azure Log Analytics workspace with 7-year retention. The operational Postgres holds a 30-day rolling cache of audit references for in-app display; the canonical audit record lives in Log Analytics.</p>
+
+    <h3>Consequences</h3>
+    <p><strong>Easier:</strong></p>
+    <ul>
+      <li>Operational Postgres stays small and fast indefinitely.</li>
+      <li>Long-retention compliance is solved by Log Analytics' built-in retention features.</li>
+      <li>Audit queries (KQL) are the right tool for the job - faster than equivalent SQL on a 7-year-old table.</li>
+    </ul>
+    <p><strong>Harder:</strong></p>
+    <ul>
+      <li>Two stores to manage. The 30-day cache and the canonical Log Analytics record can drift if the emit-then-cache pattern fails partway. Mitigated by a daily reconciliation job that flags drift.</li>
+      <li>Auditors must learn KQL to query the canonical record. The platform team will provide canned queries for the common audit shapes.</li>
+    </ul>
+
+    <h3>Alternatives considered</h3>
+    <ul>
+      <li><strong>Audit rows in the operational Postgres with an archival job to blob storage</strong> - rejected because querying archived audit rows requires un-archival; auditors would need engineering support for every query.</li>
+      <li><strong>Dedicated Postgres instance for audit data</strong> - rejected as another database to operate when Log Analytics covers the use case.</li>
+    </ul>
+  </article>
+
+</article>

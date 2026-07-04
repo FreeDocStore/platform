@@ -1,0 +1,10 @@
+{
+  "$schema": "https://raw.githubusercontent.com/Glassdocs/glassdocs/main/templates/features.schema.json",
+
+  "changelog": true,
+  "sitemap": true,
+  "pageMeta": true,
+  "references": true,
+  "nav": false,
+  "search": true
+}
