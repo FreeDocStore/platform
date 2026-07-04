@@ -2,7 +2,7 @@
 
 FreeDocStore is the public knowledge-base publishing layer in the Open Frontier store ecosystem.
 
-It turns GitHub-backed documentation into free public knowledge bases with AI-first editing, reviewable proposals, static publishing, search, `llms.txt`, and agent-readable metadata.
+It turns GitHub-backed Zensical documentation repositories into free public knowledge bases with AI-first editing, reviewable proposals, Cloudflare publishing, search, and agent-readable metadata.
 
 ## Product Rule
 
@@ -12,11 +12,12 @@ Users describe what should change. The AI drafts the change. The user reviews th
 
 ## Current Scope
 
-- Static marketing site in `site/`.
+- Product site in `site/`.
 - AI-first web workbench at `site/editor.html`.
 - Browser extension in `extension/` for editing published docs pages from the side panel.
 - Reusable docs templates, deploy workflows, generators, and lint rules in `templates/`.
 - Existing Glassdocs engine code used as the starting point for GitHub-backed proposal, PR, and extension workflows.
+- KB publishing supports Zensical-format Markdown repos only for now.
 
 ## Local Preview
 
@@ -43,14 +44,17 @@ Load `extension/dist/` as an unpacked extension in Chrome.
 FreeDocStore is for public knowledge bases:
 
 - Public docs hosting.
-- GitHub-backed source.
+- One GitHub repo per KB.
+- Markdown source in `docs/`.
+- Zensical config in `zensical.toml`.
+- Cloudflare Pages publishing for each KB.
+- Optional custom domains per KB.
 - AI proposal workflow.
 - Manual edits via GitHub.
-- Static search and navigation.
-- `llms.txt`, sitemap, and metadata generation.
+- Zensical-generated search, sitemap, and metadata.
 - Public MCP/read endpoints later.
 
-Free public docs should be cheap to host and easy to mirror.
+Free public docs should be cheap to host and easy to mirror, but FreeDocStore does not host copied HTML folders inside the platform repo.
 
 ## Pro Pair
 
@@ -71,7 +75,6 @@ Do not build Pro-only private access into FreeDocStore first. Keep the Free plat
 
 ```text
 site/                 Public FreeDocStore marketing site and AI web editor
-books/                Published knowledge books; each book has a docs/ source folder
 docs/                 Product/engine docs copied from the Glassdocs seed
 extension/            MV3 Chrome extension for AI-first docs editing
 templates/            Reusable docs templates, add-ons, lint, and generators
@@ -79,11 +82,19 @@ brand/                Brand assets inherited from the seed repo
 .github/workflows/    Deploy, release, lint, and test workflows
 ```
 
-## Published Books
+## Published Knowledge Bases
 
-The first book is `books/true-non-profit/docs`.
+Each knowledge base is its own GitHub repository. The platform registry records the repo, Zensical source layout, Cloudflare Pages project, production URL, and any custom domains.
 
-Cloudflare Pages publishes each `books/<slug>/docs` folder under `/books/<slug>/` by assembling a Pages artifact from `site/` plus all book docs folders.
+The first KB is `FreeDocStore/true-non-profit`:
+
+- Source: <https://github.com/FreeDocStore/true-non-profit>
+- Production: <https://true-non-profit.pages.dev/>
+- Engine: Zensical
+- Source directory: `docs/`
+- Config: `zensical.toml`
+
+The platform repo does not contain generated KB pages and does not publish `/books/<slug>/` routes.
 
 ## AI Editor Flow
 

@@ -162,7 +162,7 @@ section:last-of-type { border-bottom: none; }
   letter-spacing: 0.5px;
 }
 
-/* ─── Published books ─────────────────────────────── */
+/* ─── Published KBs ───────────────────────────────── */
 .book-hero {
   padding: 72px 0 48px;
   border-bottom: 1px solid var(--border);

@@ -3,11 +3,11 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Hosting FreeDocStore - free public docs on the edge</title>
-  <meta name="description" content="Deploy a FreeDocStore public knowledge base as static assets on Cloudflare Pages or Workers." />
+  <title>Hosting FreeDocStore - Zensical KBs on Cloudflare</title>
+  <meta name="description" content="Deploy a FreeDocStore public knowledge base from a Zensical Markdown repo to Cloudflare Pages." />
 
-  <meta property="og:title" content="Hosting FreeDocStore - free public docs on the edge" />
-  <meta property="og:description" content="Cloudflare Pages or Workers can serve public FreeDocStore knowledge bases as static assets. Private staff/customer docs belong in ProDocStore." />
+  <meta property="og:title" content="Hosting FreeDocStore - Zensical KBs on Cloudflare" />
+  <meta property="og:description" content="Cloudflare Pages serves public FreeDocStore knowledge bases built from Zensical Markdown repos. Private staff/customer docs belong in ProDocStore." />
   <meta property="og:type" content="article" />
 
   <link rel="icon" type="image/svg+xml" href="assets/favicon.svg" />
@@ -78,10 +78,10 @@
   <main>
     <div class="wrap">
 
-      <h1>Hosting FreeDocStore - free, public, globally fast</h1>
+      <h1>Hosting FreeDocStore - Zensical on Cloudflare</h1>
       <p class="lede">
-        FreeDocStore publishes public knowledge bases. The first hosting path should stay simple: static files
-        on Cloudflare Pages or Worker Assets, backed by source in GitHub. Private staff/customer docs are the
+        FreeDocStore publishes public knowledge bases from Zensical Markdown repos. The first hosting path is
+        Cloudflare Pages, backed by source in GitHub. Private staff/customer docs are the
         ProDocStore product line, not the FreeDocStore default.
       </p>
 
@@ -95,9 +95,8 @@
         <div class="compare-card">
           <h4>Cloudflare Pages</h4>
           <span class="price">Free</span>
-          <p>Static hosting with a global CDN. Unlimited bandwidth, 500 builds per month, 20,000 files per site.
-          Custom domains, automatic HTTPS, atomic deploys via Git or CLI. This is where your <code>docs/</code>
-          folder ends up.</p>
+          <p>Global hosting for the Zensical build output. Unlimited bandwidth, 500 builds per month, 20,000 files
+          per site. Custom domains, automatic HTTPS, and atomic deploys via Git or CLI.</p>
         </div>
         <div class="compare-card">
           <h4>Cloudflare One (Access)</h4>
@@ -117,17 +116,17 @@
       <h2>What you need before you start</h2>
       <ul>
         <li>A Cloudflare account (free tier is fine; sign up at <a href="https://dash.cloudflare.com">dash.cloudflare.com</a>)</li>
-        <li>Your docs in a GitHub repo - the <code>docs/</code> folder is what you'll deploy</li>
+        <li>Your KB in a GitHub repo with <code>docs/</code> Markdown and <code>zensical.toml</code></li>
         <li>An email domain you control (e.g. <code>your-team.com</code>) - this is what the Access policy will allow through</li>
       </ul>
 
-      <h2>Step 1 - publish the static site (Cloudflare Pages)</h2>
+      <h2>Step 1 - publish the Zensical KB (Cloudflare Pages)</h2>
       <p>
         From the Cloudflare dashboard, create a Pages project and connect it to your GitHub repo. Build
         configuration:
       </p>
-      <pre><code>Build command:    (none - FreeDocStore is plain HTML)
-Build output dir: docs
+      <pre><code>Build command:    python3 -m pip install zensical && python3 -m zensical build --strict
+Build output dir: site
 Root directory:   /</code></pre>
       <p>
         Push to <code>main</code> and Cloudflare deploys to <code>your-project.pages.dev</code> in under
@@ -136,8 +135,9 @@ Root directory:   /</code></pre>
 
       <h3>Or do it from the CLI</h3>
       <p>If you'd rather not click through the dashboard:</p>
-      <pre><code>npx wrangler pages project create your-project --production-branch main
-npx wrangler pages deploy docs --project-name=your-project</code></pre>
+      <pre><code>python3 -m zensical build --strict
+npx wrangler pages project create your-project --production-branch main
+npx wrangler pages deploy site --project-name=your-project</code></pre>
 
       <h2>Step 2 - gate access (Cloudflare One)</h2>
       <p>

@@ -5,7 +5,6 @@ on:
     branches: [main]
     paths:
       - 'site/**'
-      - 'books/**'
       - '.github/workflows/deploy-store.yml'
   workflow_dispatch:
 
@@ -25,21 +24,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Assemble store artifact
-        run: |
-          set -euo pipefail
-          rm -rf _pages
-          mkdir -p _pages
-          cp -R site/. _pages/
-          if [ -d books ]; then
-            for docs_dir in books/*/docs; do
-              [ -d "$docs_dir" ] || continue
-              slug="$(basename "$(dirname "$docs_dir")")"
-              mkdir -p "_pages/books/$slug"
-              cp -R "$docs_dir"/. "_pages/books/$slug/"
-            done
-          fi
-
       - name: Deploy to Cloudflare Pages
         if: env.HAS_CLOUDFLARE_SECRETS == 'true'
         uses: cloudflare/wrangler-action@v3
@@ -47,7 +31,7 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           wranglerVersion: '3.91.0'
-          command: pages deploy _pages --project-name=freedocstore
+          command: pages deploy site --project-name=freedocstore
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

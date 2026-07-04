@@ -7,7 +7,7 @@
   <meta name="description" content="Publish public knowledge bases from GitHub. AI drafts updates, humans review diffs, and manual edits stay in GitHub." />
 
   <meta property="og:title" content="FreeDocStore - free public knowledge-base publishing" />
-  <meta property="og:description" content="GitHub-backed public docs with AI-first editing, reviewable proposals, static publishing, and agent-readable metadata." />
+  <meta property="og:description" content="GitHub-backed Zensical docs with AI-first editing, reviewable proposals, Cloudflare publishing, and agent-readable metadata." />
   <meta property="og:type" content="website" />
 
   <link rel="icon" type="image/svg+xml" href="assets/favicon.svg" />
@@ -20,7 +20,7 @@
       <a href="/" class="nav-brand">FreeDocStore</a>
       <div class="nav-links">
         <a href="#problem">Why</a>
-        <a href="#books">Books</a>
+        <a href="#knowledge-bases">KBs</a>
         <a href="#loop">The loop</a>
         <a href="#how">How it works</a>
         <a href="#agents">For agents</a>
@@ -53,7 +53,7 @@
       <div class="section-eyebrow">The problem</div>
       <h2 class="section-title">Public knowledge gets scattered, stale, and hard for agents to trust.</h2>
       <p class="section-lede">
-        Teams write docs in READMEs, wikis, static sites, notes, and chat threads. AI can help maintain them, but
+        Teams write docs in READMEs, wikis, notes, and chat threads. AI can help maintain them, but
         only if the source is inspectable, reviewable, and published in a format both humans and agents can read.
       </p>
 
@@ -86,12 +86,12 @@
     </div>
   </section>
 
-  <section id="books">
+  <section id="knowledge-bases">
     <div class="wrap">
-      <div class="section-eyebrow">Published books</div>
-      <h2 class="section-title">Public knowledge bases start as books.</h2>
+      <div class="section-eyebrow">Published KBs</div>
+      <h2 class="section-title">Each knowledge base is a Zensical repo.</h2>
       <p class="section-lede">
-        FreeDocStore books are GitHub-backed static knowledge bases with public URLs, source history, and agent-readable metadata.
+        FreeDocStore publishes GitHub repositories that use Markdown in <code>docs/</code> and a <code>zensical.toml</code> config. Each KB deploys to its own Cloudflare Pages project and can attach custom domains.
       </p>
 
       <div class="problem-grid">
@@ -99,13 +99,13 @@
           <span class="stat">Draft 0.1</span>
           <h3>True Non-Profit</h3>
           <p>A first-principles body of knowledge about non-profits, what they should be, and how to assess their trueness.</p>
-          <p><a href="books/true-non-profit/">Read the book</a></p>
+          <p><a href="https://true-non-profit.pages.dev/">Read the KB</a></p>
         </div>
         <div class="problem-card">
-          <span class="stat">Next</span>
-          <h3>Assessment register</h3>
-          <p>The first book includes a register scaffold. Real organizations should receive scores only after public evidence files exist.</p>
-          <p><a href="books/true-non-profit/register.html">Open the register</a></p>
+          <span class="stat">Source</span>
+          <h3>GitHub-backed Markdown</h3>
+          <p>The first KB lives in its own repository. Zensical builds it from Markdown, and Cloudflare hosts the generated site.</p>
+          <p><a href="https://github.com/FreeDocStore/true-non-profit">Open the repo</a></p>
         </div>
       </div>
     </div>
@@ -164,7 +164,7 @@
           <div class="pillar-icon">1</div>
           <h3>GitHub holds the source</h3>
           <p>
-            Connect a public repo, choose the docs folder, and publish static output. Source files remain in the
+            Connect a public Zensical repo, choose the docs folder, and publish through Cloudflare. Source files remain in the
             repository where review, permissions, and history already exist.
           </p>
         </div>
@@ -180,7 +180,7 @@
           <div class="pillar-icon">3</div>
           <h3>Public output stays cheap</h3>
           <p>
-            Free public KBs can be served as static assets with generated search, sitemap, metadata, and future MCP
+            Free public KBs are built by Zensical with generated search, sitemap, metadata, and future MCP
             discovery.
           </p>
         </div>
@@ -191,7 +191,7 @@
   <section id="how">
     <div class="wrap">
       <div class="section-eyebrow">How it works</div>
-      <h2 class="section-title">Start with static docs, grow into an agent-readable KB.</h2>
+      <h2 class="section-title">Start with a Zensical repo, grow into an agent-readable KB.</h2>
 
       <div class="how">
         <ol class="how-steps">
@@ -206,7 +206,7 @@
             <div class="how-num">2</div>
             <div>
               <h4>Publish the knowledge base</h4>
-              <p>Build public static output with navigation, search, sitemap, and agent-readable metadata.</p>
+              <p>Build the Zensical project with navigation, search, sitemap, and agent-readable metadata.</p>
             </div>
           </li>
           <li class="how-step">
@@ -309,7 +309,7 @@
           <h5>Product</h5>
           <ul>
             <li><a href="#problem">Why</a></li>
-            <li><a href="#books">Books</a></li>
+            <li><a href="#knowledge-bases">KBs</a></li>
             <li><a href="#loop">The loop</a></li>
             <li><a href="#how">How it works</a></li>
             <li><a href="#agents">For agents</a></li>

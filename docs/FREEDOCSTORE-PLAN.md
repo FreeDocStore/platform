@@ -23,11 +23,13 @@ Track public knowledge bases with:
 
 ### Supported Sources
 
-Start with:
+Start with one source shape only:
 
-- static HTML docs
-- Markdown files in GitHub
-- Zensical-style docs directories
+- Zensical-format Markdown repositories
+- one GitHub repository per KB
+- `docs/` as the source directory
+- `zensical.toml` as the build config
+- Cloudflare Pages as the publishing target
 
 Later:
 
@@ -54,11 +56,12 @@ Extension:
 
 ### Publishing
 
-First pass can stay static:
+First pass stays Zensical-only:
 
-- generated site assets in repo
-- GitHub Actions deploy
-- Cloudflare Pages or Worker Assets
+- Markdown source in each KB repo
+- Zensical build in GitHub Actions
+- Cloudflare Pages deploy per KB
+- custom domains attached per KB project
 
 Do not build a multi-tenant hosted backend until the workflow proves useful.
 

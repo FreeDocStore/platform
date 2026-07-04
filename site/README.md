@@ -1,9 +1,9 @@
 # FreeDocStore - marketing site
 
-Public marketing site for FreeDocStore. Lives alongside `docs/`, `extension/`,
+Public product site for FreeDocStore. Lives alongside `docs/`, `extension/`,
 `brand/`, `templates/` in this repo. Separate from `docs/` (which is the
-product's own documentation) and deliberately not built with the product's
-own tooling - the product is for docs, the site is for marketing.
+product's own documentation). Knowledge bases are separate Zensical GitHub
+repositories and are not embedded in this site.
 
 ## Stack
 
@@ -32,5 +32,6 @@ site/
 
 ## Deploy
 
-`/.github/workflows/deploy-store.yml` publishes `site/` and `books/*/docs`
-to Cloudflare Pages on every push to `main` that touches public content.
+`/.github/workflows/deploy-store.yml` publishes only `site/` to Cloudflare
+Pages on every push to `main` that touches public content. KBs deploy from
+their own repositories with Zensical.
