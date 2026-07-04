@@ -24,6 +24,7 @@
         <a href="#loop">The loop</a>
         <a href="#how">How it works</a>
         <a href="#agents">For agents</a>
+        <a href="#mcp">MCP</a>
         <a href="editor.html">AI editor</a>
         <a href="hosting.html">Hosting</a>
         <a href="https://github.com/FreeDocStore/platform">GitHub</a>
@@ -285,6 +286,31 @@
     </div>
   </section>
 
+  <section id="mcp">
+    <div class="wrap">
+      <div class="section-eyebrow">MCP</div>
+      <h2 class="section-title">Agents can inspect and plan Zensical KB publishing.</h2>
+      <p class="section-lede">
+        The FreeDocStore MCP server exposes the public registry, repo inspection, Zensical validation, deploy checks, and publish planning. Write tools will be added behind auth.
+      </p>
+
+      <div class="problem-grid">
+        <div class="problem-card">
+          <span class="stat">Live</span>
+          <h3>Remote MCP endpoint</h3>
+          <p>Use the current Cloudflare Workers endpoint while the custom MCP domain is being attached.</p>
+          <p><a href="https://freedocstore-mcp.serge-the-dev.workers.dev/">Open endpoint notes</a></p>
+        </div>
+        <div class="problem-card">
+          <span class="stat">Discovery</span>
+          <h3>Machine-readable connector</h3>
+          <p>Agents can discover the MCP server from the platform's well-known metadata.</p>
+          <p><a href=".well-known/mcp.json">Open MCP discovery</a></p>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <section id="install">
     <div class="wrap">
       <div class="cta-block">
@@ -313,6 +339,7 @@
             <li><a href="#loop">The loop</a></li>
             <li><a href="#how">How it works</a></li>
             <li><a href="#agents">For agents</a></li>
+            <li><a href="#mcp">MCP</a></li>
             <li><a href="editor.html">AI editor</a></li>
             <li><a href="#install">Install</a></li>
           </ul>

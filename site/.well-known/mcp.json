@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "freedocstore": {
+      "type": "http",
+      "url": "https://freedocstore-mcp.serge-the-dev.workers.dev/mcp",
+      "description": "FreeDocStore Zensical knowledge-base publishing MCP server"
+    }
+  }
+}

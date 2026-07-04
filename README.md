@@ -96,6 +96,18 @@ The first KB is `FreeDocStore/true-non-profit`:
 
 The platform repo does not contain generated KB pages and does not publish `/books/<slug>/` routes.
 
+## MCP
+
+FreeDocStore has a remote MCP server for agents:
+
+- Current endpoint: <https://freedocstore-mcp.serge-the-dev.workers.dev/mcp>
+- Discovery: <https://freedocstore.pages.dev/.well-known/mcp.json>
+- Local connector: `.mcp.json`
+
+Current MCP tools are public/read and planning tools: list KBs, inspect registered KB metadata, validate Zensical repos, read source files, check deploy status, and create a publish plan from a topic prompt.
+
+Authenticated write tools come next: create KB repo, update Markdown files, register custom domains, and publish from prompt.
+
 ## AI Editor Flow
 
 1. Connect a GitHub file.
