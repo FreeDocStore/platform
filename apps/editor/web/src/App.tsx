@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { initPro, useAuth, useSubscription, useTheme, type Subscription, type User } from '@proappstore/sdk'
 import {
   BookOpen,
@@ -9,16 +9,19 @@ import {
   FileText,
   Github,
   Globe2,
+  Home,
   KeyRound,
   LibraryBig,
   LayoutDashboard,
   Loader2,
   PenLine,
   Plus,
+  RefreshCw,
   ShieldCheck,
   Sparkles,
   Trash2,
   UserCircle,
+  Wifi,
 } from 'lucide-react'
 
 const app = initPro({ appId: 'freedocstore-editor' })
@@ -32,6 +35,10 @@ const ACTIVE_KB_KEY = 'fds:active-kb:v1'
 type AppRoute = 'dashboard' | 'publish' | 'edit' | 'profile'
 type StepState = 'idle' | 'busy' | 'ok' | 'error'
 type ConnectionState = 'unchecked' | 'checking' | 'ready' | 'needs-setup' | 'error'
+type PwaInstallPrompt = Event & {
+  prompt: () => Promise<void>
+  userChoice: Promise<{ outcome: 'accepted' | 'dismissed'; platform: string }>
+}
 
 interface Settings {
   openaiEndpoint: string
@@ -202,16 +209,30 @@ function nextAvailableSlug(kbs: KnowledgeBaseDraft[], desired: string) {
   return `${base}-${Date.now()}`
 }
 
-function routeFromHash(): AppRoute {
-  const raw = window.location.hash.replace(/^#\/?/, '')
-  if (raw === 'publish' || raw === 'edit' || raw === 'profile') return raw
-  const path = window.location.pathname.replace(/^\/+|\/+$/g, '')
-  return path === 'publish' || path === 'edit' || path === 'profile' ? path : 'dashboard'
+function displayName(user: User) {
+  return user.name || user.login || user.id || 'User'
 }
 
-function setHashRoute(route: AppRoute) {
-  const next = route === 'dashboard' ? '#/' : `#/${route}`
-  if (window.location.hash !== next) window.location.hash = next
+function normalizeRoute(raw: string): AppRoute {
+  const route = raw.replace(/^#?\/?/, '').replace(/^\/+|\/+$/g, '')
+  if (route === 'publish' || route === 'edit' || route === 'profile') return route
+  return 'dashboard'
+}
+
+function routeFromLocation(): AppRoute {
+  const hashRoute = normalizeRoute(window.location.hash)
+  if (hashRoute !== 'dashboard') return hashRoute
+  const path = window.location.pathname.replace(/^\/+|\/+$/g, '')
+  return normalizeRoute(path)
+}
+
+function pathForRoute(route: AppRoute) {
+  return route === 'dashboard' ? '/' : `/${route}`
+}
+
+function pushRoute(route: AppRoute) {
+  const next = pathForRoute(route)
+  if (window.location.pathname !== next || window.location.hash) window.history.pushState(null, '', next)
 }
 
 function App() {
@@ -222,7 +243,7 @@ function EditorApp() {
   const { user, loading: authLoading, signIn, signOut, deleteAccount } = useAuth(app)
   const { subscription, isPro, loading: subLoading, upgrade, manageBilling } = useSubscription(app)
   const { preference, setPreference } = useTheme()
-  const [route, setRoute] = useState<AppRoute>(() => routeFromHash())
+  const [route, setRoute] = useState<AppRoute>(() => routeFromLocation())
   const [settings, setSettings] = useState<Settings>(emptySettings)
   const [kbs, setKbs] = useState<KnowledgeBaseDraft[]>(() => [createKnowledgeBase(starterPublish)])
   const [platformLoaded, setPlatformLoaded] = useState(false)
@@ -235,6 +256,9 @@ function EditorApp() {
   const [activePreview, setActivePreview] = useState<'files' | 'source' | 'proposal' | 'diff'>('files')
   const [status, setStatus] = useState('Ready')
   const [busy, setBusy] = useState(false)
+  const [installPrompt, setInstallPrompt] = useState<PwaInstallPrompt | null>(null)
+  const [pwaReady, setPwaReady] = useState(false)
+  const [updateAvailable, setUpdateAvailable] = useState(false)
 
   const activeKb = kbs.find((kb) => kb.id === activeKbId) ?? kbs[0] ?? createKnowledgeBase(starterPublish)
   const publishForm = toPublishForm(activeKb)
@@ -243,15 +267,66 @@ function EditorApp() {
   const liveUrl = activeKb?.liveUrl ?? ''
 
   useEffect(() => {
-    const syncRoute = () => setRoute(routeFromHash())
+    const syncRoute = () => {
+      const next = routeFromLocation()
+      if (window.location.hash) window.history.replaceState(null, '', pathForRoute(next))
+      setRoute(next)
+    }
+    window.addEventListener('popstate', syncRoute)
     window.addEventListener('hashchange', syncRoute)
     syncRoute()
-    return () => window.removeEventListener('hashchange', syncRoute)
+    return () => {
+      window.removeEventListener('popstate', syncRoute)
+      window.removeEventListener('hashchange', syncRoute)
+    }
   }, [])
 
   function navigate(route: AppRoute) {
     setRoute(route)
-    setHashRoute(route)
+    pushRoute(route)
+  }
+
+  useEffect(() => {
+    const onPrompt = (event: Event) => {
+      event.preventDefault()
+      setInstallPrompt(event as PwaInstallPrompt)
+    }
+    window.addEventListener('beforeinstallprompt', onPrompt)
+    return () => window.removeEventListener('beforeinstallprompt', onPrompt)
+  }, [])
+
+  useEffect(() => {
+    if (!('serviceWorker' in navigator)) return
+    let cancelled = false
+    navigator.serviceWorker.ready.then(() => {
+      if (!cancelled) setPwaReady(true)
+    }).catch(() => {})
+    navigator.serviceWorker.getRegistration().then((registration) => {
+      if (!registration || cancelled) return
+      if (registration.waiting) setUpdateAvailable(true)
+      registration.addEventListener('updatefound', () => {
+        const worker = registration.installing
+        if (!worker) return
+        worker.addEventListener('statechange', () => {
+          if (worker.state === 'installed' && navigator.serviceWorker.controller) setUpdateAvailable(true)
+        })
+      })
+    }).catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  async function installApp() {
+    if (!installPrompt) return
+    await installPrompt.prompt()
+    setInstallPrompt(null)
+  }
+
+  async function activateUpdate() {
+    const registration = 'serviceWorker' in navigator ? await navigator.serviceWorker.getRegistration() : null
+    registration?.waiting?.postMessage({ type: 'SKIP_WAITING' })
+    window.location.reload()
   }
 
   useEffect(() => {
@@ -585,127 +660,203 @@ function EditorApp() {
     }
   }
 
+  if (authLoading) return <LoadingScreen />
+  if (!user) return <SignedOutLanding signIn={signIn} />
+
+  const content = route === 'dashboard' ? (
+    <DashboardPage
+      kbs={kbs}
+      activeId={activeKb?.id ?? ''}
+      onSelect={(id) => {
+        setActiveKbId(id)
+        setActivePreview('files')
+        navigate('publish')
+      }}
+      onCreate={createNewKb}
+      onDuplicate={duplicateActiveKb}
+      onDelete={deleteActiveKb}
+      onPublish={() => navigate('publish')}
+      onEdit={() => navigate('edit')}
+    />
+  ) : route === 'publish' ? (
+    <div className="workspace-grid">
+      <section className="panel control-panel">
+        <SelectedKbHeader kb={activeKb} onBack={() => navigate('dashboard')} />
+        <SettingsPanel settings={settings} setSettings={setSettings} connections={connections} onCheck={checkConnections} compact />
+        <PublishPanel
+          form={publishForm}
+          setForm={updateActiveForm}
+          steps={steps}
+          busy={busy}
+          onGenerate={generateFiles}
+          onPublish={publishToGitHub}
+          liveUrl={liveUrl}
+        />
+      </section>
+      <section className="panel preview-panel">
+        <PreviewTabs active={activePreview} setActive={setActivePreview} hasProposal={!!proposal} publish />
+        <FilesPreview files={files} summary={generatedSummary} />
+      </section>
+    </div>
+  ) : route === 'edit' ? (
+    <div className="workspace-grid">
+      <section className="panel control-panel">
+        <SettingsPanel settings={settings} setSettings={setSettings} connections={connections} onCheck={checkConnections} compact />
+        <EditPanel
+          form={editForm}
+          setForm={setEditForm}
+          busy={busy}
+          onLoad={loadSource}
+          onAsk={askForEditProposal}
+          proposal={proposal}
+        />
+      </section>
+      <section className="panel preview-panel">
+        <PreviewTabs active={activePreview} setActive={setActivePreview} hasProposal={!!proposal} />
+        <EditPreview active={activePreview} source={source} proposal={proposal} diff={diff} path={editForm.path} />
+      </section>
+    </div>
+  ) : (
+    <ProfilePage
+      settings={settings}
+      setSettings={setSettings}
+      connections={connections}
+      onCheck={checkConnections}
+      kbs={kbs}
+      user={user}
+      signOut={signOut}
+      deleteAccount={deleteAccount}
+      subscription={subscription}
+      isPro={isPro}
+      subLoading={subLoading}
+      upgrade={upgrade}
+      manageBilling={manageBilling}
+      themePreference={preference}
+      setThemePreference={setPreference}
+      installAvailable={!!installPrompt}
+      pwaReady={pwaReady}
+      updateAvailable={updateAvailable}
+      onInstall={installApp}
+      onUpdate={activateUpdate}
+    />
+  )
+
   return (
-    <main className="app-shell">
-      <header className="store-topbar">
+    <div className="app-frame">
+      <StoreHeader
+        route={route}
+        navigate={navigate}
+        user={user}
+        signOut={signOut}
+        pwaReady={pwaReady}
+        updateAvailable={updateAvailable}
+        onUpdate={activateUpdate}
+      />
+      <main className="app-shell">
+        <header className="workspace-head">
+          <div>
+            <p className="eyebrow">FreeDocStore workspace</p>
+            <h1>{pageTitle}</h1>
+            <p className="lede">{pageCopy}</p>
+          </div>
+          <div className="status-block" aria-live="polite">
+            <span className={busy ? 'pulse-dot busy' : 'pulse-dot'} />
+            <div>
+              <strong>{busy ? 'Working' : 'Status'}</strong>
+              <p>{status}</p>
+              <small>Signed in as {displayName(user)}</small>
+            </div>
+          </div>
+        </header>
+        {content}
+        <footer className="store-footer">
+          FreeDocStore publishes Markdown knowledge bases as Zensical books from GitHub repos.
+        </footer>
+      </main>
+      <MobileTabBar route={route} navigate={navigate} />
+    </div>
+  )
+}
+
+function LoadingScreen() {
+  return (
+    <div className="auth-screen">
+      <Loader2 className="spin" size={22} />
+      <p>Checking session...</p>
+    </div>
+  )
+}
+
+function SignedOutLanding({ signIn }: { signIn: () => void }) {
+  return (
+    <main className="auth-screen auth-landing">
+      <div className="auth-card">
+        <span className="brand-mark large">F</span>
+        <p className="eyebrow">FreeDocStore Editor</p>
+        <h1>Publish GitHub-backed knowledge bases.</h1>
+        <p className="lede">Sign in to create Zensical Markdown repos, publish them on Cloudflare Pages, and manage custom domains from one workspace.</p>
+        <div className="auth-actions">
+          <button className="primary-action" type="button" onClick={signIn}>
+            <Github size={17} />
+            Sign in with GitHub
+          </button>
+          <a className="secondary-action as-link" href="https://freedocstore.pages.dev/" target="_blank" rel="noreferrer">
+            <ExternalLink size={17} />
+            Open FreeDocStore
+          </a>
+        </div>
+      </div>
+    </main>
+  )
+}
+
+function StoreHeader({
+  route,
+  navigate,
+  user,
+  signOut,
+  pwaReady,
+  updateAvailable,
+  onUpdate,
+}: {
+  route: AppRoute
+  navigate: (route: AppRoute) => void
+  user: User
+  signOut: () => void
+  pwaReady: boolean
+  updateAvailable: boolean
+  onUpdate: () => void
+}) {
+  return (
+    <header className="store-topbar">
+      <div className="store-topbar-inner">
         <button className="brand-lockup" type="button" onClick={() => navigate('dashboard')} aria-label="FreeDocStore dashboard">
           <span className="brand-mark">F</span>
           <span>
             <strong>FreeDocStore</strong>
-            <small>Knowledge-base publishing</small>
+            <small>Editor</small>
           </span>
         </button>
+        <AppNav route={route} navigate={navigate} />
         <div className="account-strip">
-          {authLoading ? (
-            <span className="account-state">Checking session</span>
-          ) : user ? (
-            <>
-              <button className="account-pill" type="button" onClick={() => navigate('profile')}>
-                {user.avatarUrl ? <img src={user.avatarUrl} alt="" /> : <span>{user.name.slice(0, 1).toUpperCase()}</span>}
-                <strong>{user.name}</strong>
-              </button>
-              <button className="text-action" type="button" onClick={signOut}>Sign out</button>
-            </>
-          ) : (
-            <button className="primary-action compact-auth" type="button" onClick={signIn}>Sign in</button>
+          <span className={pwaReady ? 'pwa-chip ready' : 'pwa-chip'}>
+            <Wifi size={14} />
+            <span>{pwaReady ? 'Offline ready' : 'Web app'}</span>
+          </span>
+          {updateAvailable && (
+            <button className="pwa-chip update" type="button" onClick={onUpdate}>
+              <RefreshCw size={14} />
+              <span>Update</span>
+            </button>
           )}
+          <button className="account-pill" type="button" onClick={() => navigate('profile')} aria-label="Open profile">
+            {user.avatarUrl ? <img src={user.avatarUrl} alt="" /> : <span>{displayName(user).slice(0, 1).toUpperCase()}</span>}
+            <strong>{displayName(user)}</strong>
+          </button>
+          <button className="text-action signout-action" type="button" onClick={signOut}>Sign out</button>
         </div>
-      </header>
-      <header className="workspace-head">
-        <div>
-          <h1>{pageTitle}</h1>
-          <p className="lede">{pageCopy}</p>
-        </div>
-        <div className="status-block" aria-live="polite">
-          <span className={busy ? 'pulse-dot busy' : 'pulse-dot'} />
-          <div>
-            <strong>{busy ? 'Working' : 'Status'}</strong>
-            <p>{status}</p>
-            {user?.name && <small>Signed in as {user.name}</small>}
-          </div>
-        </div>
-      </header>
-
-      <AppNav route={route} navigate={navigate} />
-
-      {route === 'dashboard' ? (
-        <DashboardPage
-          kbs={kbs}
-          activeId={activeKb?.id ?? ''}
-          onSelect={(id) => {
-            setActiveKbId(id)
-            setActivePreview('files')
-            navigate('publish')
-          }}
-          onCreate={createNewKb}
-          onDuplicate={duplicateActiveKb}
-          onDelete={deleteActiveKb}
-          onPublish={() => navigate('publish')}
-          onEdit={() => navigate('edit')}
-        />
-      ) : route === 'publish' ? (
-        <div className="workspace-grid">
-          <section className="panel control-panel">
-            <SelectedKbHeader kb={activeKb} onBack={() => navigate('dashboard')} />
-            <SettingsPanel settings={settings} setSettings={setSettings} connections={connections} onCheck={checkConnections} compact />
-            <PublishPanel
-              form={publishForm}
-              setForm={updateActiveForm}
-              steps={steps}
-              busy={busy}
-              onGenerate={generateFiles}
-              onPublish={publishToGitHub}
-              liveUrl={liveUrl}
-            />
-          </section>
-          <section className="panel preview-panel">
-            <PreviewTabs active={activePreview} setActive={setActivePreview} hasProposal={!!proposal} publish />
-            <FilesPreview files={files} summary={generatedSummary} />
-          </section>
-        </div>
-      ) : route === 'edit' ? (
-        <div className="workspace-grid">
-          <section className="panel control-panel">
-            <SettingsPanel settings={settings} setSettings={setSettings} connections={connections} onCheck={checkConnections} compact />
-            <EditPanel
-              form={editForm}
-              setForm={setEditForm}
-              busy={busy}
-              onLoad={loadSource}
-              onAsk={askForEditProposal}
-              proposal={proposal}
-            />
-          </section>
-          <section className="panel preview-panel">
-            <PreviewTabs active={activePreview} setActive={setActivePreview} hasProposal={!!proposal} />
-            <EditPreview active={activePreview} source={source} proposal={proposal} diff={diff} path={editForm.path} />
-          </section>
-        </div>
-      ) : (
-        <ProfilePage
-          settings={settings}
-          setSettings={setSettings}
-          connections={connections}
-          onCheck={checkConnections}
-          kbs={kbs}
-          user={user}
-          authLoading={authLoading}
-          signIn={signIn}
-          signOut={signOut}
-          deleteAccount={deleteAccount}
-          subscription={subscription}
-          isPro={isPro}
-          subLoading={subLoading}
-          upgrade={upgrade}
-          manageBilling={manageBilling}
-          themePreference={preference}
-          setThemePreference={setPreference}
-        />
-      )}
-      <footer className="store-footer">
-        FreeDocStore publishes Markdown knowledge bases as Zensical books from GitHub repos.
-      </footer>
-    </main>
+      </div>
+    </header>
   )
 }
 
@@ -713,7 +864,7 @@ function AppNav({ route, navigate }: { route: AppRoute; navigate: (route: AppRou
   return (
     <nav className="app-nav" aria-label="Editor pages">
       <button className={route === 'dashboard' ? 'mode active' : 'mode'} onClick={() => navigate('dashboard')} type="button">
-        <LayoutDashboard size={17} />
+        <Home size={17} />
         Dashboard
       </button>
       <button className={route === 'publish' ? 'mode active' : 'mode'} onClick={() => navigate('publish')} type="button">
@@ -732,6 +883,25 @@ function AppNav({ route, navigate }: { route: AppRoute; navigate: (route: AppRou
         <ShieldCheck size={17} />
         MCP
       </a>
+    </nav>
+  )
+}
+
+function MobileTabBar({ route, navigate }: { route: AppRoute; navigate: (route: AppRoute) => void }) {
+  const items: { route: AppRoute; label: string; icon: ReactNode }[] = [
+    { route: 'dashboard', label: 'Home', icon: <LayoutDashboard size={18} /> },
+    { route: 'publish', label: 'Publish', icon: <LibraryBig size={18} /> },
+    { route: 'edit', label: 'Edit', icon: <PenLine size={18} /> },
+    { route: 'profile', label: 'Profile', icon: <UserCircle size={18} /> },
+  ]
+  return (
+    <nav className="mobile-tabbar" aria-label="Primary">
+      {items.map((item) => (
+        <button key={item.route} className={route === item.route ? 'mobile-tab active' : 'mobile-tab'} type="button" onClick={() => navigate(item.route)}>
+          {item.icon}
+          <span>{item.label}</span>
+        </button>
+      ))}
     </nav>
   )
 }
@@ -951,8 +1121,6 @@ function ProfilePage({
   onCheck,
   kbs,
   user,
-  authLoading,
-  signIn,
   signOut,
   deleteAccount,
   subscription,
@@ -962,15 +1130,18 @@ function ProfilePage({
   manageBilling,
   themePreference,
   setThemePreference,
+  installAvailable,
+  pwaReady,
+  updateAvailable,
+  onInstall,
+  onUpdate,
 }: {
   settings: Settings
   setSettings: (settings: Settings) => void
   connections: PlatformConnections
   onCheck: () => void
   kbs: KnowledgeBaseDraft[]
-  user: User | null
-  authLoading: boolean
-  signIn: () => void
+  user: User
   signOut: () => void
   deleteAccount: () => Promise<void>
   subscription: Subscription | null
@@ -980,6 +1151,11 @@ function ProfilePage({
   manageBilling: () => Promise<void>
   themePreference: 'light' | 'dark' | 'system'
   setThemePreference: (preference: 'light' | 'dark' | 'system') => void
+  installAvailable: boolean
+  pwaReady: boolean
+  updateAvailable: boolean
+  onInstall: () => void
+  onUpdate: () => void
 }) {
   async function confirmDeleteAccount() {
     const first = window.confirm('Delete your FreeDocStore account data across platform apps? This cannot be undone.')
@@ -993,15 +1169,15 @@ function ProfilePage({
     <div className="profile-grid">
       <section className="panel">
         <div className="section-block fds-profile-card">
-          {user?.avatarUrl ? (
+          {user.avatarUrl ? (
             <img className="profile-avatar" src={user.avatarUrl} alt="" />
           ) : (
-            <div className="avatar-mark">{user?.name?.slice(0, 1).toUpperCase() || 'F'}</div>
+            <div className="avatar-mark">{displayName(user).slice(0, 1).toUpperCase()}</div>
           )}
           <div>
-            <h2>{authLoading ? 'Checking session' : user?.name || 'Signed out'}</h2>
-            <p>{user ? 'FreeDocStore account' : 'Sign in to publish and manage knowledge bases.'}</p>
-            {user && <small>Account ID: {user.id}</small>}
+            <h2>{displayName(user)}</h2>
+            <p>FreeDocStore account</p>
+            <small>Account ID: {user.id}</small>
           </div>
         </div>
         <div className="section-block">
@@ -1012,53 +1188,47 @@ function ProfilePage({
               <p>Profile, billing, appearance, and account controls.</p>
             </div>
           </div>
-          {!user ? (
-            <button className="primary-action full-action" type="button" onClick={signIn} disabled={authLoading}>
-              Sign in
-            </button>
-          ) : (
-            <div className="profile-action-stack">
-              <div className="target-grid">
-                <div>
-                  <span>Plan</span>
-                  <strong>{subLoading ? 'Checking' : isPro ? 'Pro' : 'Free'}</strong>
-                </div>
-                <div>
-                  <span>Status</span>
-                  <strong>{subscription?.status ?? (isPro ? 'active' : 'free')}</strong>
-                </div>
+          <div className="profile-action-stack">
+            <div className="target-grid">
+              <div>
+                <span>Plan</span>
+                <strong>{subLoading ? 'Checking' : isPro ? 'Pro' : 'Free'}</strong>
               </div>
-              <div className="inline-choice theme-choice" aria-label="Theme preference">
-                {(['system', 'light', 'dark'] as const).map((option) => (
-                  <button
-                    key={option}
-                    type="button"
-                    className={themePreference === option ? 'choice active' : 'choice'}
-                    onClick={() => setThemePreference(option)}
-                  >
-                    {option[0].toUpperCase() + option.slice(1)}
-                  </button>
-                ))}
+              <div>
+                <span>Status</span>
+                <strong>{subscription?.status ?? (isPro ? 'active' : 'free')}</strong>
               </div>
-              <div className="action-row">
-                {isPro ? (
-                  <button className="secondary-action" type="button" onClick={() => manageBilling()}>
-                    Manage billing
-                  </button>
-                ) : (
-                  <button className="secondary-action" type="button" onClick={() => upgrade()}>
-                    Upgrade
-                  </button>
-                )}
-                <button className="secondary-action" type="button" onClick={signOut}>
-                  Sign out
+            </div>
+            <div className="inline-choice theme-choice" aria-label="Theme preference">
+              {(['system', 'light', 'dark'] as const).map((option) => (
+                <button
+                  key={option}
+                  type="button"
+                  className={themePreference === option ? 'choice active' : 'choice'}
+                  onClick={() => setThemePreference(option)}
+                >
+                  {option[0].toUpperCase() + option.slice(1)}
                 </button>
-              </div>
-              <button className="secondary-action danger-action full-action" type="button" onClick={confirmDeleteAccount}>
-                Delete account
+              ))}
+            </div>
+            <div className="action-row">
+              {isPro ? (
+                <button className="secondary-action" type="button" onClick={() => manageBilling()}>
+                  Manage billing
+                </button>
+              ) : (
+                <button className="secondary-action" type="button" onClick={() => upgrade()}>
+                  Upgrade
+                </button>
+              )}
+              <button className="secondary-action" type="button" onClick={signOut}>
+                Sign out
               </button>
             </div>
-          )}
+            <button className="secondary-action danger-action full-action" type="button" onClick={confirmDeleteAccount}>
+              Delete account
+            </button>
+          </div>
         </div>
       </section>
       <section className="panel">
@@ -1076,8 +1246,59 @@ function ProfilePage({
             <div><span>Engine</span><strong>Zensical</strong></div>
           </div>
         </div>
+        <PwaPanel
+          installAvailable={installAvailable}
+          pwaReady={pwaReady}
+          updateAvailable={updateAvailable}
+          onInstall={onInstall}
+          onUpdate={onUpdate}
+        />
         <SettingsPanel settings={settings} setSettings={setSettings} connections={connections} onCheck={onCheck} />
       </section>
+    </div>
+  )
+}
+
+function PwaPanel({
+  installAvailable,
+  pwaReady,
+  updateAvailable,
+  onInstall,
+  onUpdate,
+}: {
+  installAvailable: boolean
+  pwaReady: boolean
+  updateAvailable: boolean
+  onInstall: () => void
+  onUpdate: () => void
+}) {
+  return (
+    <div className="section-block">
+      <div className="section-title">
+        <Wifi size={18} />
+        <div>
+          <h2>Web app</h2>
+          <p>Installable PWA shell, offline cache, and update status.</p>
+        </div>
+      </div>
+      <div className="target-grid">
+        <div>
+          <span>Offline cache</span>
+          <strong>{pwaReady ? 'Ready' : 'Preparing'}</strong>
+        </div>
+        <div>
+          <span>Updates</span>
+          <strong>{updateAvailable ? 'Available' : 'Current'}</strong>
+        </div>
+      </div>
+      <div className="action-row">
+        <button className="secondary-action" type="button" onClick={onInstall} disabled={!installAvailable}>
+          Install app
+        </button>
+        <button className="secondary-action" type="button" onClick={onUpdate} disabled={!updateAvailable}>
+          Apply update
+        </button>
+      </div>
     </div>
   )
 }

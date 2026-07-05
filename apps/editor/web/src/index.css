@@ -44,6 +44,7 @@
 html {
   min-height: 100%;
   -webkit-text-size-adjust: 100%;
+  overscroll-behavior: none;
 }
 
 body {
@@ -74,20 +75,39 @@ textarea:focus-visible {
 
 #root {
   min-height: 100dvh;
+  --mobile-tab-h: calc(64px + env(safe-area-inset-bottom));
+  padding-bottom: var(--mobile-tab-h);
+}
+
+.app-frame {
+  min-height: 100dvh;
+  background: var(--bg);
 }
 
 .app-shell {
   width: min(1440px, 100%);
   margin: 0 auto;
-  padding: 16px;
+  padding: 18px 16px 22px;
 }
 
 .store-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  border-bottom: 1px solid var(--line);
+  background: color-mix(in srgb, var(--paper) 94%, transparent);
+  backdrop-filter: blur(16px);
+}
+
+.store-topbar-inner {
   display: flex;
   gap: 12px;
   align-items: center;
   justify-content: space-between;
-  padding: 6px 0 14px;
+  width: min(1440px, 100%);
+  min-height: 58px;
+  margin: 0 auto;
+  padding: 8px 16px;
 }
 
 .brand-lockup {
@@ -115,6 +135,13 @@ textarea:focus-visible {
   font-weight: 900;
 }
 
+.brand-mark.large {
+  width: 56px;
+  height: 56px;
+  border-radius: 12px;
+  font-size: 24px;
+}
+
 .brand-lockup strong,
 .brand-lockup small {
   display: block;
@@ -132,6 +159,34 @@ textarea:focus-visible {
   gap: 10px;
   align-items: center;
   min-width: 0;
+}
+
+.pwa-chip {
+  display: none;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--muted);
+  padding: 0 10px;
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.pwa-chip.ready {
+  color: var(--ok);
+  border-color: color-mix(in srgb, var(--ok) 38%, var(--line));
+}
+
+.pwa-chip.update {
+  display: inline-flex;
+  color: #fff;
+  border-color: var(--accent);
+  background: var(--accent);
+  cursor: pointer;
 }
 
 .account-pill {
@@ -177,6 +232,45 @@ textarea:focus-visible {
   gap: 16px;
   align-items: end;
   padding: 16px 0 12px;
+}
+
+.auth-screen {
+  display: grid;
+  place-items: center;
+  min-height: 100dvh;
+  padding: 24px;
+  color: var(--muted);
+}
+
+.auth-landing {
+  background:
+    linear-gradient(180deg, var(--paper), var(--bg));
+}
+
+.auth-card {
+  display: grid;
+  justify-items: start;
+  width: min(560px, 100%);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  padding: 24px;
+}
+
+.auth-card h1 {
+  max-width: 480px;
+}
+
+.auth-card .lede {
+  margin-bottom: 22px;
+}
+
+.auth-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  width: 100%;
 }
 
 .eyebrow {
@@ -266,7 +360,8 @@ h1 {
   display: flex;
   gap: 8px;
   overflow-x: auto;
-  padding: 6px 0 14px;
+  min-width: 0;
+  padding: 0;
 }
 
 .mode,
@@ -305,6 +400,40 @@ h1 {
 
 .link-mode {
   color: var(--accent-2);
+}
+
+.mobile-tabbar {
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 40;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 2px;
+  min-height: var(--mobile-tab-h);
+  border-top: 1px solid var(--line);
+  background: color-mix(in srgb, var(--paper) 96%, transparent);
+  backdrop-filter: blur(16px);
+  padding: 6px 8px calc(6px + env(safe-area-inset-bottom));
+}
+
+.mobile-tab {
+  display: grid;
+  place-items: center;
+  gap: 2px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.mobile-tab.active {
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+  color: var(--accent);
 }
 
 .workspace-grid {
@@ -935,8 +1064,25 @@ h1 {
 }
 
 @media (min-width: 720px) {
+  #root {
+    --mobile-tab-h: 0px;
+    padding-bottom: 0;
+  }
+
   .app-shell {
     padding: 24px;
+  }
+
+  .store-topbar-inner {
+    padding: 8px 24px;
+  }
+
+  .mobile-tabbar {
+    display: none;
+  }
+
+  .pwa-chip {
+    display: inline-flex;
   }
 
   .workspace-head {
@@ -967,6 +1113,39 @@ h1 {
 
   .metric-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 719px) {
+  .store-topbar-inner {
+    min-height: 56px;
+  }
+
+  .store-topbar .app-nav,
+  .pwa-chip,
+  .signout-action,
+  .brand-lockup small,
+  .account-pill strong {
+    display: none;
+  }
+
+  .account-pill {
+    max-width: none;
+    width: 40px;
+    justify-content: center;
+    padding: 0;
+  }
+
+  .workspace-head {
+    padding-top: 8px;
+  }
+
+  h1 {
+    font-size: 30px;
+  }
+
+  .status-block {
+    padding: 10px;
   }
 }
 

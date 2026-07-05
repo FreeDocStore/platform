@@ -39,8 +39,8 @@ export default defineConfig({
         start_url: '/',
         scope: '/',
         display: 'standalone',
-        background_color: '#f8fafc',
-        theme_color: '#0f172a',
+        background_color: '#f5f1e8',
+        theme_color: '#d85c42',
         orientation: 'any',
         ...({ min_viewport_width: 360 } as Record<string, unknown>),
         icons: [
