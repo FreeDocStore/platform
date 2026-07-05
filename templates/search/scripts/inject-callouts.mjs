@@ -48,7 +48,7 @@ function parseArgs(argv) {
  * Variants:
  *   .callout.note   - blue, info icon (ⓘ). Default neutral framing.
  *   .callout.info   - alias for .note.
- *   .callout.tip    - green, lightbulb-ish (★). Best practices, hints.
+ *   .callout.tip    - coral, star marker (★). Best practices, hints.
  *   .callout.warn   - amber, warning (⚠). Things that can bite you.
  *   .callout.danger - red, stop sign (⛔). Data loss, security issues.
  *
@@ -92,8 +92,8 @@ export const PAYLOAD = `${START}
   --co-icon: "\\24D8";
 }
 .callout.tip {
-  --co-color: #06f4b1;
-  --co-bg: rgba(6, 244, 177, 0.07);
+  --co-color: #d85c42;
+  --co-bg: rgba(216, 92, 66, 0.07);
   --co-icon: "\\2605";
 }
 .callout.warn {

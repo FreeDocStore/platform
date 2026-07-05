@@ -24,9 +24,9 @@ site/
   index.html           landing page (single-page)
   styles.css           all styles
   assets/
-    logo-dark.svg      Open Frontier One wordmark, pre-colored for dark backgrounds
+    logo-dark.svg      FreeDocStore wordmark copy for existing deploy scripts
     logo.svg           original (uses currentColor, for reference)
-    favicon.svg        favicon (Open Frontier One mint triangle)
+    favicon.svg        favicon (FreeDocStore document mark)
     monogram.svg       standalone brand mark
 ```
 

@@ -4,14 +4,14 @@
 */
 
 :root {
-  --bg: #0f1117;
-  --surface: #181b24;
-  --surface2: #1e2230;
-  --border: #2a2e3d;
-  --text: #e1e4ed;
-  --text-muted: #8b90a0;
-  --accent: #06f4b1;
-  --accent-dim: #0ab882;
+  --bg: #f5f1e8;
+  --surface: #fffdf8;
+  --surface2: #efe6d8;
+  --border: #d8cdbb;
+  --text: #1d2730;
+  --text-muted: #64707a;
+  --accent: #d85c42;
+  --accent-dim: #a83f2e;
   --green: #12b361;
   --yellow: #fbbf24;
   --red: #f87171;
@@ -34,7 +34,7 @@ body {
 .topbar {
   position: fixed; top: 0; left: 0; right: 0; z-index: 100;
   height: 56px;
-  background: rgba(15,17,23,0.92);
+  background: rgba(255, 250, 241, 0.94);
   backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--border);
   display: flex; align-items: center; padding: 0 24px;
@@ -45,11 +45,9 @@ body {
 }
 .topbar h1 a { color: var(--text); text-decoration: none; display: flex; align-items: center; }
 .topbar h1 a:hover { color: var(--accent); }
-/* logo.svg uses currentColor for the wordmark body and a hardcoded mint
-   for the 'O' and triangular 'A'. Inheriting the link colour via
-   currentColor means the logo recolours with the theme (white on dark,
-   navy on light) while the mint accent stays consistent as the brand
-   mark. No filter hacks needed. */
+/* logo.svg uses currentColor for the wordmark body and a hardcoded
+   blue/coral mark. Inheriting the link colour keeps the wordmark aligned
+   with the active theme while the mark stays consistent. */
 .topbar-logo { height: 20px; margin-right: 10px; color: var(--text); }
 .topbar h1 a:hover .topbar-logo { color: var(--accent); }
 .topbar-links { margin-left: 32px; display: flex; gap: 16px; align-items: center; }
@@ -58,7 +56,7 @@ body {
 .topbar-links a.active { color: var(--accent); font-weight: 600; }
 .badge {
   font-size: 10px; text-transform: uppercase; letter-spacing: 1px;
-  background: var(--accent); color: #000; padding: 3px 8px; border-radius: 4px; font-weight: 700;
+  background: var(--accent); color: #fff; padding: 3px 8px; border-radius: 4px; font-weight: 700;
 }
 .menu-toggle { display: none; background: none; border: none; color: var(--text); font-size: 22px; cursor: pointer; margin-right: 12px; }
 
@@ -75,7 +73,7 @@ body {
   font-size: 13px; border-radius: 4px; transition: all 0.15s;
 }
 .sidebar a:hover { color: var(--text); background: var(--surface2); }
-.sidebar a.active { color: var(--accent); background: rgba(6,244,177,0.08); }
+.sidebar a.active { color: var(--accent); background: rgba(216,92,66,0.10); }
 
 /* --- Content layout --- */
 .content { margin-left: var(--sidebar-w); padding: 80px 48px 64px; max-width: 960px; }
@@ -83,7 +81,7 @@ body {
 
 /* --- Typography --- */
 section { margin-bottom: 48px; }
-h2 { font-size: 22px; font-weight: 700; color: #fff; margin-bottom: 16px; padding-bottom: 8px; border-bottom: 2px solid var(--accent); }
+h2 { font-size: 22px; font-weight: 700; color: var(--text); margin-bottom: 16px; padding-bottom: 8px; border-bottom: 2px solid var(--accent); }
 h3 { font-size: 17px; font-weight: 600; color: var(--accent); margin: 24px 0 12px; }
 h4 { font-size: 15px; font-weight: 600; color: var(--text); margin: 16px 0 8px; }
 p { margin-bottom: 12px; }
@@ -96,7 +94,7 @@ a { color: var(--accent); }
   background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
   padding: 20px; margin-bottom: 16px;
 }
-.card.highlight { border-color: var(--accent); background: rgba(6,244,177,0.04); }
+.card.highlight { border-color: var(--accent); background: rgba(216,92,66,0.06); }
 
 /* --- Grid layouts --- */
 .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
@@ -112,7 +110,7 @@ td { padding: 10px 14px; border-bottom: 1px solid var(--border); vertical-align:
 .tag {
   display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 4px; font-weight: 600; margin: 2px 2px;
 }
-.tag-primary { background: rgba(6,244,177,0.15); color: var(--accent); }
+.tag-primary { background: rgba(216,92,66,0.14); color: var(--accent); }
 .tag-secondary { background: rgba(139,144,160,0.15); color: var(--text-muted); }
 .tag-lang { background: rgba(96,165,250,0.15); color: #60a5fa; }
 .tag-green { background: rgba(52,211,153,0.15); color: var(--green); }
@@ -121,7 +119,7 @@ td { padding: 10px 14px; border-bottom: 1px solid var(--border); vertical-align:
 .tag-blue { background: rgba(96,165,250,0.15); color: #60a5fa; }
 
 /* --- Doc title (used by generated pages: changelog, sitemap) --- */
-.doc-title { font-size: 28px; font-weight: 700; color: #fff; margin-bottom: 8px; letter-spacing: -0.3px; }
+.doc-title { font-size: 28px; font-weight: 700; color: var(--text); margin-bottom: 8px; letter-spacing: -0.3px; }
 
 /* --- Verdict badges (high/medium/low assessments) --- */
 .verdict { display: inline-block; padding: 3px 12px; border-radius: 99px; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
@@ -140,16 +138,16 @@ pre code { background: none; padding: 0; }
 /* --- Blockquotes & callouts --- */
 blockquote {
   border-left: 3px solid var(--accent); padding: 12px 16px; margin: 16px 0;
-  background: rgba(6,244,177,0.04); border-radius: 0 8px 8px 0; font-style: italic; color: var(--text-muted);
+  background: rgba(216,92,66,0.06); border-radius: 0 8px 8px 0; font-style: italic; color: var(--text-muted);
 }
 .callout {
-  border: 1px solid var(--accent); background: rgba(6,244,177,0.06);
+  border: 1px solid var(--accent); background: rgba(216,92,66,0.08);
   border-radius: 10px; padding: 16px 20px; margin: 16px 0;
 }
 .callout-label { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--accent); font-weight: 700; margin-bottom: 6px; }
 
 /* --- Findings (used in AI Nights, session logs) --- */
-.finding { border-left: 3px solid var(--accent); padding: 8px 16px; margin: 8px 0; background: rgba(6,244,177,0.04); border-radius: 0 6px 6px 0; }
+.finding { border-left: 3px solid var(--accent); padding: 8px 16px; margin: 8px 0; background: rgba(216,92,66,0.06); border-radius: 0 6px 6px 0; }
 .finding-label { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--accent); font-weight: 700; margin-bottom: 4px; }
 
 /* --- Level bars (skills matrix) --- */
@@ -187,7 +185,7 @@ footer.standalone { margin-left: 0; }
 .page-meta__edit:hover { color: var(--accent); border-bottom-color: var(--accent); }
 
 /* --- Site search (Pagefind) ---
-   Themed to match the dark UI defined above. Sites opt in by adding
+   Themed to match the FreeDocStore UI defined above. Sites opt in by adding
    <div class="site-search" id="search"></div> in the topbar plus the
    Pagefind UI assets. See FreeDocStore SEARCH.md for the full recipe.
 */
@@ -248,7 +246,7 @@ footer.standalone { margin-left: 0; }
   color: var(--text);
   border: 1px solid var(--border);
   border-radius: 10px;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 18px 42px rgba(29, 39, 48, 0.16);
   padding: 12px;
   z-index: 1000;
 }
@@ -268,7 +266,7 @@ footer.standalone { margin-left: 0; }
 .site-search .pagefind-ui__result-link:hover { color: var(--accent); }
 .site-search .pagefind-ui__result-excerpt { color: var(--text-muted); font-size: 13px; }
 .site-search .pagefind-ui__result-excerpt mark {
-  background: rgba(6, 244, 177, 0.18);
+  background: rgba(216, 92, 66, 0.18);
   color: var(--accent);
   padding: 0 2px;
   border-radius: 2px;

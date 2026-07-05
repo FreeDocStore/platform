@@ -12,7 +12,7 @@
 <header class="topbar">
   <button class="menu-toggle" onclick="document.querySelector('.sidebar').classList.toggle('open')" aria-label="Toggle menu">&#9776;</button>
   <h1>
-    <a href="index.html"><img src="logo.svg" alt="Open Frontier One" class="topbar-logo"></a>
+    <a href="index.html"><img src="logo.svg" alt="FreeDocStore" class="topbar-logo"></a>
     <span class="badge">FreeDocStore</span>
   </h1>
   <nav class="topbar-links">
@@ -108,8 +108,8 @@ git push origin main
   "prevNext": true,
   "branding": {
     "logo": "logo.svg",
-    "accent": "#06f4b1",
-    "lineColor": "#2a2e3d"
+    "accent": "#d85c42",
+    "lineColor": "#d8cdbb"
   }
 }</code></pre>
     </div>
@@ -163,7 +163,7 @@ git push origin main
             </tr>
             <tr>
               <td><code>callouts</code></td>
-              <td>Styled boxes for <code>Note</code>, <code>Tip</code>, <code>Warning</code>, <code>Danger</code> via class shortcuts. Author writes <code>&lt;div class="callout warn"&gt;...&lt;/div&gt;</code> and gets a coloured left-border box with an icon. Pure CSS, no JS, no images. Variants: <code>note</code> (blue), <code>info</code> (alias for note), <code>tip</code> (green), <code>warn</code> (amber), <code>danger</code> (red).</td>
+              <td>Styled boxes for <code>Note</code>, <code>Tip</code>, <code>Warning</code>, <code>Danger</code> via class shortcuts. Author writes <code>&lt;div class="callout warn"&gt;...&lt;/div&gt;</code> and gets a coloured left-border box with an icon. Pure CSS, no JS, no images. Variants: <code>note</code> (blue), <code>info</code> (alias for note), <code>tip</code> (coral), <code>warn</code> (amber), <code>danger</code> (red).</td>
               <td><em>"enable callouts (note, tip, warn, danger blocks)"</em></td>
             </tr>
             <tr>
@@ -246,7 +246,7 @@ git push origin main
     </div>
 
     <h3>Secure-by-Default Deployment</h3>
-    <p>All Open Frontier One sites use a <strong>secure-by-default</strong> deployment workflow. No site is ever publicly accessible - the workflow enforces this with a 4-step guarantee:</p>
+    <p>All FreeDocStore sites use a <strong>secure-by-default</strong> deployment workflow. No site is ever publicly accessible - the workflow enforces this with a 4-step guarantee:</p>
 
     <div class="card highlight">
       <div class="table-wrap">
@@ -395,9 +395,9 @@ jobs:
 
     <h3>How <code>secrets: inherit</code> Works</h3>
     <div class="card">
-      <p>When a caller workflow specifies <code>secrets: inherit</code>, GitHub automatically passes <strong>all secrets available to the caller</strong> into the reusable workflow. For Open Frontier One repos:</p>
+      <p>When a caller workflow specifies <code>secrets: inherit</code>, GitHub automatically passes <strong>all secrets available to the caller</strong> into the reusable workflow. For FreeDocStore repos:</p>
       <ol>
-        <li><strong>Org-level secrets</strong> (<code>CLOUDFLARE_API_TOKEN</code>, <code>CLOUDFLARE_ACCOUNT_ID</code>, <code>SLACK_TOKEN</code>, <code>SLACK_CHANNEL</code>) are set on the TheRocketLab GitHub organisation and available to all repos</li>
+        <li><strong>Org-level secrets</strong> (<code>CLOUDFLARE_API_TOKEN</code>, <code>CLOUDFLARE_ACCOUNT_ID</code>, <code>SLACK_TOKEN</code>, <code>SLACK_CHANNEL</code>) are set on the FreeDocStore GitHub organisation and available to all repos</li>
         <li><strong>Repo-level secrets</strong> (<code>ANTHROPIC_API_KEY</code>) are set per-repo and only available in that repo</li>
         <li>The reusable workflow accesses them via <code>${{ secrets.CLOUDFLARE_API_TOKEN }}</code> - same syntax as normal workflows</li>
       </ol>
@@ -409,7 +409,7 @@ jobs:
       <p>For <code>uses: FreeDocStore/platform/...@main</code> to work:</p>
       <ul>
         <li>The <strong>FreeDocStore</strong> repo must be <strong>internal or public</strong> within the org (private repos cannot share reusable workflows unless you enable "Accessible from repositories in the organisation" under Actions settings)</li>
-        <li>The caller repo's Actions settings must allow workflows from TheRocketLab</li>
+        <li>The caller repo's Actions settings must allow workflows from FreeDocStore</li>
         <li>The <code>permissions:</code> block in the reusable workflow defines what GitHub token scopes it needs (<code>contents: read</code>, <code>deployments: write</code>)</li>
       </ul>
     </div>
@@ -559,7 +559,7 @@ npm test -- tests/generate-changelog.test.mjs</code></pre>
 
   <section id="cloudflare-pages">
     <h2>Cloudflare Pages Deep Dive</h2>
-    <p>Every Open Frontier One documentation site is hosted on <strong>Cloudflare Pages</strong> - Cloudflare's static site hosting platform. No servers, no containers - just static files served from Cloudflare's global edge network.</p>
+    <p>Every FreeDocStore documentation site is hosted on <strong>Cloudflare Pages</strong> - Cloudflare's static site hosting platform. No servers, no containers - just static files served from Cloudflare's global edge network.</p>
 
     <h3>What Is Cloudflare Pages</h3>
     <div class="card">
@@ -602,7 +602,7 @@ npm test -- tests/generate-changelog.test.mjs</code></pre>
 
     <h3>Pages Project Configuration</h3>
     <div class="card">
-      <p>Open Frontier One Pages projects have <strong>no build configuration</strong> in Cloudflare - all builds happen in GitHub Actions. The Cloudflare dashboard shows:</p>
+      <p>FreeDocStore Pages projects have <strong>no build configuration</strong> in Cloudflare - all builds happen in GitHub Actions. The Cloudflare dashboard shows:</p>
       <div class="table-wrap">
         <table>
           <thead><tr><th>Setting</th><th>Value</th><th>Why</th></tr></thead>
@@ -736,7 +736,7 @@ APP_ID=$(... | jq -r '.result[] | select(.self_hosted_domains[]? == $DOMAIN) | .
   -H "Authorization: Bearer ${TOKEN}" \
   -H "Content-Type: application/json" \
   -d '{
-    "name": "Allow Open Frontier One emails",
+    "name": "Allow FreeDocStore emails",
     "decision": "allow",
     "include": [{
       "email_domain": {
@@ -824,7 +824,7 @@ APP_ID=$(... | jq -r '.result[] | select(.self_hosted_domains[]? == $DOMAIN) | .
 </main>
 
 <footer>
-  FreeDocStore &middot; by Open Frontier One
+  FreeDocStore &middot; by FreeDocStore
 </footer>
 
 <script>

@@ -1,11 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="FreeDocStore">
   <title>FreeDocStore</title>
-  <!-- Rounded-square backdrop in the brand navy. Rendering as an
-       independent shape (no filters) keeps the favicon crisp at 16x16
-       on a Chrome tab and identical at 180x180 on an iOS home screen. -->
-  <rect width="32" height="32" rx="6" fill="#22276c"/>
-  <!-- Mint triangular 'A' - the most recognisable single mark from the
-       wordmark. Three straight points, so it's sharp at every size
-       instead of fuzzing like a glyph outline would. -->
-  <polygon points="6,25 16,7 26,25" fill="#06f4b1"/>
+  <rect width="32" height="32" rx="6" fill="#2f6f9f"/>
+  <path d="M8 7h13c4 0 7 3 7 7v11H15c-4 0-7-3-7-7V7z" fill="#fffaf1"/>
+  <path d="M13 13h9M13 17h8M13 21h5" stroke="#2f6f9f" stroke-width="2.2" stroke-linecap="round"/>
+  <rect x="23" y="4" width="6" height="6" rx="1.5" fill="#d85c42"/>
 </svg>

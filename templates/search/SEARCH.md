@@ -1,7 +1,7 @@
 # Adding Search to a FreeDocStore Doc Site
 
 This is the canonical recipe for adding client-side search to any
-static doc site under `TheRocketLab`. It uses
+static doc site under `FreeDocStore`. It uses
 [Pagefind](https://pagefind.app) - a wasm-based static-site search
 library - built in CI by the shared deploy workflow.
 
@@ -10,7 +10,7 @@ Live examples: any FreeDocStore-deployed site with search enabled.
 ## What you get
 
 - A search box at the right of the topbar with `Cmd+K` / `Ctrl+K` hotkey
-- Dark theme matching the rest of the UI (inherited from `styles.css`)
+- FreeDocStore theme matching the rest of the UI (inherited from `styles.css`)
 - Sub-results that deep-link to in-page anchors
 - No external service, no API keys, no runtime backend
 - Index built fresh in CI on every deploy - never drifts from content
@@ -45,7 +45,7 @@ See `templates/search/snippet.html` for the three blocks to paste:
   after the `.topbar-links` nav
 - An init `<script>` and the `pagefind-ui.js` `<script>` just before `</body>`
 
-The dark theme is already in the shared `styles.css` (under
+The FreeDocStore theme is already in the shared `styles.css` (under
 `.site-search { ... }`) - no extra CSS needed.
 
 ### 3. Wire the build into CI

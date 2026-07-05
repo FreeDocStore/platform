@@ -74,33 +74,35 @@ Optional sections (add as needed):
 
 #### Topbar Logo
 
-Every doc site uses the FreeDocStore wordmark in the topbar, rendered as a white SVG:
+Every doc site uses the FreeDocStore wordmark in the topbar:
 
 ```html
 <a href="index.html"><img src="logo.svg" alt="FreeDocStore" class="topbar-logo"></a>
 ```
 
 ```css
-.topbar-logo { height: 20px; margin-right: 10px; filter: brightness(0) invert(1); }
-.topbar h1 a:hover .topbar-logo { filter: brightness(0) invert(1) sepia(1) saturate(50) hue-rotate(120deg); }
+.topbar-logo { height: 20px; margin-right: 10px; color: var(--text); }
+.topbar h1 a:hover .topbar-logo { color: var(--accent); }
 ```
 
-The logo inverts to white (`brightness(0) invert(1)`) on the dark topbar and shifts to accent green on hover.
+The wordmark inherits the topbar text color. The mark keeps the fixed FreeDocStore blue/coral/paper palette.
 
 ### Colors
 
 ```
---bg:         #0f1117    Page background
---surface:    #181b24    Cards, sidebar
---surface2:   #1e2230    Table headers, code blocks
---border:     #2a2e3d    Borders and dividers
---text:       #e1e4ed    Primary text
---text-muted: #8b90a0    Secondary text, nav links
---accent:     #06f4b1    Links, highlights, active states (FreeDocStore green)
---accent-dim: #0ab882    Dimmed accent
+--bg:         #f5f1e8    Page background
+--surface:    #fffdf8    Cards, sidebar
+--surface2:   #efe6d8    Table headers, code blocks
+--border:     #d8cdbb    Borders and dividers
+--text:       #1d2730    Primary text
+--text-muted: #64707a    Secondary text, nav links
+--accent:     #d85c42    Links, highlights, active states
+--accent-dim: #a83f2e    Dimmed accent
+--blue:       #2f6f9f    Logo mark, secondary accents
+--gold:       #b88218    Tertiary accents
 ```
 
-The accent green `#06f4b1` is the FreeDocStore brand color - used in the logo, links, active states, tags, and callout borders.
+The coral accent `#d85c42` is the primary interaction color. It is used for links, active states, tags, and callout borders. Use blue sparingly for identity marks and secondary information.
 
 ## File Naming
 

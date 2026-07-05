@@ -84,7 +84,7 @@
     {
       "key": "callouts",
       "name": "Callouts",
-      "description": "Styled blocks for Note, Tip, Warning, Danger via class shortcuts. Author writes <div class=\"callout warn\">...</div> and gets a coloured left-border box with an icon. Pure CSS, no JS, no images. Variants: note (blue), info (alias for note), tip (green), warn (amber), danger (red). Optional title row via <strong class=\"callout-title\">.",
+      "description": "Styled blocks for Note, Tip, Warning, Danger via class shortcuts. Author writes <div class=\"callout warn\">...</div> and gets a coloured left-border box with an icon. Pure CSS, no JS, no images. Variants: note (blue), info (alias for note), tip (coral), warn (amber), danger (red). Optional title row via <strong class=\"callout-title\">.",
       "generates": "Inline <style> block injected into <head> of pages that use any .callout class",
       "askPrompts": [
         "enable callouts (note, tip, warn, danger blocks)",

@@ -10,11 +10,11 @@ import {
   Github,
   Globe2,
   KeyRound,
+  LibraryBig,
   LayoutDashboard,
   Loader2,
   PenLine,
   Plus,
-  Rocket,
   ShieldCheck,
   Sparkles,
   Trash2,
@@ -717,7 +717,7 @@ function AppNav({ route, navigate }: { route: AppRoute; navigate: (route: AppRou
         Dashboard
       </button>
       <button className={route === 'publish' ? 'mode active' : 'mode'} onClick={() => navigate('publish')} type="button">
-        <Rocket size={17} />
+        <LibraryBig size={17} />
         Publish
       </button>
       <button className={route === 'edit' ? 'mode active' : 'mode'} onClick={() => navigate('edit')} type="button">
@@ -784,7 +784,7 @@ function DashboardPage({
           </div>
           <div className="action-row">
             <button className="primary-action" type="button" onClick={onPublish}>
-              <Rocket size={17} />
+              <LibraryBig size={17} />
               Open publisher
             </button>
             <button className="secondary-action" type="button" onClick={onEdit}>
@@ -1143,7 +1143,7 @@ function PublishPanel({
           Generate files
         </button>
         <button className="primary-action" type="button" onClick={onPublish} disabled={busy}>
-          {busy ? <Loader2 className="spin" size={17} /> : <Rocket size={17} />}
+          {busy ? <Loader2 className="spin" size={17} /> : <LibraryBig size={17} />}
           Publish repo
         </button>
       </div>
