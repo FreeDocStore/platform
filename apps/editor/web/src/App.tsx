@@ -152,6 +152,15 @@ function createKnowledgeBase(form: PublishForm): KnowledgeBaseDraft {
   }
 }
 
+function normalizeSettings(value: Partial<Settings> | null | undefined): Settings {
+  return {
+    openaiEndpoint: typeof value?.openaiEndpoint === 'string' && value.openaiEndpoint.trim()
+      ? value.openaiEndpoint
+      : DEFAULT_ENDPOINT,
+    model: typeof value?.model === 'string' && value.model.trim() ? value.model : DEFAULT_MODEL,
+  }
+}
+
 function normalizeKnowledgeBase(value: Partial<KnowledgeBaseDraft> & PublishForm): KnowledgeBaseDraft {
   const base = createKnowledgeBase({ ...starterPublish, ...value })
   return {
@@ -247,7 +256,8 @@ function EditorApp() {
 
   useEffect(() => {
     const saved = parseStoredJson<Partial<Settings>>(localStorage.getItem('fds-editor-settings'))
-    if (saved) setSettings({ ...emptySettings, ...saved })
+    sessionStorage.removeItem('fds-editor-settings')
+    if (saved) setSettings(normalizeSettings(saved))
     const savedKbs = parseStoredJson<unknown>(localStorage.getItem('fds-kb-drafts'))
     if (savedKbs) {
       const parsed = savedKbs
@@ -283,7 +293,7 @@ function EditorApp() {
           app.kv.get<string>(ACTIVE_KB_KEY),
         ])
         if (cancelled) return
-        if (savedSettings) setSettings({ ...emptySettings, ...savedSettings })
+        if (savedSettings) setSettings(normalizeSettings(savedSettings))
         if (Array.isArray(savedKbs) && savedKbs.length) {
           const normalized = savedKbs.map(normalizeKnowledgeBase)
           setKbs(normalized)
@@ -307,8 +317,8 @@ function EditorApp() {
   }, [activeKbId, kbs])
 
   useEffect(() => {
-    localStorage.setItem('fds-editor-settings', JSON.stringify(settings))
-    if (user && platformLoaded) app.kv.set(CONFIG_KEY, settings).catch((error) => setStatus(`Could not save platform settings: ${messageOf(error)}`))
+    localStorage.setItem('fds-editor-settings', JSON.stringify(normalizeSettings(settings)))
+    if (user && platformLoaded) app.kv.set(CONFIG_KEY, normalizeSettings(settings)).catch((error) => setStatus(`Could not save platform settings: ${messageOf(error)}`))
   }, [platformLoaded, settings, user])
 
   useEffect(() => {
