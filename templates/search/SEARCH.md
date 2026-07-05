@@ -1,4 +1,4 @@
-# Adding Search to a Rocket Lab Doc Site
+# Adding Search to a FreeDocStore Doc Site
 
 This is the canonical recipe for adding client-side search to any
 static doc site under `TheRocketLab`. It uses

@@ -53,7 +53,7 @@ async function fetchJsonOrRepo<T>(
   }
 
   // Fallback: ask the service worker to read the file from GitHub. Skips
-  // when we don't know the repo (non-Rocket Lab hosts) or the user hasn't
+  // when we don't know the repo (non-FreeDocStore hosts) or the user hasn't
   // signed in (the SW returns { error: "no_github_auth" }).
   if (!repo) return null;
   try {

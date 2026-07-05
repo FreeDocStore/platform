@@ -1,7 +1,7 @@
 name: Release extension
 
 # Push a tag like v0.1.0 to publish: builds the extension, packages it
-# into glassdocs-vX.Y.Z.zip, and creates a GitHub Release with that
+# into freedocstore-vX.Y.Z.zip, and creates a GitHub Release with that
 # zip attached. Tag MUST match the version field in extension/manifest.json
 # AND extension/package.json - the package script enforces both, and an
 # extra check below catches tag/manifest drift before any work happens.
@@ -36,7 +36,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
 
       - name: Validate tag matches manifest version
         run: |
@@ -79,7 +79,7 @@ jobs:
         run: |
           set -euo pipefail
           TAG="${GITHUB_REF#refs/tags/v}"
-          ZIP="dist-zip/glassdocs-v${TAG}.zip"
+          ZIP="dist-zip/freedocstore-v${TAG}.zip"
           if [ ! -f "$ZIP" ]; then
             echo "::error::Expected $ZIP after npm run package, file not found"
             exit 1
@@ -109,7 +109,7 @@ jobs:
           ────────────────────────────────────────────────────────────
             Release published. Manual follow-ups:
 
-            1. Download glassdocs-v*.zip from the GitHub Release page.
+            1. Download freedocstore-v*.zip from the GitHub Release page.
             2. Upload to Chrome Web Store dev console:
                https://chrome.google.com/webstore/devconsole
             3. Submit for review (1-3 business days, longer on first

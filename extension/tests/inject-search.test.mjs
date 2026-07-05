@@ -28,7 +28,7 @@ const INDEX_HTML = `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Sample Project - Rocket Lab</title>
+<title>Sample Project - FreeDocStore</title>
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>

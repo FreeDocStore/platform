@@ -74,10 +74,10 @@ Optional sections (add as needed):
 
 #### Topbar Logo
 
-Every doc site uses the Rocket Lab wordmark in the topbar, rendered as a white SVG:
+Every doc site uses the FreeDocStore wordmark in the topbar, rendered as a white SVG:
 
 ```html
-<a href="index.html"><img src="logo.svg" alt="Rocket Lab" class="topbar-logo"></a>
+<a href="index.html"><img src="logo.svg" alt="FreeDocStore" class="topbar-logo"></a>
 ```
 
 ```css
@@ -96,11 +96,11 @@ The logo inverts to white (`brightness(0) invert(1)`) on the dark topbar and shi
 --border:     #2a2e3d    Borders and dividers
 --text:       #e1e4ed    Primary text
 --text-muted: #8b90a0    Secondary text, nav links
---accent:     #06f4b1    Links, highlights, active states (Rocket Lab green)
+--accent:     #06f4b1    Links, highlights, active states (FreeDocStore green)
 --accent-dim: #0ab882    Dimmed accent
 ```
 
-The accent green `#06f4b1` is the Rocket Lab brand color - used in the logo, links, active states, tags, and callout borders.
+The accent green `#06f4b1` is the FreeDocStore brand color - used in the logo, links, active states, tags, and callout borders.
 
 ## File Naming
 

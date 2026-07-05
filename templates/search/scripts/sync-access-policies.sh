@@ -11,7 +11,7 @@
 #   APP_ID                 Cloudflare Access application ID
 #
 # Optional environment variables:
-#   EMAIL_DOMAIN   Primary employee email domain (default: rocketlab.com.au)
+#   EMAIL_DOMAIN   Primary employee email domain. Empty by default for public FreeDocStore KBs.
 #   CLIENT_EMAILS  Comma-separated client email addresses to allow
 #   CLIENT_DOMAIN  Single client email domain to allow
 #   OFFICE_CIDRS   Comma-separated office CIDRs that bypass auth entirely
@@ -25,14 +25,14 @@ set -euo pipefail
 : "${CLOUDFLARE_ACCOUNT_ID:?CLOUDFLARE_ACCOUNT_ID is required}"
 : "${APP_ID:?APP_ID is required}"
 
-EMAIL_DOMAIN="${EMAIL_DOMAIN:-rocketlab.com.au}"
+EMAIL_DOMAIN="${EMAIL_DOMAIN:-}"
 CLIENT_EMAILS="${CLIENT_EMAILS:-}"
 CLIENT_DOMAIN="${CLIENT_DOMAIN:-}"
 OFFICE_CIDRS="${OFFICE_CIDRS:-}"
 CURL="${CURL:-curl}"
 
 BASE="https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/access"
-ALLOW_NAME="Allow Rocket Lab + clients"
+ALLOW_NAME="Allow FreeDocStore users"
 BYPASS_NAME="Office network bypass"
 
 # ── Build allow-policy include array ──
@@ -68,6 +68,11 @@ if [ -n "$OFFICE_CIDRS" ]; then
     BYPASS_INCLUDES=$(jq -c --arg c "$c_trim" \
       '. + [{ip:{ip:$c}}]' <<<"$BYPASS_INCLUDES")
   done
+fi
+
+if [ "$ALLOW_INCLUDES" = "[]" ] && [ "$BYPASS_INCLUDES" = "[]" ]; then
+  echo "No Access policy rules configured; leaving existing policies unchanged."
+  exit 0
 fi
 
 # ── List existing policies (check API success first) ──
@@ -145,21 +150,25 @@ if [ "$BYPASS_INCLUDES" != "[]" ]; then
   echo "Created bypass policy at precedence $BYPASS_PREC ($(jq 'length' <<<"$BYPASS_INCLUDES") CIDR rule(s))"
 fi
 
-# ── Create allow policy ──
-payload=$(jq -nc \
-  --arg name "$ALLOW_NAME" \
-  --argjson inc "$ALLOW_INCLUDES" \
-  --argjson prec "$ALLOW_PREC" \
-  '{name:$name, decision:"allow", precedence:$prec, include:$inc}')
-echo "Creating allow policy with $(jq 'length' <<<"$ALLOW_INCLUDES") include rule(s)..."
-echo "Payload: $payload"
-resp=$("$CURL" -sS -X POST "${BASE}/apps/${APP_ID}/policies" \
-  -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
-  -H "Content-Type: application/json" \
-  --data "$payload")
-if [ "$(jq -r '.success // false' <<<"$resp")" != "true" ]; then
-  echo "::error::Failed to create allow policy"
-  echo "$resp" >&2
-  exit 1
+# ── Create allow policy if any identity rule is configured ──
+if [ "$ALLOW_INCLUDES" != "[]" ]; then
+  payload=$(jq -nc \
+    --arg name "$ALLOW_NAME" \
+    --argjson inc "$ALLOW_INCLUDES" \
+    --argjson prec "$ALLOW_PREC" \
+    '{name:$name, decision:"allow", precedence:$prec, include:$inc}')
+  echo "Creating allow policy with $(jq 'length' <<<"$ALLOW_INCLUDES") include rule(s)..."
+  echo "Payload: $payload"
+  resp=$("$CURL" -sS -X POST "${BASE}/apps/${APP_ID}/policies" \
+    -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+    -H "Content-Type: application/json" \
+    --data "$payload")
+  if [ "$(jq -r '.success // false' <<<"$resp")" != "true" ]; then
+    echo "::error::Failed to create allow policy"
+    echo "$resp" >&2
+    exit 1
+  fi
+  echo "Created allow policy at precedence $ALLOW_PREC ($(jq 'length' <<<"$ALLOW_INCLUDES") include rule(s))"
+else
+  echo "No identity allow rules configured; skipping allow policy."
 fi
-echo "Created allow policy at precedence $ALLOW_PREC ($(jq 'length' <<<"$ALLOW_INCLUDES") include rule(s))"

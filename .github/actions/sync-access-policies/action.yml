@@ -2,8 +2,8 @@ name: Sync Cloudflare Access policies
 description: |
   Idempotently syncs the managed Cloudflare Access policies on a given Access app:
     - "Office network bypass"   (decision: bypass, IP-based)   - optional
-    - "Allow Rocket Lab + clients" (decision: allow)
-       includes: rocketlab.com.au email domain
+    - "Allow FreeDocStore users" (decision: allow)
+       includes optional email domains and explicit emails
                  + optional client domain
                  + optional explicit client emails
 
@@ -26,7 +26,7 @@ inputs:
   email-domain:
     description: Primary employee email domain
     required: false
-    default: rocketlab.com.au
+    default: ""
   client-emails:
     description: Comma-separated client email addresses to allow
     required: false

@@ -148,6 +148,30 @@ test('{"success": true, "result": null} is handled without jq iteration crash', 
   }
 });
 
+test("no Access rules configured leaves existing policies untouched", () => {
+  const tmp = mkdtempBare("sync-access-");
+  try {
+    const { mockPath, logPath } = makeMockCurl(tmp.root, 'emit("{}");');
+    const env = {
+      ...BASE_ENV,
+      EMAIL_DOMAIN: "",
+      CLIENT_EMAILS: "",
+      CLIENT_DOMAIN: "",
+      OFFICE_CIDRS: "",
+    };
+    const r = runScript(env, mockPath);
+    assert.equal(
+      r.status,
+      0,
+      `exit=${r.status}\nSTDOUT:\n${r.stdout}\nSTDERR:\n${r.stderr}`,
+    );
+    assert.match(r.stdout, /No Access policy rules configured/);
+    assert.deepEqual(readCurlLog(logPath), []);
+  } finally {
+    tmp.cleanup();
+  }
+});
+
 // ── API error surfaced, not silently ignored ──────────────────────
 
 test('list-policies error response (success:false) fails the script', () => {
