@@ -1,7 +1,7 @@
 {
   "name": "freedocstore-editor",
   "private": true,
-  "description": "FreeDocStore Editor — self-serve Zensical knowledge-base publishing and AI-first Markdown editing on ProAppStore.",
+  "description": "FreeDocStore Editor — self-serve Zensical knowledge-base publishing and AI-first Markdown editing.",
   "packageManager": "pnpm@10.30.3",
   "engines": { "node": ">=22" },
   "repository": {
@@ -12,7 +12,6 @@
   "pnpm": { "onlyBuiltDependencies": ["esbuild"] },
   "scripts": {
     "dev": "pnpm --filter @freedocstore-editor/web dev",
-    "prebuild": "npx -y @proappstore/cli@latest check",
     "build": "pnpm --filter @freedocstore-editor/web build",
     "preview": "pnpm --filter @freedocstore-editor/web preview",
     "typecheck": "pnpm --filter @freedocstore-editor/web exec tsc -b",

@@ -2,9 +2,9 @@
 
 FreeDocStore Editor must not ask for provider keys per knowledge base. Provider credentials are platform-level connections.
 
-## PAS Proxy Connections
+## Platform Proxy Connections
 
-Configure these for the `freedocstore-editor` PAS app:
+Configure these for the `freedocstore-editor` platform app:
 
 ```sh
 pas secret set GITHUB_TOKEN <token> --app freedocstore-editor

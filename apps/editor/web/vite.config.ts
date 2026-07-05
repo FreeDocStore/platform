@@ -35,7 +35,7 @@ export default defineConfig({
       manifest: {
         name: 'FreeDocStore Editor',
         short_name: 'FDS Editor',
-        description: 'Self-serve Zensical knowledge-base publishing on ProAppStore',
+        description: 'Self-serve Zensical knowledge-base publishing on FreeDocStore',
         start_url: '/',
         scope: '/',
         display: 'standalone',

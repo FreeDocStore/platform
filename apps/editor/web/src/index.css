@@ -85,6 +85,96 @@ textarea:focus-visible {
   padding: 16px;
 }
 
+.store-topbar {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 0 14px;
+}
+
+.brand-lockup {
+  display: inline-flex;
+  gap: 10px;
+  align-items: center;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
+}
+
+.brand-mark {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 42px;
+  height: 42px;
+  border-radius: 8px;
+  background: var(--accent);
+  color: #fff;
+  font-weight: 900;
+}
+
+.brand-lockup strong,
+.brand-lockup small {
+  display: block;
+}
+
+.brand-lockup small,
+.account-state {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.account-strip {
+  display: inline-flex;
+  gap: 10px;
+  align-items: center;
+  min-width: 0;
+}
+
+.account-pill {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+  max-width: 220px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--ink);
+  min-height: 40px;
+  padding: 0 10px;
+  cursor: pointer;
+}
+
+.account-pill img,
+.account-pill span,
+.profile-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+}
+
+.account-pill span {
+  display: grid;
+  place-items: center;
+  background: color-mix(in srgb, var(--accent) 18%, var(--surface));
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.account-pill strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .workspace-head {
   display: grid;
   gap: 16px;
@@ -116,17 +206,11 @@ h1 {
   letter-spacing: 0;
 }
 
-.pas-footer {
+.store-footer {
   padding: 18px 4px 4px;
   color: var(--muted);
   font-size: 12px;
   text-align: center;
-}
-
-.pas-footer a {
-  color: var(--accent-2);
-  font-weight: 800;
-  text-decoration: none;
 }
 
 .lede {
@@ -541,26 +625,22 @@ h1 {
   font-size: 18px;
 }
 
-.profile-card {
+.profile-card,
+.fds-profile-card {
   display: flex;
   gap: 14px;
   align-items: center;
 }
 
-.profile-sdk-panel {
-  overflow: hidden;
-}
-
-.profile-sdk-panel > div {
-  max-width: 680px !important;
-}
-
-.profile-card h2 {
+.profile-card h2,
+.fds-profile-card h2 {
   margin-bottom: 3px;
 }
 
 .profile-card p,
-.profile-card small {
+.profile-card small,
+.fds-profile-card p,
+.fds-profile-card small {
   margin: 0;
   color: var(--muted);
 }
@@ -576,6 +656,26 @@ h1 {
   color: var(--accent);
   font-size: 24px;
   font-weight: 900;
+}
+
+.profile-avatar {
+  flex: 0 0 auto;
+  width: 54px;
+  height: 54px;
+}
+
+.profile-action-stack {
+  display: grid;
+  gap: 10px;
+}
+
+.full-action {
+  width: 100%;
+}
+
+.compact-auth {
+  flex: 0 0 auto;
+  min-height: 40px;
 }
 
 .field-grid {

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { initPro, ProProfilePage, ProShell, useAuth } from '@proappstore/sdk'
+import { initPro, useAuth, useSubscription, useTheme, type Subscription, type User } from '@proappstore/sdk'
 import {
   BookOpen,
   CheckCircle2,
@@ -215,15 +215,13 @@ function setHashRoute(route: AppRoute) {
 }
 
 function App() {
-  return (
-    <ProShell app={app} appName="FreeDocStore Editor" allowFree showThemeToggle>
-      <EditorApp />
-    </ProShell>
-  )
+  return <EditorApp />
 }
 
 function EditorApp() {
-  const { user } = useAuth(app)
+  const { user, loading: authLoading, signIn, signOut, deleteAccount } = useAuth(app)
+  const { subscription, isPro, loading: subLoading, upgrade, manageBilling } = useSubscription(app)
+  const { preference, setPreference } = useTheme()
   const [route, setRoute] = useState<AppRoute>(() => routeFromHash())
   const [settings, setSettings] = useState<Settings>(emptySettings)
   const [kbs, setKbs] = useState<KnowledgeBaseDraft[]>(() => [createKnowledgeBase(starterPublish)])
@@ -551,7 +549,7 @@ function EditorApp() {
     dashboard: 'Manage your knowledge-base drafts, launch new books, and track published targets.',
     publish: 'Generate a GitHub-backed documentation repo, deploy it to Cloudflare Pages, and attach a custom domain.',
     edit: 'Load an existing Markdown file, ask for a replacement draft, and apply the change through GitHub.',
-    profile: 'Review your PAS account and platform-held publishing connections.',
+    profile: 'Manage your FreeDocStore account, workspace, and publishing connections.',
   }[route]
 
   async function checkConnections() {
@@ -578,7 +576,7 @@ function EditorApp() {
         cloudflare: 'ready',
         detail: openai.ok && github.ok
           ? 'Platform connections are ready for repo creation and AI generation.'
-          : `GitHub ${github.status}; OpenAI ${openai.status}. Configure PAS app secrets or user vault keys.`,
+          : `GitHub ${github.status}; OpenAI ${openai.status}. Configure platform app secrets or user vault keys.`,
       })
       setStatus(github.ok && openai.ok ? 'Platform connections ready' : 'Some platform connections need setup')
     } catch (error) {
@@ -589,6 +587,30 @@ function EditorApp() {
 
   return (
     <main className="app-shell">
+      <header className="store-topbar">
+        <button className="brand-lockup" type="button" onClick={() => navigate('dashboard')} aria-label="FreeDocStore dashboard">
+          <span className="brand-mark">F</span>
+          <span>
+            <strong>FreeDocStore</strong>
+            <small>Knowledge-base publishing</small>
+          </span>
+        </button>
+        <div className="account-strip">
+          {authLoading ? (
+            <span className="account-state">Checking session</span>
+          ) : user ? (
+            <>
+              <button className="account-pill" type="button" onClick={() => navigate('profile')}>
+                {user.avatarUrl ? <img src={user.avatarUrl} alt="" /> : <span>{user.name.slice(0, 1).toUpperCase()}</span>}
+                <strong>{user.name}</strong>
+              </button>
+              <button className="text-action" type="button" onClick={signOut}>Sign out</button>
+            </>
+          ) : (
+            <button className="primary-action compact-auth" type="button" onClick={signIn}>Sign in</button>
+          )}
+        </div>
+      </header>
       <header className="workspace-head">
         <div>
           <h1>{pageTitle}</h1>
@@ -599,7 +621,7 @@ function EditorApp() {
           <div>
             <strong>{busy ? 'Working' : 'Status'}</strong>
             <p>{status}</p>
-            {user?.name && <small>Signed in to PAS as {user.name}</small>}
+            {user?.name && <small>Signed in as {user.name}</small>}
           </div>
         </div>
       </header>
@@ -666,10 +688,22 @@ function EditorApp() {
           connections={connections}
           onCheck={checkConnections}
           kbs={kbs}
+          user={user}
+          authLoading={authLoading}
+          signIn={signIn}
+          signOut={signOut}
+          deleteAccount={deleteAccount}
+          subscription={subscription}
+          isPro={isPro}
+          subLoading={subLoading}
+          upgrade={upgrade}
+          manageBilling={manageBilling}
+          themePreference={preference}
+          setThemePreference={setPreference}
         />
       )}
-      <footer className="pas-footer">
-        Built for <a href="https://proappstore.online" target="_blank" rel="noreferrer">proappstore.online</a>
+      <footer className="store-footer">
+        FreeDocStore publishes Markdown knowledge bases as Zensical books from GitHub repos.
       </footer>
     </main>
   )
@@ -869,13 +903,13 @@ function SettingsPanel({
           <KeyRound size={18} />
           <span>
             <strong>Platform connections</strong>
-            <small>{connectedCount}/3 ready. Secrets are stored in PAS/platform, not in KB drafts.</small>
+            <small>{connectedCount}/3 ready. Secrets are stored on the platform, not in KB drafts.</small>
           </span>
         </span>
       </summary>
       <div className="connection-grid">
-        <ConnectionBadge label="GitHub" state={connections.github} detail="Repository create/read/write through PAS proxy" />
-        <ConnectionBadge label="OpenAI" state={connections.openai} detail="AI generation through PAS proxy or key vault" />
+        <ConnectionBadge label="GitHub" state={connections.github} detail="Repository create/read/write through the platform proxy" />
+        <ConnectionBadge label="OpenAI" state={connections.openai} detail="AI generation through platform proxy or key vault" />
         <ConnectionBadge label="Cloudflare" state={connections.cloudflare} detail="Deploy credentials held by platform/org secrets" />
       </div>
       <p className="connection-detail">{connections.detail}</p>
@@ -888,10 +922,6 @@ function SettingsPanel({
           <ShieldCheck size={17} />
           Check platform connections
         </button>
-        <a className="secondary-action as-link" href="https://api.proappstore.online/v1/keys?app=freedocstore-editor" target="_blank" rel="noreferrer">
-          <KeyRound size={17} />
-          PAS key vault
-        </a>
       </div>
     </details>
   )
@@ -920,17 +950,116 @@ function ProfilePage({
   connections,
   onCheck,
   kbs,
+  user,
+  authLoading,
+  signIn,
+  signOut,
+  deleteAccount,
+  subscription,
+  isPro,
+  subLoading,
+  upgrade,
+  manageBilling,
+  themePreference,
+  setThemePreference,
 }: {
   settings: Settings
   setSettings: (settings: Settings) => void
   connections: PlatformConnections
   onCheck: () => void
   kbs: KnowledgeBaseDraft[]
+  user: User | null
+  authLoading: boolean
+  signIn: () => void
+  signOut: () => void
+  deleteAccount: () => Promise<void>
+  subscription: Subscription | null
+  isPro: boolean
+  subLoading: boolean
+  upgrade: (priceId?: string) => Promise<void>
+  manageBilling: () => Promise<void>
+  themePreference: 'light' | 'dark' | 'system'
+  setThemePreference: (preference: 'light' | 'dark' | 'system') => void
 }) {
+  async function confirmDeleteAccount() {
+    const first = window.confirm('Delete your FreeDocStore account data across platform apps? This cannot be undone.')
+    if (!first) return
+    const second = window.confirm('Last confirmation: permanently delete this account?')
+    if (!second) return
+    await deleteAccount()
+  }
+
   return (
     <div className="profile-grid">
-      <section className="panel profile-sdk-panel">
-        <ProProfilePage app={app} showThemeToggle />
+      <section className="panel">
+        <div className="section-block fds-profile-card">
+          {user?.avatarUrl ? (
+            <img className="profile-avatar" src={user.avatarUrl} alt="" />
+          ) : (
+            <div className="avatar-mark">{user?.name?.slice(0, 1).toUpperCase() || 'F'}</div>
+          )}
+          <div>
+            <h2>{authLoading ? 'Checking session' : user?.name || 'Signed out'}</h2>
+            <p>{user ? 'FreeDocStore account' : 'Sign in to publish and manage knowledge bases.'}</p>
+            {user && <small>Account ID: {user.id}</small>}
+          </div>
+        </div>
+        <div className="section-block">
+          <div className="section-title">
+            <UserCircle size={18} />
+            <div>
+              <h2>Account</h2>
+              <p>Profile, billing, appearance, and account controls.</p>
+            </div>
+          </div>
+          {!user ? (
+            <button className="primary-action full-action" type="button" onClick={signIn} disabled={authLoading}>
+              Sign in
+            </button>
+          ) : (
+            <div className="profile-action-stack">
+              <div className="target-grid">
+                <div>
+                  <span>Plan</span>
+                  <strong>{subLoading ? 'Checking' : isPro ? 'Pro' : 'Free'}</strong>
+                </div>
+                <div>
+                  <span>Status</span>
+                  <strong>{subscription?.status ?? (isPro ? 'active' : 'free')}</strong>
+                </div>
+              </div>
+              <div className="inline-choice theme-choice" aria-label="Theme preference">
+                {(['system', 'light', 'dark'] as const).map((option) => (
+                  <button
+                    key={option}
+                    type="button"
+                    className={themePreference === option ? 'choice active' : 'choice'}
+                    onClick={() => setThemePreference(option)}
+                  >
+                    {option[0].toUpperCase() + option.slice(1)}
+                  </button>
+                ))}
+              </div>
+              <div className="action-row">
+                {isPro ? (
+                  <button className="secondary-action" type="button" onClick={() => manageBilling()}>
+                    Manage billing
+                  </button>
+                ) : (
+                  <button className="secondary-action" type="button" onClick={() => upgrade()}>
+                    Upgrade
+                  </button>
+                )}
+                <button className="secondary-action" type="button" onClick={signOut}>
+                  Sign out
+                </button>
+              </div>
+              <button className="secondary-action danger-action full-action" type="button" onClick={confirmDeleteAccount}>
+                Delete account
+              </button>
+            </div>
+          )}
+        </div>
       </section>
       <section className="panel">
         <div className="section-block">
@@ -938,7 +1067,7 @@ function ProfilePage({
             <UserCircle size={18} />
             <div>
               <h2>FreeDocStore workspace</h2>
-              <p>Knowledge-base publishing data stored for this PAS account.</p>
+              <p>Knowledge-base publishing data stored for this FreeDocStore account.</p>
             </div>
           </div>
           <div className="metric-grid">
@@ -1454,7 +1583,7 @@ function validateAi(settings: Settings) {
 }
 
 function validatePlatformAccess(user: unknown) {
-  if (!user) throw new Error('Sign in to PAS before publishing or editing.')
+  if (!user) throw new Error('Sign in to FreeDocStore before publishing or editing.')
 }
 
 function githubHeaders() {
