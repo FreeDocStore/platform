@@ -3,7 +3,6 @@ import { initPro, ProShell, useAuth } from '@proappstore/sdk'
 import {
   BookOpen,
   CheckCircle2,
-  Cloud,
   Copy,
   Download,
   ExternalLink,
@@ -211,30 +210,31 @@ function EditorApp() {
   const liveUrl = activeKb?.liveUrl ?? ''
 
   useEffect(() => {
-    const saved = sessionStorage.getItem('fds-editor-settings')
-    if (saved) setSettings({ ...emptySettings, ...JSON.parse(saved) })
-    const savedKbs = localStorage.getItem('fds-kb-drafts')
+    const saved = parseStoredJson<Partial<Settings>>(sessionStorage.getItem('fds-editor-settings'))
+    if (saved) setSettings({ ...emptySettings, ...saved })
+    const savedKbs = parseStoredJson<unknown>(localStorage.getItem('fds-kb-drafts'))
     if (savedKbs) {
-      const parsed = JSON.parse(savedKbs)
+      const parsed = savedKbs
       if (Array.isArray(parsed) && parsed.length) {
         const normalized = parsed.map(normalizeKnowledgeBase)
         setKbs(normalized)
-        setActiveKbId(localStorage.getItem('fds-active-kb') || normalized[0].id)
+        const storedActive = localStorage.getItem('fds-active-kb')
+        setActiveKbId(normalized.some((kb) => kb.id === storedActive) ? storedActive || normalized[0].id : normalized[0].id)
       }
     } else {
-      const pub = localStorage.getItem('fds-publish-draft')
+      const pub = parseStoredJson<Partial<PublishForm>>(localStorage.getItem('fds-publish-draft'))
       if (pub) {
-        const legacy = createKnowledgeBase({ ...starterPublish, ...JSON.parse(pub) })
+        const legacy = createKnowledgeBase({ ...starterPublish, ...pub })
         setKbs([legacy])
         setActiveKbId(legacy.id)
       }
     }
-    const edit = localStorage.getItem('fds-edit-draft')
-    if (edit) setEditForm({ ...starterEdit, ...JSON.parse(edit) })
+    const edit = parseStoredJson<Partial<EditForm>>(localStorage.getItem('fds-edit-draft'))
+    if (edit) setEditForm({ ...starterEdit, ...edit })
   }, [])
 
   useEffect(() => {
-    if (!activeKbId && kbs[0]) setActiveKbId(kbs[0].id)
+    if (kbs[0] && (!activeKbId || !kbs.some((kb) => kb.id === activeKbId))) setActiveKbId(kbs[0].id)
   }, [activeKbId, kbs])
 
   useEffect(() => {
@@ -265,7 +265,24 @@ function EditorApp() {
   }
 
   function updateActiveForm(form: PublishForm) {
-    updateActiveKb({ ...form })
+    const changedGeneratedContract =
+      form.title !== activeKb.title ||
+      form.slug !== activeKb.slug ||
+      form.owner !== activeKb.owner ||
+      form.customDomain !== activeKb.customDomain ||
+      form.prompt !== activeKb.prompt
+    updateActiveKb({
+      ...form,
+      ...(changedGeneratedContract
+        ? {
+            files: [],
+            liveUrl: '',
+            repoUrl: '',
+            lastStatus: 'Draft changed',
+            steps: cloneSteps(),
+          }
+        : {}),
+    })
   }
 
   function setKbSteps(id: string, updater: PublishStep[] | ((current: PublishStep[]) => PublishStep[])) {
@@ -1041,7 +1058,7 @@ function deployWorkflow(project: string, customDomain: string) {
   const domainStep = customDomain
     ? `
       - name: Attach custom domain
-        run: npx wrangler pages domain add ${customDomain} --project-name=${project} || true
+        run: npx wrangler pages domain add "${customDomain}" --project-name="${project}" || true
         env:
           CLOUDFLARE_API_TOKEN: \${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: \${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -1076,12 +1093,12 @@ jobs:
       - run: python -m pip install zensical
       - run: python -m zensical build --strict
       - name: Ensure Cloudflare Pages project
-        run: npx wrangler pages project create ${project} --production-branch=main || true
+        run: npx wrangler pages project create "${project}" --production-branch=main || true
         env:
           CLOUDFLARE_API_TOKEN: \${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: \${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       - name: Deploy to Cloudflare Pages
-        run: npx wrangler pages deploy site --project-name=${project} --branch=main
+        run: npx wrangler pages deploy site --project-name="${project}" --branch=main
         env:
           CLOUDFLARE_API_TOKEN: \${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: \${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -1128,7 +1145,7 @@ function validateKbFiles(files: RepoFile[]) {
 function validatePublishForm(form: PublishForm) {
   if (!form.title.trim()) throw new Error('Title is required.')
   if (!/^[a-z][a-z0-9-]{1,57}$/.test(form.slug)) throw new Error('Slug must be lowercase letters, numbers, and hyphens.')
-  if (!form.owner.trim()) throw new Error('GitHub owner is required.')
+  if (!/^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$/.test(form.owner.trim())) throw new Error('GitHub owner must be a valid user or organization name.')
   if (form.customDomain && !isValidDomain(form.customDomain)) throw new Error('Custom domain must be a valid hostname.')
   if (!form.prompt.trim()) throw new Error('Prompt is required.')
 }
@@ -1178,6 +1195,15 @@ function parseJson(text: string) {
   }
 }
 
+function parseStoredJson<T>(value: string | null): T | null {
+  if (!value) return null
+  try {
+    return JSON.parse(value) as T
+  } catch {
+    return null
+  }
+}
+
 function slugify(value: string) {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 58)
 }
@@ -1198,7 +1224,7 @@ function isValidDomain(value: string) {
 function setTomlScalar(content: string, key: string, value: string) {
   const escaped = value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
   const line = `${key} = "${escaped}"`
-  const pattern = new RegExp(`^${key}\\s*=\\s*".*"$`, 'm')
+  const pattern = new RegExp(`^${key}\\s*=\\s*(['"]).*\\1$`, 'm')
   return pattern.test(content) ? content.replace(pattern, line) : `${line}\n${content}`
 }
 
