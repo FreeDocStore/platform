@@ -1,0 +1,34 @@
+name = "freedocstore-mcp"
+main = "src/index.ts"
+compatibility_date = "2026-03-17"
+compatibility_flags = ["nodejs_compat"]
+workers_dev = true
+
+[vars]
+PUBLIC_BASE_URL = "https://freedocstore.pages.dev"
+REGISTRY_URL = "https://freedocstore.pages.dev/registry.json"
+GITHUB_ORG = "FreeDocStore"
+PLATFORM_REPO = "platform"
+DEFAULT_DOMAIN = "pages.dev"
+# GitHub OAuth app client id. Callback URL:
+# https://freedocstore-mcp.serge-the-dev.workers.dev/callback
+# Secret:
+# GITHUB_CLIENT_SECRET
+
+# Intended production route once freedocstore.online is attached to Cloudflare:
+# [[routes]]
+# pattern = "mcp.freedocstore.online/*"
+# zone_name = "freedocstore.online"
+
+[durable_objects]
+bindings = [
+  { name = "MCP_OBJECT", class_name = "FreeDocStoreMcp" }
+]
+
+[[kv_namespaces]]
+binding = "OAUTH_KV"
+id = "830d2d4668b745238b58a10dea5f0163"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["FreeDocStoreMcp"]

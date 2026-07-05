@@ -14,6 +14,8 @@ Users describe what should change. The AI drafts the change. The user reviews th
 
 - Product site in `site/`.
 - AI-first web workbench at `site/editor.html`.
+- PAS-hosted React editor app in `apps/editor/`.
+- Remote MCP Worker in `workers/mcp/`.
 - Browser extension in `extension/` for editing published docs pages from the side panel.
 - Reusable docs templates, deploy workflows, generators, and lint rules in `templates/`.
 - Existing Glassdocs engine code used as the starting point for GitHub-backed proposal, PR, and extension workflows.
@@ -75,6 +77,8 @@ Do not build Pro-only private access into FreeDocStore first. Keep the Free plat
 
 ```text
 site/                 Public FreeDocStore marketing site and AI web editor
+apps/editor/          PAS-hosted React app for prompt-to-KB publishing
+workers/mcp/          Cloudflare Worker remote MCP server
 docs/                 Product/engine docs copied from the Glassdocs seed
 extension/            MV3 Chrome extension for AI-first docs editing
 templates/            Reusable docs templates, add-ons, lint, and generators
@@ -103,10 +107,21 @@ FreeDocStore has a remote MCP server for agents:
 - Current endpoint: <https://freedocstore-mcp.serge-the-dev.workers.dev/mcp>
 - Discovery: <https://freedocstore.pages.dev/.well-known/mcp.json>
 - Local connector: `.mcp.json`
+- Source: `workers/mcp/`
 
 Current MCP tools are public/read and planning tools: list KBs, inspect registered KB metadata, validate Zensical repos, read source files, check deploy status, and create a publish plan from a topic prompt.
 
 Authenticated write tools come next: create KB repo, update Markdown files, register custom domains, and publish from prompt.
+
+## PAS Editor
+
+The production editor is a PAS app:
+
+- Source: `apps/editor/`
+- Production: <https://freedocstore-editor.proappstore.online>
+- Deploy target: `pas-apps/apps/freedocstore-editor/` in PAS R2
+
+The editor supports multiple KB drafts in one browser, one GitHub repo per KB, Zensical-only Markdown source, Cloudflare Pages publishing, and optional custom domains per KB.
 
 ## AI Editor Flow
 

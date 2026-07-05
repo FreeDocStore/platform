@@ -1,0 +1,12 @@
+{
+  "name": "freedocstore-platform",
+  "private": true,
+  "description": "FreeDocStore platform monorepo",
+  "scripts": {
+    "editor:typecheck": "pnpm --dir apps/editor typecheck",
+    "editor:build": "pnpm --dir apps/editor build",
+    "mcp:typecheck": "npm --prefix workers/mcp run typecheck",
+    "mcp:deploy": "npm --prefix workers/mcp run deploy",
+    "test": "npm run editor:typecheck && npm run mcp:typecheck"
+  }
+}

@@ -1,0 +1,47 @@
+name: Deploy Editor
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/editor/**'
+      - '.github/workflows/deploy-editor.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-editor
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/editor
+    env:
+      HAS_R2_SECRETS: ${{ (secrets.R2_ACCESS_KEY_ID != '' || vars.R2_ACCESS_KEY_ID != '') && (secrets.R2_SECRET_ACCESS_KEY != '' || vars.R2_SECRET_ACCESS_KEY != '') && (secrets.R2_ACCOUNT_ID != '' || vars.R2_ACCOUNT_ID != '') }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: pnpm install --no-frozen-lockfile
+      - run: pnpm build
+      - name: Upload to PAS R2
+        if: env.HAS_R2_SECRETS == 'true'
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID || vars.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY || vars.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID || vars.R2_ACCOUNT_ID }}
+        run: |
+          aws s3 sync web/dist "s3://pas-apps/apps/freedocstore-editor/" \
+            --endpoint-url "https://$R2_ACCOUNT_ID.r2.cloudflarestorage.com" \
+            --delete --no-progress
+      - name: R2 secrets missing
+        if: env.HAS_R2_SECRETS != 'true'
+        run: echo "::notice::Editor deployment skipped. Add R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, and R2_ACCOUNT_ID."

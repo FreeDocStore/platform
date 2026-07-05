@@ -14,12 +14,18 @@
 
 # Wrangler / Cloudflare local cache
 .wrangler/
+workers/*/.wrangler/
 
 # Local GitHub Pages artifact preview
 _pages/
 
 # Dependencies (when extension is migrated)
 node_modules/
+
+# Package build output
+apps/editor/web/dist/
+apps/editor/web/*.tsbuildinfo
+workers/mcp/dist/
 
 # Logs
 *.log
