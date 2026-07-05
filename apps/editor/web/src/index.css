@@ -547,6 +547,14 @@ h1 {
   align-items: center;
 }
 
+.profile-sdk-panel {
+  overflow: hidden;
+}
+
+.profile-sdk-panel > div {
+  max-width: 680px !important;
+}
+
 .profile-card h2 {
   margin-bottom: 3px;
 }

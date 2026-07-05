@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { initPro, ProShell, useAuth } from '@proappstore/sdk'
+import { initPro, ProProfilePage, ProShell, useAuth } from '@proappstore/sdk'
 import {
   BookOpen,
   CheckCircle2,
@@ -204,7 +204,9 @@ function nextAvailableSlug(kbs: KnowledgeBaseDraft[], desired: string) {
 
 function routeFromHash(): AppRoute {
   const raw = window.location.hash.replace(/^#\/?/, '')
-  return raw === 'publish' || raw === 'edit' || raw === 'profile' ? raw : 'dashboard'
+  if (raw === 'publish' || raw === 'edit' || raw === 'profile') return raw
+  const path = window.location.pathname.replace(/^\/+|\/+$/g, '')
+  return path === 'publish' || path === 'edit' || path === 'profile' ? path : 'dashboard'
 }
 
 function setHashRoute(route: AppRoute) {
@@ -659,7 +661,6 @@ function EditorApp() {
         </div>
       ) : (
         <ProfilePage
-          user={user}
           settings={settings}
           setSettings={setSettings}
           connections={connections}
@@ -914,50 +915,38 @@ function ConnectionBadge({ label, state, detail }: { label: string; state: Conne
 }
 
 function ProfilePage({
-  user,
   settings,
   setSettings,
   connections,
   onCheck,
   kbs,
 }: {
-  user: unknown
   settings: Settings
   setSettings: (settings: Settings) => void
   connections: PlatformConnections
   onCheck: () => void
   kbs: KnowledgeBaseDraft[]
 }) {
-  const name = readUserField(user, 'name') || readUserField(user, 'login') || 'Signed-in user'
-  const email = readUserField(user, 'email')
-  const id = readUserField(user, 'id') || readUserField(user, 'sub')
   return (
     <div className="profile-grid">
+      <section className="panel profile-sdk-panel">
+        <ProProfilePage app={app} showThemeToggle />
+      </section>
       <section className="panel">
-        <div className="section-block profile-card">
-          <div className="avatar-mark">{name.slice(0, 1).toUpperCase()}</div>
-          <div>
-            <h2>{name}</h2>
-            <p>{email || 'Authenticated with ProAppStore'}</p>
-            {id && <small>Account ID: {id}</small>}
-          </div>
-        </div>
         <div className="section-block">
           <div className="section-title">
             <UserCircle size={18} />
             <div>
-              <h2>Account</h2>
-              <p>PAS manages sign-in and subscription status for this app.</p>
+              <h2>FreeDocStore workspace</h2>
+              <p>Knowledge-base publishing data stored for this PAS account.</p>
             </div>
           </div>
           <div className="metric-grid">
             <div><span>Drafts</span><strong>{kbs.length}</strong></div>
             <div><span>App</span><strong>FreeDocStore</strong></div>
-            <div><span>Plan</span><strong>Pro</strong></div>
+            <div><span>Engine</span><strong>Zensical</strong></div>
           </div>
         </div>
-      </section>
-      <section className="panel">
         <SettingsPanel settings={settings} setSettings={setSettings} connections={connections} onCheck={onCheck} />
       </section>
     </div>
@@ -1512,12 +1501,6 @@ function parseStoredJson<T>(value: string | null): T | null {
   } catch {
     return null
   }
-}
-
-function readUserField(user: unknown, field: string) {
-  if (!user || typeof user !== 'object') return ''
-  const value = (user as Record<string, unknown>)[field]
-  return typeof value === 'string' || typeof value === 'number' ? String(value) : ''
 }
 
 function slugify(value: string) {
