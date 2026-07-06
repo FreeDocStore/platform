@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import {
   BookOpen,
   CheckCircle2,
@@ -259,6 +259,7 @@ function EditorApp() {
   const [installPrompt, setInstallPrompt] = useState<PwaInstallPrompt | null>(null)
   const [pwaReady, setPwaReady] = useState(false)
   const [updateAvailable, setUpdateAvailable] = useState(false)
+  const connectionCheckStarted = useRef(false)
 
   const activeKb = kbs.find((kb) => kb.id === activeKbId) ?? kbs[0] ?? createKnowledgeBase(starterPublish)
   const publishForm = toPublishForm(activeKb)
@@ -660,6 +661,12 @@ function EditorApp() {
     }
   }
 
+  useEffect(() => {
+    if (!user || !platformLoaded || connectionCheckStarted.current) return
+    connectionCheckStarted.current = true
+    checkConnections()
+  }, [platformLoaded, user])
+
   if (authLoading) return <LoadingScreen />
   if (!user) return <SignedOutLanding signIn={signIn} />
 
@@ -695,7 +702,7 @@ function EditorApp() {
       </section>
       <section className="panel preview-panel">
         <PreviewTabs active={activePreview} setActive={setActivePreview} hasProposal={!!proposal} publish />
-        <FilesPreview files={files} summary={generatedSummary} />
+        <FilesPreview files={files} summary={generatedSummary} form={publishForm} />
       </section>
     </div>
   ) : route === 'edit' ? (
@@ -1492,37 +1499,101 @@ function PreviewTabs({
   )
 }
 
-function FilesPreview({ files, summary }: { files: RepoFile[]; summary: string }) {
+function FilesPreview({ files, summary, form }: { files: RepoFile[]; summary: string; form: PublishForm }) {
+  const plannedFiles = useMemo(() => plannedRepoPreview(form), [form])
+  const displayFiles = files.length ? files : plannedFiles
   const [selected, setSelected] = useState('')
-  const current = files.find((file) => file.path === selected) ?? files[0]
+  const current = displayFiles.find((file) => file.path === selected) ?? displayFiles[0]
   useEffect(() => {
-    if (files[0] && !files.some((file) => file.path === selected)) setSelected(files[0].path)
-  }, [files, selected])
+    if (displayFiles[0] && !displayFiles.some((file) => file.path === selected)) setSelected(displayFiles[0].path)
+  }, [displayFiles, selected])
   return (
     <div className="preview-body">
       <div className="preview-summary">
-        <strong>{summary}</strong>
-        <p>Review before publishing. Generated files must stay Markdown/Zensical source, not committed static output.</p>
+        <strong>{files.length ? summary : 'Repository preview'}</strong>
+        <p>{files.length
+          ? 'Review before publishing. Generated files must stay Markdown/Zensical source, not committed static output.'
+          : 'This is the Zensical repo shape that will be generated and pushed to GitHub.'}</p>
       </div>
-      {files.length > 0 ? (
-        <div className="file-preview-layout">
-          <div className="file-list">
-            {files.map((file) => (
-              <button key={file.path} className={current?.path === file.path ? 'file-row active' : 'file-row'} onClick={() => setSelected(file.path)} type="button">
-                {file.path}
-              </button>
-            ))}
-          </div>
-          <pre className="code-view">{current?.content}</pre>
+      <div className="file-preview-layout">
+        <div className="file-list">
+          {displayFiles.map((file) => (
+            <button key={file.path} className={current?.path === file.path ? 'file-row active' : 'file-row'} onClick={() => setSelected(file.path)} type="button">
+              {file.path}
+            </button>
+          ))}
         </div>
-      ) : (
-        <div className="empty-state">
-          <Sparkles size={24} />
-          <p>Generate a KB to preview the Markdown repo files here.</p>
-        </div>
-      )}
+        <pre className="code-view">{current?.content}</pre>
+      </div>
     </div>
   )
+}
+
+function plannedRepoPreview(form: PublishForm): RepoFile[] {
+  const title = form.title || 'Untitled Knowledge Base'
+  const slug = form.slug || 'knowledge-base'
+  const productionUrl = form.customDomain ? `https://${form.customDomain}/` : `https://${slug}.pages.dev/`
+  return [
+    {
+      path: 'zensical.toml',
+      content: [
+        `title = "${title.replace(/"/g, '\\"')}"`,
+        `base_url = "${productionUrl}"`,
+        'content_dir = "docs"',
+        'output_dir = "site"',
+        '',
+        '[navigation]',
+        'items = [',
+        '  { title = "Start", path = "index.md" },',
+        '  { title = "First Principles", path = "first-principles.md" },',
+        '  { title = "Assessment Method", path = "assessment-method.md" },',
+        '  { title = "Register", path = "register.md" }',
+        ']',
+      ].join('\n'),
+    },
+    {
+      path: 'docs/index.md',
+      content: [
+        `# ${title}`,
+        '',
+        form.prompt || 'Describe the knowledge base you want to publish. FreeDocStore will generate Markdown source files for a Zensical book.',
+      ].join('\n'),
+    },
+    {
+      path: '.github/workflows/deploy.yml',
+      content: [
+        'name: Deploy Zensical KB',
+        'on:',
+        '  push:',
+        '    branches: [main]',
+        'jobs:',
+        '  deploy:',
+        '    runs-on: ubuntu-latest',
+        '    steps:',
+        '      - uses: actions/checkout@v4',
+        '      - uses: actions/setup-python@v5',
+        '        with:',
+        '          python-version: "3.x"',
+        '      - run: python3 -m pip install zensical && python3 -m zensical build --strict',
+        '      - uses: cloudflare/wrangler-action@v3',
+        '        with:',
+        `          command: pages deploy site --project-name=${slug}`,
+      ].join('\n'),
+    },
+    {
+      path: 'README.md',
+      content: [
+        `# ${title}`,
+        '',
+        'FreeDocStore knowledge base.',
+        '',
+        '- Engine: Zensical',
+        '- Source: `docs/`',
+        '- Build output: `site/`',
+        `- Production target: ${productionUrl}`,
+      ].join('\n'),
+    },
+  ]
 }
 
 function EditPreview({

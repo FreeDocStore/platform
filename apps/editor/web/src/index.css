@@ -1089,6 +1089,33 @@ h1 {
   }
 }
 
+@media (min-width: 960px) {
+  .workspace-grid {
+    grid-template-columns: minmax(360px, 480px) minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .preview-panel {
+    position: sticky;
+    top: 78px;
+  }
+
+  .file-preview-layout {
+    grid-template-columns: 220px minmax(0, 1fr);
+  }
+
+  .file-list {
+    display: grid;
+    align-content: start;
+    border-right: 1px solid var(--line);
+    border-bottom: 0;
+  }
+
+  .file-row {
+    width: 100%;
+  }
+}
+
 @media (min-width: 1120px) {
   .app-frame {
     display: grid;
@@ -1170,21 +1197,6 @@ h1 {
   .preview-panel {
     position: sticky;
     top: 24px;
-  }
-
-  .file-preview-layout {
-    grid-template-columns: 240px minmax(0, 1fr);
-  }
-
-  .file-list {
-    display: grid;
-    align-content: start;
-    border-right: 1px solid var(--line);
-    border-bottom: 0;
-  }
-
-  .file-row {
-    width: 100%;
   }
 
   .code-view {

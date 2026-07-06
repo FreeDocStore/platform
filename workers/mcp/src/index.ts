@@ -20,6 +20,7 @@ interface Env {
   DEFAULT_DOMAIN: string;
   MCP_OBJECT: DurableObjectNamespace;
   OAUTH_KV: KVNamespace;
+  FDS_API_KV?: KVNamespace;
   GITHUB_CLIENT_ID?: string;
   GITHUB_CLIENT_SECRET?: string;
 }
@@ -34,6 +35,20 @@ interface McpProps extends Record<string, unknown> {
   avatarUrl?: string;
   githubUrl?: string;
   scopes?: string[];
+}
+
+interface WorkspaceDraft {
+  id?: string;
+  title?: string;
+  slug?: string;
+  owner?: string;
+  customDomain?: string;
+  visibility?: string;
+  liveUrl?: string;
+  repoUrl?: string;
+  lastStatus?: string;
+  updatedAt?: string;
+  files?: Array<{ path?: string }>;
 }
 
 function slugify(input: string): string {
@@ -65,6 +80,30 @@ function renderKb(kb: KnowledgeBase): string {
   ].filter(Boolean).join("\n");
 }
 
+function userKvKey(userId: string, key: string): string {
+  return `user_kv:${userId}:${key}`;
+}
+
+async function readWorkspace<T>(env: Env, userId: string | undefined, key: string): Promise<T | null> {
+  if (!userId || !env.FDS_API_KV) return null;
+  return env.FDS_API_KV.get<T>(userKvKey(userId, key), "json");
+}
+
+function renderDraft(draft: WorkspaceDraft): string {
+  const files = draft.files?.map((file) => file.path).filter(Boolean) ?? [];
+  return [
+    `**${draft.title ?? "Untitled KB"}** (${draft.id ?? draft.slug ?? "unknown"})`,
+    `Status: ${draft.lastStatus ?? "Draft"}`,
+    `Repo target: ${draft.owner ?? "FreeDocStore"}/${draft.slug ?? "unknown"}`,
+    `Visibility: ${draft.visibility ?? "public"}`,
+    `Repo URL: ${draft.repoUrl || "(not published)"}`,
+    `Live URL: ${draft.liveUrl || (draft.slug ? `https://${draft.slug}.pages.dev/` : "(not set)")}`,
+    `Custom domain: ${draft.customDomain || "(none)"}`,
+    `Generated files: ${files.length ? files.join(", ") : "(none)"}`,
+    `Updated: ${draft.updatedAt ?? "(unknown)"}`,
+  ].join("\n");
+}
+
 export class FreeDocStoreMcp extends McpAgent<Env, unknown, McpProps> {
   server = new McpServer({
     name: "FreeDocStore",
@@ -87,6 +126,61 @@ export class FreeDocStoreMcp extends McpAgent<Env, unknown, McpProps> {
         githubUrl: this.props?.githubUrl ?? null,
         scopes: this.props?.scopes ?? [],
       }, null, 2)),
+    );
+
+    this.server.tool(
+      "workspace_summary",
+      "Show the signed-in FreeDocStore console workspace stored for this account.",
+      {},
+      async () => {
+        if (!this.props?.userId) return txt("Not authenticated. Connect with GitHub OAuth first.");
+        if (!this.env.FDS_API_KV) return txt("FDS_API_KV is not bound to the MCP worker.");
+        const [settings, drafts, activeId] = await Promise.all([
+          readWorkspace<Record<string, unknown>>(this.env, this.props.userId, "fds:config:v1"),
+          readWorkspace<WorkspaceDraft[]>(this.env, this.props.userId, "fds:kbs:v1"),
+          readWorkspace<string>(this.env, this.props.userId, "fds:active-kb:v1"),
+        ]);
+        const list = Array.isArray(drafts) ? drafts : [];
+        const active = list.find((draft) => draft.id === activeId) ?? list[0];
+        return txt(JSON.stringify({
+          authenticated: true,
+          user: {
+            userId: this.props.userId,
+            login: this.props.login,
+            name: this.props.name,
+            provider: this.props.provider,
+          },
+          workspace: {
+            draftCount: list.length,
+            activeKnowledgeBase: active ? {
+              id: active.id,
+              title: active.title,
+              slug: active.slug,
+              owner: active.owner,
+              status: active.lastStatus,
+              repoUrl: active.repoUrl || null,
+              liveUrl: active.liveUrl || null,
+              customDomain: active.customDomain || null,
+              generatedFileCount: active.files?.length ?? 0,
+            } : null,
+            settings: settings ?? null,
+          },
+        }, null, 2));
+      },
+    );
+
+    this.server.tool(
+      "list_workspace_drafts",
+      "List KB drafts saved in the signed-in FreeDocStore console workspace.",
+      {},
+      async () => {
+        if (!this.props?.userId) return txt("Not authenticated. Connect with GitHub OAuth first.");
+        if (!this.env.FDS_API_KV) return txt("FDS_API_KV is not bound to the MCP worker.");
+        const drafts = await readWorkspace<WorkspaceDraft[]>(this.env, this.props.userId, "fds:kbs:v1");
+        const list = Array.isArray(drafts) ? drafts : [];
+        if (!list.length) return txt("No KB drafts saved in this FreeDocStore workspace.");
+        return txt(`${list.length} workspace draft(s):\n\n${list.map(renderDraft).join("\n\n---\n\n")}`);
+      },
     );
 
     this.server.tool(
@@ -311,7 +405,7 @@ export default {
           "- Cloudflare Pages project per KB",
           "- custom domains per KB",
           "",
-          "Tools: whoami, platform_guide, list_knowledge_bases, knowledge_base_info, check_zensical_repo, list_files, read_file, deploy_status, publish_plan",
+          "Tools: whoami, workspace_summary, list_workspace_drafts, platform_guide, list_knowledge_bases, knowledge_base_info, check_zensical_repo, list_files, read_file, deploy_status, publish_plan",
           "",
           "Auth: OAuth 2.1 via GitHub sign-in when connected through mcp-remote or Claude.",
         ].join("\n"),

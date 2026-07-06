@@ -38,6 +38,8 @@ claude mcp add --scope user --transport http freedocstore https://mcp.freedocsto
 | Tool | Auth | Description |
 | --- | --- | --- |
 | `whoami` | GitHub OAuth | Show the signed-in account |
+| `workspace_summary` | GitHub OAuth | Show saved console workspace state for the signed-in account |
+| `list_workspace_drafts` | GitHub OAuth | List KB drafts saved in the console workspace |
 | `platform_guide` | none | FreeDocStore rules and Zensical publishing contract |
 | `list_knowledge_bases` | none | Read the public registry |
 | `knowledge_base_info` | none | Show repo, Cloudflare project, URLs, custom domains |
@@ -56,6 +58,7 @@ claude mcp add --scope user --transport http freedocstore https://mcp.freedocsto
 The Worker requires:
 
 - `OAUTH_KV`
+- `FDS_API_KV`
 - `GITHUB_CLIENT_ID`
 - `GITHUB_CLIENT_SECRET`
 

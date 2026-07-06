@@ -28,6 +28,10 @@ bindings = [
 binding = "OAUTH_KV"
 id = "830d2d4668b745238b58a10dea5f0163"
 
+[[kv_namespaces]]
+binding = "FDS_API_KV"
+id = "7efa958454744e938ba2cf8e5439e71a"
+
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["FreeDocStoreMcp"]
