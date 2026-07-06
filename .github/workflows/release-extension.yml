@@ -6,11 +6,9 @@ name: Release extension
 # AND extension/package.json - the package script enforces both, and an
 # extra check below catches tag/manifest drift before any work happens.
 #
-# CWS upload is intentionally manual for now (one-time auth setup +
-# review queue). Once the extension is on the store, we can layer in
-# `mnao/chrome-addon` or the chrome-webstore-upload-cli to finish the
-# pipeline. For now: this workflow ships the canonical .zip; an
-# operator downloads it from the Release and uploads to the dev console.
+# Chrome Web Store upload is automatic when the CWS_* repository or
+# organization secrets are configured. First-time store listing/privacy setup
+# still happens in the Chrome Web Store Developer Dashboard.
 
 on:
   push:
@@ -103,18 +101,35 @@ jobs:
             --generate-notes \
             --verify-tag
 
+      - name: Publish to Chrome Web Store
+        if: ${{ secrets.CWS_CLIENT_ID != '' && secrets.CWS_CLIENT_SECRET != '' && secrets.CWS_REFRESH_TOKEN != '' && secrets.CWS_PUBLISHER_ID != '' && secrets.CWS_EXTENSION_ID != '' }}
+        env:
+          CWS_CLIENT_ID: ${{ secrets.CWS_CLIENT_ID }}
+          CWS_CLIENT_SECRET: ${{ secrets.CWS_CLIENT_SECRET }}
+          CWS_REFRESH_TOKEN: ${{ secrets.CWS_REFRESH_TOKEN }}
+          CWS_PUBLISHER_ID: ${{ secrets.CWS_PUBLISHER_ID }}
+          CWS_EXTENSION_ID: ${{ secrets.CWS_EXTENSION_ID }}
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF#refs/tags/v}"
+          node scripts/publish-cws.mjs "dist-zip/freedocstore-v${TAG}.zip"
+
+      - name: Chrome Web Store automation not configured
+        if: ${{ secrets.CWS_CLIENT_ID == '' || secrets.CWS_CLIENT_SECRET == '' || secrets.CWS_REFRESH_TOKEN == '' || secrets.CWS_PUBLISHER_ID == '' || secrets.CWS_EXTENSION_ID == '' }}
+        run: |
+          echo "::notice::Chrome Web Store upload skipped. Add CWS_CLIENT_ID, CWS_CLIENT_SECRET, CWS_REFRESH_TOKEN, CWS_PUBLISHER_ID, and CWS_EXTENSION_ID to enable automatic submission."
+
       - name: Next steps reminder
         run: |
           cat <<'EOF'
           ────────────────────────────────────────────────────────────
-            Release published. Manual follow-ups:
+            Release published.
 
-            1. Download freedocstore-v*.zip from the GitHub Release page.
-            2. Upload to Chrome Web Store dev console:
-               https://chrome.google.com/webstore/devconsole
-            3. Submit for review (1-3 business days, longer on first
-               review). Listing visibility: Unlisted.
-            4. Once approved, replace the placeholder href="#" in
-               docs/install.html with the real CWS URL.
+            If CWS_* secrets are configured, the zip was uploaded to Chrome
+            Web Store and submitted for review. If not, configure those
+            secrets and rerun through a new version tag.
+
+            After first approval, replace the placeholder href="#" in
+            docs/install.html with the real CWS URL.
           ────────────────────────────────────────────────────────────
           EOF

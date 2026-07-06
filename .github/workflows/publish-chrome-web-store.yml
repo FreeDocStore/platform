@@ -1,0 +1,63 @@
+name: Publish Chrome Web Store
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to publish, for example v0.47.2"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: extension
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.tag }}
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+
+      - name: Install
+        run: npm ci --no-audit --no-fund || npm install --no-audit --no-fund
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
+
+      - name: Package
+        run: npm run package
+
+      - name: Validate requested tag matches package
+        run: |
+          set -euo pipefail
+          TAG="${{ inputs.tag }}"
+          TAG="${TAG#v}"
+          PKG_VER=$(node -p "require('./package.json').version")
+          if [ "$TAG" != "$PKG_VER" ]; then
+            echo "::error::Requested tag v$TAG does not match extension/package.json version $PKG_VER."
+            exit 1
+          fi
+
+      - name: Publish to Chrome Web Store
+        env:
+          CWS_CLIENT_ID: ${{ secrets.CWS_CLIENT_ID }}
+          CWS_CLIENT_SECRET: ${{ secrets.CWS_CLIENT_SECRET }}
+          CWS_REFRESH_TOKEN: ${{ secrets.CWS_REFRESH_TOKEN }}
+          CWS_PUBLISHER_ID: ${{ secrets.CWS_PUBLISHER_ID }}
+          CWS_EXTENSION_ID: ${{ secrets.CWS_EXTENSION_ID }}
+        run: |
+          set -euo pipefail
+          TAG="${{ inputs.tag }}"
+          TAG="${TAG#v}"
+          node scripts/publish-cws.mjs "dist-zip/freedocstore-v${TAG}.zip"
