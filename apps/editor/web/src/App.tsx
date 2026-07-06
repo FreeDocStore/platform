@@ -770,12 +770,9 @@ function EditorApp() {
           settings={settings}
           setSettings={setSettings}
           secrets={secrets}
-          openAiKeyInput={openAiKeyInput}
-          setOpenAiKeyInput={setOpenAiKeyInput}
-          onSaveOpenAiKey={saveOpenAiKey}
-          onClearOpenAiKey={clearOpenAiKey}
           connections={connections}
           onCheck={checkConnections}
+          onOpenProfile={() => navigate('profile')}
           compact
         />
         <PublishPanel
@@ -800,12 +797,9 @@ function EditorApp() {
           settings={settings}
           setSettings={setSettings}
           secrets={secrets}
-          openAiKeyInput={openAiKeyInput}
-          setOpenAiKeyInput={setOpenAiKeyInput}
-          onSaveOpenAiKey={saveOpenAiKey}
-          onClearOpenAiKey={clearOpenAiKey}
           connections={connections}
           onCheck={checkConnections}
+          onOpenProfile={() => navigate('profile')}
           compact
         />
         <EditPanel
@@ -1170,24 +1164,28 @@ function SettingsPanel({
   settings,
   setSettings,
   secrets,
-  openAiKeyInput,
+  openAiKeyInput = '',
   setOpenAiKeyInput,
   onSaveOpenAiKey,
   onClearOpenAiKey,
   connections,
   onCheck,
+  onOpenProfile,
   compact = false,
+  manageKeys = false,
 }: {
   settings: Settings
   setSettings: (s: Settings) => void
   secrets: SecretStatus
-  openAiKeyInput: string
-  setOpenAiKeyInput: (value: string) => void
-  onSaveOpenAiKey: () => void
-  onClearOpenAiKey: () => void
+  openAiKeyInput?: string
+  setOpenAiKeyInput?: (value: string) => void
+  onSaveOpenAiKey?: () => void
+  onClearOpenAiKey?: () => void
   connections: PlatformConnections
   onCheck: () => void
+  onOpenProfile?: () => void
   compact?: boolean
+  manageKeys?: boolean
 }) {
   const update = <K extends keyof Settings>(key: K, value: Settings[K]) => setSettings({ ...settings, [key]: value })
   const connectedCount = [connections.github, connections.openai, connections.cloudflare].filter((state) => state === 'ready').length
@@ -1199,7 +1197,7 @@ function SettingsPanel({
           <KeyRound size={18} />
           <span>
             <strong>Platform connections</strong>
-            <small>{connectedCount}/3 ready. OpenAI is BYOK and stored once on your account.</small>
+            <small>{connectedCount}/3 ready. API keys are managed from Profile.</small>
           </span>
         </span>
       </summary>
@@ -1211,26 +1209,41 @@ function SettingsPanel({
       <p className="connection-detail">{connections.detail}</p>
       <div className="byok-strip">
         <div>
-          <span>OpenAI BYOK key</span>
+          <span>OpenAI API key</span>
           <strong>{openAiKeyStatus}</strong>
-          <p>Used for all KB generation and AI edits. Not saved in KB drafts or generated repos.</p>
+          <p>Encrypted in your FreeDocStore account and used server-side for all KB generation and AI edits.</p>
         </div>
-        {secrets.openai.configured && (
+        {manageKeys && secrets.openai.configured && onClearOpenAiKey ? (
           <button className="secondary-action danger-action" type="button" onClick={onClearOpenAiKey}>
             Remove key
           </button>
-        )}
+        ) : !manageKeys && onOpenProfile ? (
+          <button className="secondary-action" type="button" onClick={onOpenProfile}>
+            <UserCircle size={17} />
+            Manage in Profile
+          </button>
+        ) : null}
       </div>
-      <div className="field-grid two">
-        <Field label="OpenAI API key" value={openAiKeyInput} onChange={setOpenAiKeyInput} placeholder="sk-..." secret />
-        <Field label="OpenAI endpoint" value={settings.openaiEndpoint} onChange={(v) => update('openaiEndpoint', v)} />
-        <Field label="Model" value={settings.model} onChange={(v) => update('model', v)} />
-      </div>
+      {manageKeys && (
+        <div className="field-grid two">
+          <Field label="OpenAI API key" value={openAiKeyInput} onChange={setOpenAiKeyInput ?? (() => {})} placeholder="sk-..." secret />
+          <Field label="OpenAI endpoint" value={settings.openaiEndpoint} onChange={(v) => update('openaiEndpoint', v)} />
+          <Field label="Model" value={settings.model} onChange={(v) => update('model', v)} />
+        </div>
+      )}
+      {!manageKeys && (
+        <div className="field-grid two">
+          <Field label="OpenAI endpoint" value={settings.openaiEndpoint} onChange={(v) => update('openaiEndpoint', v)} />
+          <Field label="Model" value={settings.model} onChange={(v) => update('model', v)} />
+        </div>
+      )}
       <div className="action-row compact-actions">
-        <button className="primary-action" type="button" onClick={onSaveOpenAiKey} disabled={!openAiKeyInput.trim()}>
-          <KeyRound size={17} />
-          Save BYOK key
-        </button>
+        {manageKeys && onSaveOpenAiKey && (
+          <button className="primary-action" type="button" onClick={onSaveOpenAiKey} disabled={!openAiKeyInput.trim()}>
+            <KeyRound size={17} />
+            Save API key
+          </button>
+        )}
         <button className="secondary-action" type="button" onClick={onCheck}>
           <ShieldCheck size={17} />
           Check platform connections
@@ -1416,6 +1429,7 @@ function ProfilePage({
           onClearOpenAiKey={onClearOpenAiKey}
           connections={connections}
           onCheck={onCheck}
+          manageKeys
         />
       </section>
     </div>
