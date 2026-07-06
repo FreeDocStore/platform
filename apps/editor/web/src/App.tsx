@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
-import { initPro, useAuth, useSubscription, useTheme, type Subscription, type User } from '@proappstore/sdk'
 import {
   BookOpen,
   CheckCircle2,
@@ -23,8 +22,8 @@ import {
   UserCircle,
   Wifi,
 } from 'lucide-react'
+import { fds as app, useAuth, useSubscription, useTheme, type Subscription, type User } from './lib/fds'
 
-const app = initPro({ appId: 'freedocstore-editor' })
 const DEFAULT_MODEL = 'gpt-4.1-mini'
 const DEFAULT_ENDPOINT = 'https://api.openai.com/v1/chat/completions'
 const FDS_MCP = 'https://freedocstore-mcp.serge-the-dev.workers.dev/mcp'
@@ -240,8 +239,8 @@ function App() {
 }
 
 function EditorApp() {
-  const { user, loading: authLoading, signIn, signOut, deleteAccount } = useAuth(app)
-  const { subscription, isPro, loading: subLoading, upgrade, manageBilling } = useSubscription(app)
+  const { user, loading: authLoading, signIn, signOut, deleteAccount } = useAuth()
+  const { subscription, isPro, loading: subLoading, upgrade, manageBilling } = useSubscription()
   const { preference, setPreference } = useTheme()
   const [route, setRoute] = useState<AppRoute>(() => routeFromLocation())
   const [settings, setSettings] = useState<Settings>(emptySettings)

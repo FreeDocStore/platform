@@ -10,9 +10,6 @@ importers:
 
   web:
     dependencies:
-      '@proappstore/sdk':
-        specifier: ^1.16.3
-        version: 1.16.31(react@19.2.7)
       lucide-react:
         specifier: ^0.562.0
         version: 0.562.0(react@19.2.7)
@@ -600,14 +597,6 @@ packages:
 
   '@oxc-project/types@0.138.0':
     resolution: {integrity: sha512-1a7ZKmrRTCoN1XMZ4L0PyyqrMnrNlLyPuOkdSX2MZg7IiIGRUyurNhAm73ptDOraoBcIordsIGKNPKUzy3ZmfA==}
-
-  '@proappstore/sdk@1.16.31':
-    resolution: {integrity: sha512-MwgLVnB88wGXvowY2/h10ZJ5S+8XTu/XsdcfsZl8Kd6S9XIa+Amb7+2UBA+oaBgHRK1es+It4w3++NLAwEgaEw==}
-    peerDependencies:
-      react: ^18.0.0 || ^19.0.0
-    peerDependenciesMeta:
-      react:
-        optional: true
 
   '@rolldown/binding-android-arm64@1.1.4':
     resolution: {integrity: sha512-EZLpf/8y7GXkkra90ML47kzik/GMP3EMcE9bPyHmRfxLC6z9+aW5A8poCsoxjrT5GfEcNAAvWwUHjvP1pUQkfw==}
@@ -2807,10 +2796,6 @@ snapshots:
     optional: true
 
   '@oxc-project/types@0.138.0': {}
-
-  '@proappstore/sdk@1.16.31(react@19.2.7)':
-    optionalDependencies:
-      react: 19.2.7
 
   '@rolldown/binding-android-arm64@1.1.4':
     optional: true

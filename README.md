@@ -15,6 +15,7 @@ Users describe what should change. The AI drafts the change. The user reviews th
 - Product site in `site/`.
 - AI-first web workbench at `site/editor.html`.
 - FreeDocStore-owned React editor app in `apps/editor/`.
+- Independent FreeDocStore API Worker in `workers/api/`.
 - Remote MCP Worker in `workers/mcp/`.
 - Browser extension in `extension/` for editing published docs pages from the side panel.
 - Reusable docs templates, deploy workflows, generators, and lint rules in `templates/`.
@@ -78,6 +79,7 @@ Do not build Pro-only private access into FreeDocStore first. Keep the Free plat
 ```text
 site/                 Public FreeDocStore marketing site and AI web editor
 apps/editor/          FreeDocStore-owned React app for prompt-to-KB publishing
+workers/api/          FreeDocStore API, GitHub OAuth, user KV, and platform proxy
 workers/mcp/          Cloudflare Worker remote MCP server
 docs/                 Product and engine docs
 extension/            MV3 Chrome extension for AI-first docs editing
@@ -130,7 +132,25 @@ The production editor is a FreeDocStore app:
 - Production: <https://freedocstore-editor.pages.dev/>
 - Deploy target: Cloudflare Pages project `freedocstore-editor`
 
-The editor supports multiple KB drafts in one browser, one GitHub repo per KB, Zensical-only Markdown source, Cloudflare Pages publishing, and optional custom domains per KB.
+The editor supports multiple KB drafts, one GitHub repo per KB, Zensical-only Markdown source, Cloudflare Pages publishing, and optional custom domains per KB.
+
+## API
+
+The production editor talks to the independent FreeDocStore API Worker:
+
+- Source: `workers/api/`
+- Production: <https://freedocstore-api.serge-the-dev.workers.dev/>
+- Health check: <https://freedocstore-api.serge-the-dev.workers.dev/api/health>
+- Deploy target: Cloudflare Worker `freedocstore-api`
+
+The API owns GitHub sign-in, per-user workspace KV, and server-side proxy injection for platform secrets. The browser never stores GitHub, OpenAI, or Cloudflare deploy tokens per KB.
+
+Required worker secrets:
+
+- `GITHUB_CLIENT_ID`
+- `GITHUB_CLIENT_SECRET`
+- `GITHUB_TOKEN`
+- `OPENAI_API_KEY`
 
 ## AI Editor Flow
 

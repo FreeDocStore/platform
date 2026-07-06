@@ -1,26 +1,53 @@
-# FreeDocStore Editor Platform Connections
+# FreeDocStore Editor Connections
 
-FreeDocStore Editor must not ask for provider keys per knowledge base. Provider credentials are platform-level connections.
+The editor uses the independent FreeDocStore API worker, not PAS.
 
-## Platform Proxy Connections
+Default API base:
 
-Configure these for the `freedocstore-editor` platform app:
-
-```sh
-pas secret set GITHUB_TOKEN <token> --app freedocstore-editor
-pas proxy allow 'https://api.github.com/' --inject bearer --secret GITHUB_TOKEN --app freedocstore-editor
-
-pas secret set OPENAI_API_KEY <key> --app freedocstore-editor
-pas proxy allow 'https://api.openai.com/' --inject bearer --secret OPENAI_API_KEY --app freedocstore-editor
+```text
+https://freedocstore-api.serge-the-dev.workers.dev
 ```
 
-The editor calls GitHub and OpenAI through `app.proxy.fetch()`, so these secrets are injected server-side and never stored in KB drafts or browser session fields.
+Override locally with:
 
-## Deploy Connection
+```bash
+VITE_FDS_API_BASE=http://127.0.0.1:8787 pnpm dev
+```
 
-Generated KB repositories use `.github/workflows/deploy.yml` and expect Cloudflare deploy credentials from platform/org Actions secrets:
+## API Worker Secrets
 
-- `CLOUDFLARE_ACCOUNT_ID`
+Configure these in `workers/api`:
+
+```bash
+wrangler secret put GITHUB_CLIENT_ID
+wrangler secret put GITHUB_CLIENT_SECRET
+wrangler secret put GITHUB_TOKEN
+wrangler secret put OPENAI_API_KEY
+```
+
+`GITHUB_TOKEN` is the server-side platform token used for repository creation and content writes. The browser never receives it.
+
+`OPENAI_API_KEY` is injected server-side when the editor calls the FreeDocStore API proxy for OpenAI generation.
+
+## GitHub OAuth
+
+Create a GitHub OAuth app with callback:
+
+```text
+https://freedocstore-api.serge-the-dev.workers.dev/auth/github/callback
+```
+
+When `api.freedocstore.online` is attached, add the production callback too:
+
+```text
+https://api.freedocstore.online/auth/github/callback
+```
+
+## Cloudflare Deploy
+
+Generated KB repositories use `.github/workflows/deploy.yml` and expect Cloudflare deploy credentials from GitHub Actions secrets:
+
 - `CLOUDFLARE_API_TOKEN`
+- `CLOUDFLARE_ACCOUNT_ID`
 
-Those secrets must be available to new FreeDocStore KB repositories without asking the user to enter them for each KB.
+The editor does not ask users for these keys per KB.
