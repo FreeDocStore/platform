@@ -303,9 +303,11 @@ app.all("/api/proxy", async (c) => {
 
   const body = c.req.method === "GET" || c.req.method === "HEAD" ? undefined : await c.req.arrayBuffer();
   const upstream = await fetch(url, { method: c.req.method, headers, body });
+  const responseHeaders = proxyResponseHeaders(upstream.headers);
+  applyCorsHeaders(c, responseHeaders);
   return new Response(upstream.body, {
     status: upstream.status,
-    headers: proxyResponseHeaders(upstream.headers),
+    headers: responseHeaders,
   });
 });
 
@@ -321,6 +323,8 @@ export default app;
 
 function allowedOrigin(env: Env, origin: string | undefined): string | null {
   if (!origin) return null;
+  const originUrl = safeUrl(origin);
+  if (originUrl?.hostname === "freedocstore-editor.pages.dev" || originUrl?.hostname.endsWith(".freedocstore-editor.pages.dev")) return origin;
   const allowed = new Set([
     env.EDITOR_BASE_URL,
     env.PUBLIC_BASE_URL,
@@ -329,6 +333,23 @@ function allowedOrigin(env: Env, origin: string | undefined): string | null {
     "http://127.0.0.1:4220",
   ]);
   return allowed.has(origin) ? origin : null;
+}
+
+function safeUrl(input: string): URL | null {
+  try {
+    return new URL(input);
+  } catch {
+    return null;
+  }
+}
+
+function applyCorsHeaders(c: Parameters<Parameters<typeof app.onError>[0]>[1], headers: Headers) {
+  const origin = c.req.header("Origin");
+  const allowed = allowedOrigin(c.env, origin);
+  if (!allowed) return;
+  headers.set("Access-Control-Allow-Origin", allowed);
+  headers.set("Access-Control-Allow-Credentials", "true");
+  headers.set("Vary", "Origin");
 }
 
 function corsErrorResponse(c: Parameters<Parameters<typeof app.onError>[0]>[1], response: Response): Response {
