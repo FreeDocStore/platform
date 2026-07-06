@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <rect width="1200" height="630" fill="#f5f7fa"/>
+  <rect x="72" y="64" width="1056" height="502" rx="24" fill="#ffffff" stroke="#d9e2ec" stroke-width="2"/>
+  <path d="M96 64h270v502H96c-13 0-24-11-24-24V88c0-13 11-24 24-24Z" fill="#111827"/>
+  <path d="M366 64v502" stroke="#263442" stroke-width="2"/>
+  <rect x="112" y="112" width="72" height="72" rx="16" fill="#f8fafc"/>
+  <path d="M136 136h30M136 158h24M136 180h18" stroke="#0b5cad" stroke-width="9" stroke-linecap="round"/>
+  <rect x="170" y="102" width="34" height="34" rx="9" fill="#0f766e"/>
+  <text x="112" y="246" fill="#ffffff" font-family="Inter, Arial, sans-serif" font-size="31" font-weight="800">FreeDocStore</text>
+  <text x="112" y="286" fill="#b5c0cc" font-family="Inter, Arial, sans-serif" font-size="18" font-weight="600">Knowledge-base publishing</text>
+  <rect x="112" y="350" width="154" height="42" rx="8" fill="#0b5cad"/>
+  <text x="134" y="377" fill="#ffffff" font-family="Inter, Arial, sans-serif" font-size="17" font-weight="700">Zensical repos</text>
+  <text x="426" y="182" fill="#101828" font-family="Inter, Arial, sans-serif" font-size="54" font-weight="800">Prompt and publish docs</text>
+  <text x="426" y="246" fill="#667085" font-family="Inter, Arial, sans-serif" font-size="26" font-weight="500">Create Markdown knowledge bases, push them to GitHub,</text>
+  <text x="426" y="286" fill="#667085" font-family="Inter, Arial, sans-serif" font-size="26" font-weight="500">and deploy Zensical books on Cloudflare.</text>
+  <rect x="426" y="366" width="204" height="58" rx="10" fill="#e8f2ff"/>
+  <text x="458" y="402" fill="#0b5cad" font-family="Inter, Arial, sans-serif" font-size="22" font-weight="800">GitHub repos</text>
+  <rect x="654" y="366" width="226" height="58" rx="10" fill="#ecfdf3"/>
+  <text x="686" y="402" fill="#087443" font-family="Inter, Arial, sans-serif" font-size="22" font-weight="800">Custom domains</text>
+  <rect x="904" y="366" width="180" height="58" rx="10" fill="#fffaeb"/>
+  <text x="936" y="402" fill="#b54708" font-family="Inter, Arial, sans-serif" font-size="22" font-weight="800">MCP ready</text>
+</svg>

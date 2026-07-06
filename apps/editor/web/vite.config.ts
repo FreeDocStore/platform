@@ -13,24 +13,6 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,png,svg,ico,woff2,json}'],
         maximumFileSizeToCacheInBytes: 8 * 1024 * 1024,
         navigateFallbackDenylist: [/^\/\.pas\//],
-        runtimeCaching: [
-          {
-            urlPattern: /^https:\/\/fonts\.googleapis\.com/,
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'google-fonts-stylesheets',
-              expiration: { maxEntries: 8, maxAgeSeconds: 60 * 60 * 24 * 365 },
-            },
-          },
-          {
-            urlPattern: /^https:\/\/fonts\.gstatic\.com/,
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'google-fonts-webfonts',
-              expiration: { maxEntries: 16, maxAgeSeconds: 60 * 60 * 24 * 365 },
-            },
-          },
-        ],
       },
       manifest: {
         name: 'FreeDocStore Editor',
@@ -39,8 +21,8 @@ export default defineConfig({
         start_url: '/',
         scope: '/',
         display: 'standalone',
-        background_color: '#f5f1e8',
-        theme_color: '#d85c42',
+        background_color: '#f5f7fa',
+        theme_color: '#111827',
         orientation: 'any',
         ...({ min_viewport_width: 360 } as Record<string, unknown>),
         icons: [
