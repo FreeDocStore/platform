@@ -16,7 +16,7 @@ export interface Subscription {
 
 export type ThemePreference = 'light' | 'dark' | 'system'
 
-const API_BASE = (import.meta.env.VITE_FDS_API_BASE as string | undefined) || 'https://freedocstore-api.serge-the-dev.workers.dev'
+const API_BASE = (import.meta.env.VITE_FDS_API_BASE as string | undefined) || 'https://api.freedocstore.online'
 const THEME_KEY = 'fds:theme:v1'
 
 async function apiFetch(path: string, init: RequestInit = {}) {

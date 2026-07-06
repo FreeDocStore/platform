@@ -302,7 +302,7 @@ export default {
         [
           "FreeDocStore MCP Server",
           "",
-          "Connect: npx mcp-remote https://freedocstore-mcp.serge-the-dev.workers.dev/mcp",
+          "Connect: npx mcp-remote https://mcp.freedocstore.online/mcp",
           "",
           "Zensical-only knowledge base publishing:",
           "- one GitHub repo per KB",

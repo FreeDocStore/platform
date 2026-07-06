@@ -18,12 +18,6 @@ FreeDocStore is Zensical-only for now:
 Current deployed endpoint:
 
 ```bash
-https://freedocstore-mcp.serge-the-dev.workers.dev/mcp
-```
-
-Production target once the domain is attached:
-
-```bash
 https://mcp.freedocstore.online/mcp
 ```
 
@@ -36,7 +30,7 @@ codex mcp add freedocstore --url https://mcp.freedocstore.online/mcp
 or:
 
 ```bash
-claude mcp add --scope user --transport http freedocstore https://freedocstore-mcp.serge-the-dev.workers.dev/mcp
+claude mcp add --scope user --transport http freedocstore https://mcp.freedocstore.online/mcp
 ```
 
 ## Tools
@@ -56,7 +50,7 @@ claude mcp add --scope user --transport http freedocstore https://freedocstore-m
 OAuth sign-in is GitHub-based and uses the same remote MCP flow as the other stores:
 
 ```bash
-claude mcp add --scope user --transport http freedocstore https://freedocstore-mcp.serge-the-dev.workers.dev/mcp
+claude mcp add --scope user --transport http freedocstore https://mcp.freedocstore.online/mcp
 ```
 
 The Worker requires:
@@ -68,7 +62,7 @@ The Worker requires:
 The GitHub OAuth callback URL is:
 
 ```text
-https://freedocstore-mcp.serge-the-dev.workers.dev/callback
+https://mcp.freedocstore.online/callback
 ```
 
 Write tools come next after the signed-in account can be mapped to repo ownership:

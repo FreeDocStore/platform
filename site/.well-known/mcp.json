@@ -2,8 +2,8 @@
   "mcpServers": {
     "freedocstore": {
       "command": "npx",
-      "args": ["mcp-remote", "https://freedocstore-mcp.serge-the-dev.workers.dev/mcp"],
-      "url": "https://freedocstore-mcp.serge-the-dev.workers.dev/mcp",
+      "args": ["mcp-remote", "https://mcp.freedocstore.online/mcp"],
+      "url": "https://mcp.freedocstore.online/mcp",
       "description": "FreeDocStore Zensical knowledge-base publishing MCP server"
     }
   }

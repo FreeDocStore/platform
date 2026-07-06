@@ -117,8 +117,8 @@ The platform repo does not contain generated KB pages and does not publish `/boo
 
 FreeDocStore has a remote MCP server for agents:
 
-- Current endpoint: <https://freedocstore-mcp.serge-the-dev.workers.dev/mcp>
-- Discovery: <https://freedocstore.pages.dev/.well-known/mcp.json>
+- Current endpoint: <https://mcp.freedocstore.online/mcp>
+- Discovery: <https://freedocstore.online/.well-known/mcp.json>
 - Local connector: `.mcp.json`
 - Source: `workers/mcp/`
 
@@ -131,7 +131,7 @@ Authenticated write tools come next: create KB repo, update Markdown files, regi
 The production console is a FreeDocStore app:
 
 - Source: `apps/editor/`
-- Production: <https://freedocstore-editor.pages.dev/>
+- Production: <https://console.freedocstore.online/>
 - Deploy target: Cloudflare Pages project `freedocstore-editor`
 
 The console supports Google and GitHub sign-in, multiple KB drafts per account, one GitHub repo per KB, Zensical-only Markdown source, Cloudflare Pages publishing, and optional custom domains per KB.
@@ -141,8 +141,8 @@ The console supports Google and GitHub sign-in, multiple KB drafts per account, 
 The production editor talks to the independent FreeDocStore API Worker:
 
 - Source: `workers/api/`
-- Production: <https://freedocstore-api.serge-the-dev.workers.dev/>
-- Health check: <https://freedocstore-api.serge-the-dev.workers.dev/api/health>
+- Production: <https://api.freedocstore.online/>
+- Health check: <https://api.freedocstore.online/api/health>
 - Deploy target: Cloudflare Worker `freedocstore-api`
 
 The API owns GitHub sign-in, per-user workspace KV, and server-side proxy injection for platform secrets. The browser never stores GitHub, OpenAI, or Cloudflare deploy tokens per KB.

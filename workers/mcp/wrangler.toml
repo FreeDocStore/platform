@@ -4,21 +4,20 @@ compatibility_date = "2026-03-17"
 compatibility_flags = ["nodejs_compat"]
 workers_dev = true
 
+[[routes]]
+pattern = "mcp.freedocstore.online/*"
+zone_name = "freedocstore.online"
+
 [vars]
-PUBLIC_BASE_URL = "https://freedocstore.pages.dev"
-REGISTRY_URL = "https://freedocstore.pages.dev/registry.json"
+PUBLIC_BASE_URL = "https://freedocstore.online"
+REGISTRY_URL = "https://freedocstore.online/registry.json"
 GITHUB_ORG = "FreeDocStore"
 PLATFORM_REPO = "platform"
 DEFAULT_DOMAIN = "pages.dev"
 # GitHub OAuth app client id. Callback URL:
-# https://freedocstore-mcp.serge-the-dev.workers.dev/callback
+# https://mcp.freedocstore.online/callback
 # Secret:
 # GITHUB_CLIENT_SECRET
-
-# Intended production route once freedocstore.online is attached to Cloudflare:
-# [[routes]]
-# pattern = "mcp.freedocstore.online/*"
-# zone_name = "freedocstore.online"
 
 [durable_objects]
 bindings = [

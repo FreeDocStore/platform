@@ -26,7 +26,7 @@ import { fds as app, useAuth, useSubscription, useTheme, type Subscription, type
 
 const DEFAULT_MODEL = 'gpt-4.1-mini'
 const DEFAULT_ENDPOINT = 'https://api.openai.com/v1/chat/completions'
-const FDS_MCP = 'https://freedocstore-mcp.serge-the-dev.workers.dev/mcp'
+const FDS_MCP = 'https://mcp.freedocstore.online/mcp'
 const CONFIG_KEY = 'fds:config:v1'
 const KBS_KEY = 'fds:kbs:v1'
 const ACTIVE_KB_KEY = 'fds:active-kb:v1'
@@ -804,7 +804,7 @@ function SignedOutLanding({ signIn }: { signIn: (provider?: AuthProvider) => voi
             <Github size={17} />
             Continue with GitHub
           </button>
-          <a className="secondary-action as-link" href="https://freedocstore.pages.dev/" target="_blank" rel="noreferrer">
+          <a className="secondary-action as-link" href="https://freedocstore.online/" target="_blank" rel="noreferrer">
             <ExternalLink size={17} />
             Open FreeDocStore
           </a>

@@ -2,7 +2,7 @@
   "mcpServers": {
     "freedocstore": {
       "command": "npx",
-      "args": ["mcp-remote", "https://freedocstore-mcp.serge-the-dev.workers.dev/mcp"]
+      "args": ["mcp-remote", "https://mcp.freedocstore.online/mcp"]
     }
   }
 }

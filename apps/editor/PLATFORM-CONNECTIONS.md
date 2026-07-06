@@ -13,7 +13,7 @@ The platform repo, generated KB repos, reusable deploy workflows, and shared Git
 Default API base:
 
 ```text
-https://freedocstore-api.serge-the-dev.workers.dev
+https://api.freedocstore.online
 ```
 
 Override locally with:
@@ -44,7 +44,7 @@ wrangler secret put OPENAI_API_KEY
 Create a GitHub OAuth app with callback:
 
 ```text
-https://freedocstore-api.serge-the-dev.workers.dev/auth/github/callback
+https://api.freedocstore.online/auth/github/callback
 ```
 
 ## Google OAuth
@@ -52,13 +52,6 @@ https://freedocstore-api.serge-the-dev.workers.dev/auth/github/callback
 Create a Google OAuth web client with callback:
 
 ```text
-https://freedocstore-api.serge-the-dev.workers.dev/auth/google/callback
-```
-
-When `api.freedocstore.online` is attached, add the production callback too:
-
-```text
-https://api.freedocstore.online/auth/github/callback
 https://api.freedocstore.online/auth/google/callback
 ```
 

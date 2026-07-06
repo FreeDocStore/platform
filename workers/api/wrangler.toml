@@ -4,9 +4,13 @@ compatibility_date = "2026-03-17"
 compatibility_flags = ["nodejs_compat"]
 workers_dev = true
 
+[[routes]]
+pattern = "api.freedocstore.online/*"
+zone_name = "freedocstore.online"
+
 [vars]
-EDITOR_BASE_URL = "https://freedocstore-editor.pages.dev"
-PUBLIC_BASE_URL = "https://freedocstore.pages.dev"
+EDITOR_BASE_URL = "https://console.freedocstore.online"
+PUBLIC_BASE_URL = "https://freedocstore.online"
 COOKIE_DOMAIN = ""
 GITHUB_ORG = "FreeDocStore"
 
@@ -19,13 +23,8 @@ GITHUB_ORG = "FreeDocStore"
 # wrangler secret put OPENAI_API_KEY
 #
 # OAuth callbacks:
-# https://freedocstore-api.serge-the-dev.workers.dev/auth/github/callback
-# https://freedocstore-api.serge-the-dev.workers.dev/auth/google/callback
-#
-# Intended production route once freedocstore.online is attached:
-# [[routes]]
-# pattern = "api.freedocstore.online/*"
-# zone_name = "freedocstore.online"
+# https://api.freedocstore.online/auth/github/callback
+# https://api.freedocstore.online/auth/google/callback
 
 [[kv_namespaces]]
 binding = "FDS_API_KV"
