@@ -101,8 +101,28 @@ jobs:
             --generate-notes \
             --verify-tag
 
+      - name: Check Chrome Web Store automation config
+        id: cws
+        env:
+          CWS_CLIENT_ID: ${{ secrets.CWS_CLIENT_ID }}
+          CWS_CLIENT_SECRET: ${{ secrets.CWS_CLIENT_SECRET }}
+          CWS_REFRESH_TOKEN: ${{ secrets.CWS_REFRESH_TOKEN }}
+          CWS_PUBLISHER_ID: ${{ secrets.CWS_PUBLISHER_ID }}
+          CWS_EXTENSION_ID: ${{ secrets.CWS_EXTENSION_ID }}
+        run: |
+          set -euo pipefail
+          if [ -n "${CWS_CLIENT_ID}" ] && \
+             [ -n "${CWS_CLIENT_SECRET}" ] && \
+             [ -n "${CWS_REFRESH_TOKEN}" ] && \
+             [ -n "${CWS_PUBLISHER_ID}" ] && \
+             [ -n "${CWS_EXTENSION_ID}" ]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Publish to Chrome Web Store
-        if: ${{ secrets.CWS_CLIENT_ID != '' && secrets.CWS_CLIENT_SECRET != '' && secrets.CWS_REFRESH_TOKEN != '' && secrets.CWS_PUBLISHER_ID != '' && secrets.CWS_EXTENSION_ID != '' }}
+        if: ${{ steps.cws.outputs.configured == 'true' }}
         env:
           CWS_CLIENT_ID: ${{ secrets.CWS_CLIENT_ID }}
           CWS_CLIENT_SECRET: ${{ secrets.CWS_CLIENT_SECRET }}
@@ -115,7 +135,7 @@ jobs:
           node scripts/publish-cws.mjs "dist-zip/freedocstore-v${TAG}.zip"
 
       - name: Chrome Web Store automation not configured
-        if: ${{ secrets.CWS_CLIENT_ID == '' || secrets.CWS_CLIENT_SECRET == '' || secrets.CWS_REFRESH_TOKEN == '' || secrets.CWS_PUBLISHER_ID == '' || secrets.CWS_EXTENSION_ID == '' }}
+        if: ${{ steps.cws.outputs.configured != 'true' }}
         run: |
           echo "::notice::Chrome Web Store upload skipped. Add CWS_CLIENT_ID, CWS_CLIENT_SECRET, CWS_REFRESH_TOKEN, CWS_PUBLISHER_ID, and CWS_EXTENSION_ID to enable automatic submission."
 
