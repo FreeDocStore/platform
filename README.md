@@ -145,7 +145,7 @@ The production editor talks to the independent FreeDocStore API Worker:
 - Health check: <https://api.freedocstore.online/api/health>
 - Deploy target: Cloudflare Worker `freedocstore-api`
 
-The API owns GitHub sign-in, per-user workspace KV, and server-side proxy injection for platform secrets. The browser never stores GitHub, OpenAI, or Cloudflare deploy tokens per KB.
+The API owns GitHub sign-in, per-user workspace KV, and the encrypted per-user BYOK vault. The browser never stores GitHub, OpenAI, or Cloudflare deploy tokens per KB.
 
 Cloudflare deploy credentials must be configured as FreeDocStore organization-level GitHub Actions secrets so `FreeDocStore/platform` and every `FreeDocStore/<kb-slug>` repo can deploy through the shared workflows without per-repo key entry.
 
@@ -156,7 +156,9 @@ Required worker secrets:
 - `GITHUB_TOKEN`
 - `GOOGLE_CLIENT_ID`
 - `GOOGLE_CLIENT_SECRET`
-- `OPENAI_API_KEY`
+- `FDS_KEY_ENCRYPTION_KEY`
+
+OpenAI is BYOK only. Users save their own OpenAI key once in the console Profile page; the API resolves that encrypted key server-side for AI generation.
 
 Required FreeDocStore org Actions secrets:
 
