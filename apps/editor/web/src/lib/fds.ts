@@ -2,10 +2,12 @@ import { useEffect, useState } from 'react'
 
 export interface User {
   id: string
+  provider: 'github' | 'google'
   login: string
   name: string
   avatarUrl: string
   githubUrl: string
+  email?: string
 }
 
 export interface Subscription {
@@ -82,8 +84,8 @@ export function useAuth() {
     refresh()
   }, [])
 
-  function signIn() {
-    window.location.href = `${API_BASE}/auth/github/start?next=${encodeURIComponent(window.location.href)}`
+  function signIn(provider: 'github' | 'google' = 'github') {
+    window.location.href = `${API_BASE}/auth/${provider}/start?next=${encodeURIComponent(window.location.href)}`
   }
 
   async function signOut() {

@@ -1,6 +1,6 @@
-# FreeDocStore Editor Connections
+# FreeDocStore Console Connections
 
-The editor uses the independent FreeDocStore API worker, not PAS.
+The console uses the independent FreeDocStore API worker, not PAS.
 
 Canonical GitHub organization:
 
@@ -30,6 +30,8 @@ Configure these in `workers/api`:
 wrangler secret put GITHUB_CLIENT_ID
 wrangler secret put GITHUB_CLIENT_SECRET
 wrangler secret put GITHUB_TOKEN
+wrangler secret put GOOGLE_CLIENT_ID
+wrangler secret put GOOGLE_CLIENT_SECRET
 wrangler secret put OPENAI_API_KEY
 ```
 
@@ -45,10 +47,19 @@ Create a GitHub OAuth app with callback:
 https://freedocstore-api.serge-the-dev.workers.dev/auth/github/callback
 ```
 
+## Google OAuth
+
+Create a Google OAuth web client with callback:
+
+```text
+https://freedocstore-api.serge-the-dev.workers.dev/auth/google/callback
+```
+
 When `api.freedocstore.online` is attached, add the production callback too:
 
 ```text
 https://api.freedocstore.online/auth/github/callback
+https://api.freedocstore.online/auth/google/callback
 ```
 
 ## Cloudflare Deploy
@@ -58,4 +69,4 @@ Generated KB repositories use `.github/workflows/deploy.yml` and expect Cloudfla
 - `CLOUDFLARE_API_TOKEN`
 - `CLOUDFLARE_ACCOUNT_ID`
 
-The editor does not ask users for these keys per KB. Do not set empty repo-level secrets on `FreeDocStore/platform`, because they can shadow real org-level secrets.
+The console does not ask users for these keys per KB. Do not set empty repo-level secrets on `FreeDocStore/platform`, because they can shadow real org-level secrets.

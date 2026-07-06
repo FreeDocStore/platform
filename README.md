@@ -15,8 +15,8 @@ Users describe what should change. The AI drafts the change. The user reviews th
 ## Current Scope
 
 - Product site in `site/`.
-- AI-first web workbench at `site/editor.html`.
-- FreeDocStore-owned React editor app in `apps/editor/`.
+- Legacy AI-first web workbench at `site/editor.html`.
+- FreeDocStore-owned React console app in `apps/editor/`.
 - Independent FreeDocStore API Worker in `workers/api/`.
 - Remote MCP Worker in `workers/mcp/`.
 - Browser extension in `extension/` for editing published docs pages from the side panel.
@@ -79,9 +79,9 @@ Do not build Pro-only private access into FreeDocStore first. Keep the Free plat
 ## Repository Layout
 
 ```text
-site/                 Public FreeDocStore marketing site and AI web editor
-apps/editor/          FreeDocStore-owned React app for prompt-to-KB publishing
-workers/api/          FreeDocStore API, GitHub OAuth, user KV, and platform proxy
+site/                 Public FreeDocStore marketing site and legacy AI editor
+apps/editor/          FreeDocStore-owned React console for prompt-to-KB publishing
+workers/api/          FreeDocStore API, GitHub/Google OAuth, user KV, and platform proxy
 workers/mcp/          Cloudflare Worker remote MCP server
 docs/                 Product and engine docs
 extension/            MV3 Chrome extension for AI-first docs editing
@@ -126,15 +126,15 @@ Current MCP tools are public/read and planning tools: list KBs, inspect register
 
 Authenticated write tools come next: create KB repo, update Markdown files, register custom domains, and publish from prompt.
 
-## Editor
+## Console
 
-The production editor is a FreeDocStore app:
+The production console is a FreeDocStore app:
 
 - Source: `apps/editor/`
 - Production: <https://freedocstore-editor.pages.dev/>
 - Deploy target: Cloudflare Pages project `freedocstore-editor`
 
-The editor supports multiple KB drafts, one GitHub repo per KB, Zensical-only Markdown source, Cloudflare Pages publishing, and optional custom domains per KB.
+The console supports Google and GitHub sign-in, multiple KB drafts per account, one GitHub repo per KB, Zensical-only Markdown source, Cloudflare Pages publishing, and optional custom domains per KB.
 
 ## API
 
@@ -154,6 +154,8 @@ Required worker secrets:
 - `GITHUB_CLIENT_ID`
 - `GITHUB_CLIENT_SECRET`
 - `GITHUB_TOKEN`
+- `GOOGLE_CLIENT_ID`
+- `GOOGLE_CLIENT_SECRET`
 - `OPENAI_API_KEY`
 
 Required FreeDocStore org Actions secrets:

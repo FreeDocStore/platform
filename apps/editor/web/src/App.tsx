@@ -32,6 +32,7 @@ const KBS_KEY = 'fds:kbs:v1'
 const ACTIVE_KB_KEY = 'fds:active-kb:v1'
 
 type AppRoute = 'dashboard' | 'publish' | 'edit' | 'profile'
+type AuthProvider = 'github' | 'google'
 type StepState = 'idle' | 'busy' | 'ok' | 'error'
 type ConnectionState = 'unchecked' | 'checking' | 'ready' | 'needs-setup' | 'error'
 type PwaInstallPrompt = Event & {
@@ -614,13 +615,13 @@ function EditorApp() {
   }
 
   const pageTitle = {
-    dashboard: 'FreeDocStore Editor',
+    dashboard: 'FreeDocStore Console',
     publish: 'Publish a knowledge base',
     edit: 'Edit Markdown with AI',
     profile: 'Profile and connections',
   }[route]
   const pageCopy = {
-    dashboard: 'Manage your knowledge-base drafts, launch new books, and track published targets.',
+    dashboard: 'See every knowledge base, prompt new drafts, and publish GitHub-backed Zensical books.',
     publish: 'Generate a GitHub-backed documentation repo, deploy it to Cloudflare Pages, and attach a custom domain.',
     edit: 'Load an existing Markdown file, ask for a replacement draft, and apply the change through GitHub.',
     profile: 'Manage your FreeDocStore account, workspace, and publishing connections.',
@@ -786,18 +787,22 @@ function LoadingScreen() {
   )
 }
 
-function SignedOutLanding({ signIn }: { signIn: () => void }) {
+function SignedOutLanding({ signIn }: { signIn: (provider?: AuthProvider) => void }) {
   return (
     <main className="auth-screen auth-landing">
       <div className="auth-card">
         <span className="brand-mark large">F</span>
-        <p className="eyebrow">FreeDocStore Editor</p>
-        <h1>Publish GitHub-backed knowledge bases.</h1>
-        <p className="lede">Sign in to create Zensical Markdown repos, publish them on Cloudflare Pages, and manage custom domains from one workspace.</p>
+        <p className="eyebrow">FreeDocStore Console</p>
+        <h1>Prompt and publish knowledge bases.</h1>
+        <p className="lede">Sign in to see your KBs, prompt new Zensical Markdown books, publish them on Cloudflare Pages, and manage custom domains.</p>
         <div className="auth-actions">
-          <button className="primary-action" type="button" onClick={signIn}>
+          <button className="primary-action" type="button" onClick={() => signIn('google')}>
+            <span className="provider-mark" aria-hidden="true">G</span>
+            Continue with Google
+          </button>
+          <button className="secondary-action" type="button" onClick={() => signIn('github')}>
             <Github size={17} />
-            Sign in with GitHub
+            Continue with GitHub
           </button>
           <a className="secondary-action as-link" href="https://freedocstore.pages.dev/" target="_blank" rel="noreferrer">
             <ExternalLink size={17} />
@@ -833,7 +838,7 @@ function StoreHeader({
           <span className="brand-mark">F</span>
           <span>
             <strong>FreeDocStore</strong>
-            <small>Editor</small>
+            <small>Console</small>
           </span>
         </button>
         <AppNav route={route} navigate={navigate} />
@@ -861,10 +866,10 @@ function StoreHeader({
 
 function AppNav({ route, navigate }: { route: AppRoute; navigate: (route: AppRoute) => void }) {
   return (
-    <nav className="app-nav" aria-label="Editor pages">
+    <nav className="app-nav" aria-label="Console pages">
       <button className={route === 'dashboard' ? 'mode active' : 'mode'} onClick={() => navigate('dashboard')} type="button">
         <Home size={17} />
-        Dashboard
+        Console
       </button>
       <button className={route === 'publish' ? 'mode active' : 'mode'} onClick={() => navigate('publish')} type="button">
         <LibraryBig size={17} />
@@ -888,7 +893,7 @@ function AppNav({ route, navigate }: { route: AppRoute; navigate: (route: AppRou
 
 function MobileTabBar({ route, navigate }: { route: AppRoute; navigate: (route: AppRoute) => void }) {
   const items: { route: AppRoute; label: string; icon: ReactNode }[] = [
-    { route: 'dashboard', label: 'Home', icon: <LayoutDashboard size={18} /> },
+    { route: 'dashboard', label: 'Console', icon: <LayoutDashboard size={18} /> },
     { route: 'publish', label: 'Publish', icon: <LibraryBig size={18} /> },
     { route: 'edit', label: 'Edit', icon: <PenLine size={18} /> },
     { route: 'profile', label: 'Profile', icon: <UserCircle size={18} /> },
@@ -943,7 +948,7 @@ function DashboardPage({
             <LayoutDashboard size={18} />
             <div>
               <h2>Workspace</h2>
-              <p>Drafts and published targets for this browser session.</p>
+              <p>Prompt, publish, and manage the KBs saved to your FreeDocStore account.</p>
             </div>
           </div>
           <div className="metric-grid">
@@ -954,7 +959,7 @@ function DashboardPage({
           <div className="action-row">
             <button className="primary-action" type="button" onClick={onPublish}>
               <LibraryBig size={17} />
-              Open publisher
+              Prompt a KB
             </button>
             <button className="secondary-action" type="button" onClick={onEdit}>
               <PenLine size={17} />
@@ -989,7 +994,7 @@ function KnowledgeBaseShelf({
           <BookOpen size={18} />
           <div>
             <h2>Knowledge bases</h2>
-            <p>{kbs.length} draft{kbs.length === 1 ? '' : 's'} in this browser</p>
+            <p>{kbs.length} knowledge-base draft{kbs.length === 1 ? '' : 's'}</p>
           </div>
         </div>
         <button className="icon-action" type="button" onClick={onCreate} aria-label="Create KB">
@@ -1039,7 +1044,7 @@ function SelectedKbHeader({ kb, onBack }: { kb: KnowledgeBaseDraft; onBack: () =
   return (
     <div className="section-block selected-kb">
       <button className="text-action" type="button" onClick={onBack}>
-        Dashboard
+        Console
       </button>
       <div>
         <span>Selected knowledge base</span>

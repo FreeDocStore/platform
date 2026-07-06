@@ -14,10 +14,13 @@ GITHUB_ORG = "FreeDocStore"
 # wrangler secret put GITHUB_CLIENT_ID
 # wrangler secret put GITHUB_CLIENT_SECRET
 # wrangler secret put GITHUB_TOKEN
+# wrangler secret put GOOGLE_CLIENT_ID
+# wrangler secret put GOOGLE_CLIENT_SECRET
 # wrangler secret put OPENAI_API_KEY
 #
-# GitHub OAuth callback:
+# OAuth callbacks:
 # https://freedocstore-api.serge-the-dev.workers.dev/auth/github/callback
+# https://freedocstore-api.serge-the-dev.workers.dev/auth/google/callback
 #
 # Intended production route once freedocstore.online is attached:
 # [[routes]]
