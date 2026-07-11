@@ -1,6 +1,24 @@
 {
   "knowledge_bases": [
     {
+      "id": "freedocstore-docs",
+      "title": "FreeDocStore Platform Docs",
+      "description": "Full documentation for the FreeDocStore platform: architecture, publishing contract, registry, API worker, MCP server, creator console, Chrome extension, and templates.",
+      "engine": "zensical",
+      "source": {
+        "repo": "FreeDocStore/freedocstore-docs",
+        "branch": "main",
+        "docs_dir": "docs",
+        "config": "zensical.toml"
+      },
+      "cloudflare": {
+        "pages_project": "freedocstore-docs",
+        "production_url": "https://freedocstore-docs.pages.dev/",
+        "custom_domains": []
+      },
+      "status": "published"
+    },
+    {
       "id": "true-non-profit",
       "title": "True Non-Profit",
       "description": "A first-principles body of knowledge about non-profits and a trueness assessment framework.",

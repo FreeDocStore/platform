@@ -38,7 +38,7 @@ app.get("/authorize", async (c) => {
   const github = new URL("https://github.com/login/oauth/authorize");
   github.searchParams.set("client_id", c.env.GITHUB_CLIENT_ID);
   github.searchParams.set("redirect_uri", callback.toString());
-  github.searchParams.set("scope", "read:user");
+  github.searchParams.set("scope", "read:user public_repo");
   github.searchParams.set("state", nonce);
   github.searchParams.set("allow_signup", "true");
   return c.redirect(github.toString(), 302);
@@ -98,6 +98,7 @@ app.get("/callback", async (c) => {
       name: user.name || user.login,
       avatarUrl: user.avatar_url || undefined,
       githubUrl: user.html_url || `https://github.com/${user.login}`,
+      githubAccessToken: tokenJson.access_token,
       scopes,
     },
   });

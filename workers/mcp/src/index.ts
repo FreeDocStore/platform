@@ -9,6 +9,7 @@ import {
   listRepoFiles,
   readRegistry,
   readRepoFile,
+  updateRepoFiles,
   type KnowledgeBase,
 } from "./github.js";
 
@@ -34,6 +35,7 @@ interface McpProps extends Record<string, unknown> {
   name?: string;
   avatarUrl?: string;
   githubUrl?: string;
+  githubAccessToken?: string;
   scopes?: string[];
 }
 
@@ -105,6 +107,15 @@ function renderDraft(draft: WorkspaceDraft): string {
     `Generated files: ${files.length ? files.join(", ") : "(none)"}`,
     `Updated: ${draft.updatedAt ?? "(unknown)"}`,
   ].join("\n");
+}
+
+function requireRepoWrite(props: McpProps): string {
+  if (!props?.userId) throw new Error("Not authenticated. Connect with GitHub OAuth first.");
+  if (!props.scopes?.includes("write")) throw new Error("This MCP token does not include the write scope.");
+  if (!props.githubAccessToken) {
+    throw new Error("This MCP session has no GitHub repo access token. Reconnect (sign in with GitHub again) to grant the public_repo scope.");
+  }
+  return props.githubAccessToken;
 }
 
 function requireWorkspaceWrite(env: Env, props: McpProps): string {
@@ -348,7 +359,14 @@ Current contract:
 
 Invite readiness:
 - ready for design partners who are comfortable with GitHub-backed repos and reviewable AI proposals
-- not ready for broad self-serve until authenticated repo creation, custom-domain automation, and write-scoped MCP tools are finished
+- update_files provides write-scoped MCP editing (PR proposals by default, direct commits on request) using the signed-in user's GitHub token
+- not ready for broad self-serve until authenticated repo creation and custom-domain automation are finished
+
+Editing flow (update_files):
+1. read_file / list_files to load current content.
+2. update_files with the changed Markdown. Default mode "pr" opens a reviewable pull request.
+3. Merge the PR (or use mode "direct" to commit straight to main).
+4. GitHub Actions rebuilds with Zensical and redeploys Cloudflare Pages automatically.
 
 Recommended first flow:
 1. User gives a topic/prompt.
@@ -530,6 +548,75 @@ Registry record:
 `);
       },
     );
+
+    this.server.tool(
+      "update_files",
+      "Update Markdown/source files in a KB repo as the signed-in GitHub user. Default mode 'pr' opens a reviewable pull request (the FreeDocStore proposal flow); mode 'direct' commits straight to the base branch. Merged/pushed changes deploy automatically via GitHub Actions.",
+      {
+        repo: z.string().describe("Repo as owner/name, registered KB id, or repo name under the FreeDocStore org"),
+        message: z.string().describe("Commit message describing the change"),
+        files: z.array(z.object({
+          path: z.string().describe("File path, e.g. docs/index.md"),
+          content: z.string().describe("Full new file content"),
+        })).min(1).describe("Files to create or replace"),
+        delete_paths: z.array(z.string()).optional().describe("File paths to delete"),
+        branch: z.string().optional().describe("Base branch, default main"),
+        mode: z.enum(["pr", "direct"]).optional().describe("'pr' (default) opens a pull request; 'direct' commits to the base branch"),
+        pr_title: z.string().optional().describe("Pull request title, defaults to the commit message"),
+        pr_body: z.string().optional().describe("Pull request body describing the proposal"),
+      },
+      async ({ repo, message, files, delete_paths, branch, mode, pr_title, pr_body }) => {
+        const token = requireRepoWrite(this.props);
+        let fullRepo = repoFromInput(this.env, repo);
+        try {
+          const registry = await readRegistry(this.env.REGISTRY_URL);
+          const kb = findKnowledgeBase(registry, repo);
+          if (kb) fullRepo = kb.source.repo;
+        } catch {
+          // registry unavailable; fall back to repo input as-is
+        }
+        const result = await updateRepoFiles({
+          token,
+          repoFullName: fullRepo,
+          message,
+          files,
+          deletePaths: delete_paths,
+          baseBranch: branch,
+          mode: mode ?? "pr",
+          prTitle: pr_title,
+          prBody: pr_body,
+        });
+        if (!result.ok) return txt(`Update failed for ${fullRepo}: ${result.error}`);
+        const changed = [
+          ...files.map((f) => `- ${f.path}`),
+          ...(delete_paths ?? []).map((p) => `- ${p} (deleted)`),
+        ].join("\n");
+        if (result.prUrl) {
+          return txt([
+            `Opened proposal PR #${result.prNumber} on ${fullRepo}.`,
+            "",
+            `PR: ${result.prUrl}`,
+            `Branch: ${result.branch}`,
+            `Commit: ${result.commitSha}`,
+            "",
+            "Files:",
+            changed,
+            "",
+            "Review the diff and merge the PR to publish. GitHub Actions deploys on merge.",
+          ].join("\n"));
+        }
+        return txt([
+          `Committed directly to ${result.branch} on ${fullRepo}.`,
+          "",
+          `Commit: ${result.commitUrl ?? result.commitSha}`,
+          "",
+          "Files:",
+          changed,
+          "",
+          "GitHub Actions will build and deploy this change.",
+        ].join("\n"));
+      },
+    );
   }
 }
 
@@ -550,7 +637,7 @@ export default {
           "- Cloudflare Pages project per KB",
           "- custom domains per KB",
           "",
-          "Tools: whoami, workspace_summary, list_workspace_drafts, create_workspace_draft, create_sample_knowledge_base, platform_guide, list_knowledge_bases, knowledge_base_info, check_zensical_repo, list_files, read_file, deploy_status, publish_plan",
+          "Tools: whoami, workspace_summary, list_workspace_drafts, create_workspace_draft, create_sample_knowledge_base, platform_guide, list_knowledge_bases, knowledge_base_info, check_zensical_repo, list_files, read_file, deploy_status, publish_plan, update_files",
           "",
           "Auth: OAuth 2.1 via GitHub sign-in when connected through mcp-remote or Claude.",
         ].join("\n"),

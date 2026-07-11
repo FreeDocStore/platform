@@ -50,6 +50,9 @@ claude mcp add --scope user --transport http freedocstore https://mcp.freedocsto
 | `read_file` | none | Read one source file from a public KB repo |
 | `deploy_status` | none | Last GitHub Actions runs for a KB repo |
 | `publish_plan` | none | Turn a prompt/topic into a repo, Zensical, Cloudflare, and domain plan |
+| `update_files` | GitHub OAuth + write | Edit KB repo files as the signed-in user. Opens a proposal PR by default; `mode: "direct"` commits straight to the base branch |
+
+`update_files` uses the signed-in user's GitHub token (the OAuth flow requests `public_repo`), so commits and PRs are authored by that user. Sessions created before this scope existed must reconnect to grant it.
 
 OAuth sign-in is GitHub-based and uses the same remote MCP flow as the other stores:
 
@@ -70,10 +73,9 @@ The GitHub OAuth callback URL is:
 https://mcp.freedocstore.online/callback
 ```
 
-Write tools come next after the signed-in account can be mapped to repo ownership:
+Remaining planned write tools:
 
 - `create_knowledge_base`
-- `update_files`
 - `register_custom_domain`
 - `publish_from_prompt`
 
