@@ -27,6 +27,7 @@ import { fds as app, useAuth, useSubscription, useTheme, type SecretStatus, type
 const DEFAULT_MODEL = 'gpt-4.1-mini'
 const DEFAULT_ENDPOINT = 'https://api.openai.com/v1/chat/completions'
 const FDS_MCP = 'https://mcp.freedocstore.online/mcp'
+const REGISTRY_URL = 'https://freedocstore.online/registry.json'
 const CONFIG_KEY = 'fds:config:v1'
 const KBS_KEY = 'fds:kbs:v1'
 const ACTIVE_KB_KEY = 'fds:active-kb:v1'
@@ -66,6 +67,13 @@ interface EditForm {
   branch: string
   path: string
   instruction: string
+}
+
+interface RegistryKb {
+  id: string
+  title: string
+  source: { repo: string; branch?: string }
+  cloudflare?: { production_url?: string }
 }
 
 interface RepoFile {
@@ -201,6 +209,21 @@ function toPublishForm(kb: KnowledgeBaseDraft): PublishForm {
   }
 }
 
+function livePageUrl(library: RegistryKb[], form: Pick<EditForm, 'repo' | 'path'>): string | null {
+  const kb = library.find((entry) => entry.source.repo.toLowerCase() === form.repo.trim().toLowerCase())
+  const base = kb?.cloudflare?.production_url
+  if (!base) return null
+  let rel = form.path.trim().replace(/^docs\//, '')
+  if (rel === 'index.md' || rel === '') rel = ''
+  else if (rel.endsWith('/index.md')) rel = rel.slice(0, -'index.md'.length)
+  else rel = rel.replace(/\.md$/, '/')
+  try {
+    return new URL(rel, base).toString()
+  } catch {
+    return null
+  }
+}
+
 function liveTargetFor(form: Pick<PublishForm, 'slug' | 'customDomain'>) {
   return form.customDomain ? `https://${form.customDomain}/` : `https://${form.slug}.pages.dev/`
 }
@@ -262,7 +285,8 @@ function EditorApp() {
   const [source, setSource] = useState('')
   const [proposal, setProposal] = useState<Proposal | null>(null)
   const [diff, setDiff] = useState('')
-  const [activePreview, setActivePreview] = useState<'files' | 'source' | 'proposal' | 'diff'>('files')
+  const [activePreview, setActivePreview] = useState<'files' | 'source' | 'proposal' | 'diff' | 'live'>('files')
+  const [library, setLibrary] = useState<RegistryKb[]>([])
   const [status, setStatus] = useState('Ready')
   const [busy, setBusy] = useState(false)
   const [installPrompt, setInstallPrompt] = useState<PwaInstallPrompt | null>(null)
@@ -275,6 +299,13 @@ function EditorApp() {
   const files = activeKb?.files ?? []
   const steps = activeKb?.steps ?? cloneSteps()
   const liveUrl = activeKb?.liveUrl ?? ''
+
+  useEffect(() => {
+    fetch(REGISTRY_URL)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { knowledge_bases?: RegistryKb[] } | null) => setLibrary(data?.knowledge_bases ?? []))
+      .catch(() => setLibrary([]))
+  }, [])
 
   useEffect(() => {
     const syncRoute = () => {
@@ -809,11 +840,12 @@ function EditorApp() {
           onLoad={loadSource}
           onAsk={askForEditProposal}
           proposal={proposal}
+          library={library}
         />
       </section>
       <section className="panel preview-panel">
-        <PreviewTabs active={activePreview} setActive={setActivePreview} hasProposal={!!proposal} />
-        <EditPreview active={activePreview} source={source} proposal={proposal} diff={diff} path={editForm.path} />
+        <PreviewTabs active={activePreview} setActive={setActivePreview} hasProposal={!!proposal} hasLive={!!livePageUrl(library, editForm)} />
+        <EditPreview active={activePreview} source={source} proposal={proposal} diff={diff} path={editForm.path} liveUrl={livePageUrl(library, editForm)} />
       </section>
     </div>
   ) : (
@@ -1573,6 +1605,7 @@ function EditPanel({
   onLoad,
   onAsk,
   proposal,
+  library,
 }: {
   form: EditForm
   setForm: (form: EditForm) => void
@@ -1580,9 +1613,11 @@ function EditPanel({
   onLoad: () => void
   onAsk: () => void
   proposal: Proposal | null
+  library: RegistryKb[]
 }) {
   const update = <K extends keyof EditForm>(key: K, value: EditForm[K]) => setForm({ ...form, [key]: value })
   const githubEdit = githubEditUrl(form)
+  const selectedKbId = library.find((kb) => kb.source.repo.toLowerCase() === form.repo.trim().toLowerCase())?.id ?? ''
   return (
     <div className="section-block">
       <div className="section-title">
@@ -1592,6 +1627,25 @@ function EditPanel({
           <p>AI drafts a full replacement. Manual edits stay in GitHub.</p>
         </div>
       </div>
+      {library.length > 0 && (
+        <label className="field">
+          <span>Library</span>
+          <select
+            value={selectedKbId}
+            onChange={(event) => {
+              const kb = library.find((entry) => entry.id === event.target.value)
+              if (kb) setForm({ ...form, repo: kb.source.repo, branch: kb.source.branch ?? 'main', path: 'docs/index.md' })
+            }}
+          >
+            <option value="">Pick a published knowledge base…</option>
+            {library.map((kb) => (
+              <option key={kb.id} value={kb.id}>
+                {kb.title}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
       <div className="field-grid two">
         <Field label="Repo" value={form.repo} onChange={(v) => update('repo', v)} placeholder="owner/repo" />
         <Field label="Branch" value={form.branch} onChange={(v) => update('branch', v)} />
@@ -1634,11 +1688,13 @@ function PreviewTabs({
   active,
   setActive,
   hasProposal,
+  hasLive = false,
   publish = false,
 }: {
-  active: 'files' | 'source' | 'proposal' | 'diff'
-  setActive: (tab: 'files' | 'source' | 'proposal' | 'diff') => void
+  active: 'files' | 'source' | 'proposal' | 'diff' | 'live'
+  setActive: (tab: 'files' | 'source' | 'proposal' | 'diff' | 'live') => void
   hasProposal: boolean
+  hasLive?: boolean
   publish?: boolean
 }) {
   if (publish) {
@@ -1660,6 +1716,9 @@ function PreviewTabs({
       </button>
       <button className={active === 'source' ? 'preview-tab active' : 'preview-tab'} type="button" onClick={() => setActive('source')}>
         Source
+      </button>
+      <button className={active === 'live' ? 'preview-tab active' : 'preview-tab'} type="button" onClick={() => setActive('live')} disabled={!hasLive}>
+        Live
       </button>
     </div>
   )
@@ -1768,13 +1827,35 @@ function EditPreview({
   proposal,
   diff,
   path,
+  liveUrl,
 }: {
-  active: 'files' | 'source' | 'proposal' | 'diff'
+  active: 'files' | 'source' | 'proposal' | 'diff' | 'live'
   source: string
   proposal: Proposal | null
   diff: string
   path: string
+  liveUrl: string | null
 }) {
+  if (active === 'live') {
+    return (
+      <div className="preview-body">
+        <div className="preview-summary">
+          <strong>{liveUrl ?? path}</strong>
+          <p>
+            Published page for this file.{' '}
+            {liveUrl ? (
+              <a href={liveUrl} target="_blank" rel="noreferrer">
+                Open in a new tab
+              </a>
+            ) : (
+              'Pick a knowledge base from the library to preview it.'
+            )}
+          </p>
+        </div>
+        {liveUrl && <iframe className="live-frame" src={liveUrl} title="Published page preview" />}
+      </div>
+    )
+  }
   const text = active === 'proposal' ? proposal?.content ?? '' : active === 'source' ? source : diff
   return (
     <div className="preview-body">
