@@ -792,6 +792,11 @@ function EditorApp() {
       onDelete={deleteActiveKb}
       onPublish={() => navigate('publish')}
       onEdit={() => navigate('edit')}
+      library={library}
+      onEditKb={(kb) => {
+        setEditForm({ ...editForm, repo: kb.source.repo, branch: kb.source.branch ?? 'main', path: 'docs/index.md' })
+        navigate('edit')
+      }}
     />
   ) : route === 'publish' ? (
     <div className="workspace-grid">
@@ -1056,6 +1061,8 @@ function DashboardPage({
   onDelete,
   onPublish,
   onEdit,
+  library,
+  onEditKb,
 }: {
   kbs: KnowledgeBaseDraft[]
   activeId: string
@@ -1065,6 +1072,8 @@ function DashboardPage({
   onDelete: () => void
   onPublish: () => void
   onEdit: () => void
+  library: RegistryKb[]
+  onEditKb: (kb: RegistryKb) => void
 }) {
   const published = kbs.filter((kb) => kb.liveUrl || kb.repoUrl).length
   return (
@@ -1102,6 +1111,37 @@ function DashboardPage({
               <PenLine size={17} />
               Edit existing docs
             </button>
+          </div>
+        </div>
+        <div className="section-block">
+          <div className="section-title">
+            <LibraryBig size={18} />
+            <div>
+              <h2>Published library</h2>
+              <p>Public knowledge bases in the FreeDocStore registry. Select one to edit it with AI.</p>
+            </div>
+          </div>
+          <div className="kb-list" aria-label="Published knowledge bases">
+            {library.map((kb) => (
+              <article className="kb-card" key={kb.id}>
+                <button className="kb-card-main" type="button" onClick={() => onEditKb(kb)}>
+                  <span className="kb-card-title">{kb.title}</span>
+                  <span className="kb-card-meta">{kb.source.repo}</span>
+                  <span className="kb-card-status">Published</span>
+                </button>
+                <div className="kb-card-links">
+                  {kb.cloudflare?.production_url && (
+                    <a href={kb.cloudflare.production_url} target="_blank" rel="noreferrer" aria-label={`${kb.title} live site`}>
+                      <Globe2 size={15} />
+                    </a>
+                  )}
+                  <a href={`https://github.com/${kb.source.repo}`} target="_blank" rel="noreferrer" aria-label={`${kb.title} GitHub repository`}>
+                    <Github size={15} />
+                  </a>
+                </div>
+              </article>
+            ))}
+            {library.length === 0 && <p className="kb-card-meta">Registry is loading or unavailable.</p>}
           </div>
         </div>
       </section>
