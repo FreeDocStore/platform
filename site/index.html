@@ -25,6 +25,7 @@
         <a href="#how">How it works</a>
         <a href="#agents">For agents</a>
         <a href="#mcp">MCP</a>
+        <a href="#free-vs-pro">Free vs Pro</a>
         <a href="https://console.freedocstore.online/">Console</a>
         <a href="hosting.html">Hosting</a>
         <a href="https://github.com/FreeDocStore/platform">GitHub</a>
@@ -97,6 +98,12 @@
 
       <div class="problem-grid">
         <div class="problem-card">
+          <span class="stat">Published</span>
+          <h3>FreeDocStore Platform Docs</h3>
+          <p>The platform's own documentation, published as a knowledge base through its own pipeline — architecture, publishing contract, API, MCP, console, and extension.</p>
+          <p><a href="https://freedocstore-docs.pages.dev/">Read the KB</a></p>
+        </div>
+        <div class="problem-card">
           <span class="stat">Draft 0.1</span>
           <h3>True Non-Profit</h3>
           <p>A first-principles body of knowledge about non-profits, what they should be, and how to assess their trueness.</p>
@@ -105,8 +112,8 @@
         <div class="problem-card">
           <span class="stat">Source</span>
           <h3>GitHub-backed Markdown</h3>
-          <p>The first KB lives in its own repository. Zensical builds it from Markdown, and Cloudflare hosts the generated site.</p>
-          <p><a href="https://github.com/FreeDocStore/true-non-profit">Open the repo</a></p>
+          <p>Every KB lives in its own repository. Zensical builds it from Markdown, and Cloudflare hosts the generated site.</p>
+          <p><a href="https://github.com/FreeDocStore/freedocstore-docs">Open the repo</a></p>
         </div>
       </div>
     </div>
@@ -291,7 +298,7 @@
       <div class="section-eyebrow">MCP</div>
       <h2 class="section-title">Agents can inspect and plan Zensical KB publishing.</h2>
       <p class="section-lede">
-        The FreeDocStore MCP server exposes the public registry, repo inspection, Zensical validation, deploy checks, and publish planning. Write tools will be added behind auth.
+        The FreeDocStore MCP server exposes the public registry, repo inspection, Zensical validation, deploy checks, and publish planning. Signed-in agents can also propose edits: <code>update_files</code> opens a reviewable PR (or commits directly) as the authenticated GitHub user.
       </p>
 
       <div class="problem-grid">
@@ -306,6 +313,34 @@
           <h3>Machine-readable connector</h3>
           <p>Agents can discover the MCP server from the platform's well-known metadata.</p>
           <p><a href=".well-known/mcp.json">Open MCP discovery</a></p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="free-vs-pro">
+    <div class="wrap">
+      <div class="section-eyebrow">Free vs Pro</div>
+      <h2 class="section-title">Public knowledge is free to publish. Private knowledge is a business.</h2>
+      <p class="section-lede">
+        The line is drawn by what the knowledge is, not by who publishes it. Non-profits, community projects, and
+        open product docs ride free — forever. Docs that must stay private belong in ProDocStore.
+      </p>
+
+      <div class="problem-grid">
+        <div class="problem-card">
+          <span class="stat">Free</span>
+          <h3>FreeDocStore — public knowledge</h3>
+          <p>Anyone can publish, including businesses. The KB repo is public, the content carries an open license,
+          and the published site is readable by everyone. Unlimited public KBs, hosting, AI-first editing with your
+          own OpenAI key, registry listing, and agent-readable metadata. No paywall, no eligibility forms.</p>
+        </div>
+        <div class="problem-card">
+          <span class="stat">Pro</span>
+          <h3>ProDocStore — private docs for business</h3>
+          <p>Internal handbooks, customer-only docs, staff knowledge bases. Private repos with access-controlled
+          hosting, SSO and per-KB roles, custom domains, platform-provided AI quotas, priority support, and
+          proprietary licensing — as a per-site subscription. In development.</p>
         </div>
       </div>
     </div>
@@ -340,6 +375,7 @@
             <li><a href="#how">How it works</a></li>
             <li><a href="#agents">For agents</a></li>
             <li><a href="#mcp">MCP</a></li>
+            <li><a href="#free-vs-pro">Free vs Pro</a></li>
             <li><a href="https://console.freedocstore.online/">Console</a></li>
             <li><a href="#install">Install</a></li>
           </ul>
