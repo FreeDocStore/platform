@@ -116,7 +116,7 @@ app.get("/auth/github/start", async (c) => {
   const url = new URL("https://github.com/login/oauth/authorize");
   url.searchParams.set("client_id", c.env.GITHUB_CLIENT_ID!);
   url.searchParams.set("redirect_uri", callback.toString());
-  url.searchParams.set("scope", "read:user");
+  url.searchParams.set("scope", "read:user public_repo");
   url.searchParams.set("state", state);
   url.searchParams.set("allow_signup", "true");
   return c.redirect(url.toString(), 302);
@@ -333,7 +333,12 @@ app.all("/api/proxy", async (c) => {
   if (contentType) headers.set("Content-Type", contentType);
 
   if (url.hostname === "api.github.com") {
-    headers.set("Authorization", `Bearer ${c.env.GITHUB_TOKEN || session.githubAccessToken || ""}`);
+    const isWrite = c.req.method !== "GET" && c.req.method !== "HEAD";
+    const token = isWrite ? session.githubAccessToken : session.githubAccessToken || c.env.GITHUB_TOKEN;
+    if (isWrite && !token) {
+      return c.json({ error: "GitHub writes go through your own account. Sign in with GitHub (granting repo access) and try again." }, 403);
+    }
+    headers.set("Authorization", `Bearer ${token || ""}`);
     headers.set("User-Agent", "freedocstore-api");
     headers.set("X-GitHub-Api-Version", c.req.header("X-GitHub-Api-Version") || "2022-11-28");
   } else if (url.hostname === "api.openai.com") {
