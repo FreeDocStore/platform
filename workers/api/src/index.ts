@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { getCookie, setCookie, deleteCookie } from "hono/cookie";
 import { HTTPException } from "hono/http-exception";
 import { publishKb, type PublishFile } from "./publish";
+import { commitFiles } from "./github";
 import { sealSecret, openSecret, type StoredSecret } from "./encryption";
 
 interface Env {
@@ -377,6 +378,41 @@ app.post("/api/publish", async (c) => {
     userToken: session.githubAccessToken,
     platformToken: c.env.GITHUB_TOKEN,
     org: c.env.GITHUB_ORG,
+  });
+  return c.json(result, result.ok ? 200 : 502);
+});
+
+app.post("/api/edit", async (c) => {
+  const session = requireSession(c);
+  if (!session.githubAccessToken) {
+    return c.json({ error: "Editing requires signing in with GitHub (repo access)." }, 403);
+  }
+  const body = await c.req.json<{
+    repo?: string;
+    path?: string;
+    content?: string;
+    message?: string;
+    mode?: string;
+    branch?: string;
+  }>();
+  const repo = (body.repo ?? "").trim();
+  const path = (body.path ?? "").trim();
+  const content = typeof body.content === "string" ? body.content : "";
+  const mode = body.mode === "direct" ? "direct" : "pr";
+  if (!/^[\w.-]+\/[\w.-]+$/.test(repo)) return c.json({ error: "repo must be owner/name" }, 400);
+  if (!path || path.startsWith("/") || path.split("/").includes("..")) return c.json({ error: `Invalid path: ${path}` }, 400);
+  if (!content.trim()) return c.json({ error: "content is required" }, 400);
+  if (content.length > 512 * 1024) return c.json({ error: "content too large" }, 400);
+  const message = (body.message ?? `Update ${path} via FreeDocStore`).slice(0, 120);
+  const result = await commitFiles({
+    token: session.githubAccessToken,
+    repoFullName: repo,
+    message,
+    files: [{ path, content }],
+    baseBranch: body.branch?.trim() || "main",
+    mode,
+    prTitle: message,
+    prBody: `Proposed through the FreeDocStore console by ${session.user.login}.`,
   });
   return c.json(result, result.ok ? 200 : 502);
 });

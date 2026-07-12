@@ -1,7 +1,9 @@
 import {
+  Check,
   Copy,
   Download,
   FileText,
+  GitPullRequest,
   Github,
   Loader2,
   Sparkles,
@@ -20,6 +22,7 @@ export function EditPanel({
   busy,
   onLoad,
   onAsk,
+  onApply,
   proposal,
   library,
 }: {
@@ -28,6 +31,7 @@ export function EditPanel({
   busy: boolean
   onLoad: () => void
   onAsk: () => void
+  onApply: (mode: 'pr' | 'direct') => void
   proposal: Proposal | null
   library: RegistryKb[]
 }) {
@@ -81,6 +85,19 @@ export function EditPanel({
           Ask AI
         </button>
       </div>
+      <div className="action-row">
+        <button className="primary-action" type="button" disabled={busy || !proposal} onClick={() => onApply('pr')}>
+          {busy ? <Loader2 className="spin" size={17} /> : <GitPullRequest size={17} />}
+          Propose as PR
+        </button>
+        <button className="secondary-action" type="button" disabled={busy || !proposal} onClick={() => onApply('direct')}>
+          <Check size={17} />
+          Commit to branch
+        </button>
+      </div>
+      <p className="edit-apply-hint">
+        Applying uses your GitHub sign-in. A PR is reviewable before it publishes; a direct commit deploys on the next build.
+      </p>
       <div className="action-row compact-actions">
         <a className="secondary-action as-link" href={githubEdit} target="_blank" rel="noreferrer">
           <Github size={17} />

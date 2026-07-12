@@ -996,6 +996,13 @@ h1 {
   background: color-mix(in srgb, var(--accent-2) 10%, var(--panel));
 }
 
+.edit-apply-hint {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
 .live-frame {
   width: 100%;
   min-height: 340px;

@@ -33,6 +33,15 @@ export interface PublishKbResult {
   steps: Array<{ id: 'repo' | 'files' | 'registry'; ok: boolean; detail: string }>
 }
 
+export interface EditResult {
+  ok: boolean
+  branch?: string
+  commitSha?: string
+  commitUrl?: string
+  prNumber?: number
+  prUrl?: string
+}
+
 const API_BASE = (import.meta.env.VITE_FDS_API_BASE as string | undefined) || 'https://api.freedocstore.online'
 const THEME_KEY = 'fds:theme:v1'
 
@@ -92,6 +101,20 @@ export const fds = {
     if (!data) throw new Error(`Publish failed: ${res.status}`)
     if ('error' in data && data.error) throw new Error(data.error)
     return data as PublishKbResult
+  },
+  async editFile(input: {
+    repo: string
+    path: string
+    content: string
+    message?: string
+    mode: 'pr' | 'direct'
+    branch?: string
+  }): Promise<EditResult> {
+    const res = await apiFetch('/api/edit', { method: 'POST', body: JSON.stringify(input) })
+    const data = (await res.json().catch(() => null)) as (EditResult & { error?: string }) | null
+    if (!data) throw new Error(`Edit failed: ${res.status}`)
+    if (data.error) throw new Error(data.error)
+    return data
   },
   secrets: {
     get(): Promise<SecretStatus> {

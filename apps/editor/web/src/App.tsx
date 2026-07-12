@@ -460,6 +460,33 @@ function EditorApp() {
     }
   }
 
+  async function applyProposal(mode: 'pr' | 'direct') {
+    if (!proposal) return
+    setBusy(true)
+    setStatus(mode === 'pr' ? 'Opening a pull request' : 'Committing to the base branch')
+    try {
+      validatePlatformAccess(user)
+      const result = await app.editFile({
+        repo: editForm.repo,
+        path: editForm.path,
+        content: proposal.content,
+        message: proposal.summary || `Update ${editForm.path} via FreeDocStore`,
+        mode,
+        branch: editForm.branch,
+      })
+      const link = result.prUrl || result.commitUrl
+      setSource(proposal.content)
+      setProposal(null)
+      setDiff(mode === 'pr' ? `Opened PR #${result.prNumber}. Merge it to publish.` : 'Committed to the base branch. GitHub Actions will redeploy.')
+      setStatus(result.prUrl ? `Opened PR #${result.prNumber}` : 'Committed to the base branch')
+      if (link) window.open(link, '_blank', 'noopener,noreferrer')
+    } catch (error) {
+      setStatus(messageOf(error))
+    } finally {
+      setBusy(false)
+    }
+  }
+
   const pageTitle = {
     dashboard: 'FreeDocStore Console',
     publish: 'Publish a knowledge base',
@@ -628,6 +655,7 @@ function EditorApp() {
           busy={busy}
           onLoad={loadSource}
           onAsk={askForEditProposal}
+          onApply={applyProposal}
           proposal={proposal}
           library={library}
         />
