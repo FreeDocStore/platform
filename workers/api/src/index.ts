@@ -11,8 +11,8 @@ interface Env {
   PUBLIC_BASE_URL: string;
   COOKIE_DOMAIN?: string;
   GITHUB_ORG: string;
-  GITHUB_CLIENT_ID?: string;
-  GITHUB_CLIENT_SECRET?: string;
+  GH_APP_CLIENT_ID?: string;
+  GH_APP_CLIENT_SECRET?: string;
   GITHUB_TOKEN?: string;
   GOOGLE_CLIENT_ID?: string;
   GOOGLE_CLIENT_SECRET?: string;
@@ -117,23 +117,23 @@ app.get("/api/me", (c) => {
 });
 
 app.get("/auth/github/start", async (c) => {
-  requireSecret(c.env.GITHUB_CLIENT_ID, "GITHUB_CLIENT_ID");
+  requireSecret(c.env.GH_APP_CLIENT_ID, "GH_APP_CLIENT_ID");
   const state = crypto.randomUUID();
   const next = safeNext(c.req.query("next"), c.env.EDITOR_BASE_URL);
   await c.env.FDS_API_KV.put(`${STATE_PREFIX}${state}`, JSON.stringify({ provider: "github", next }), { expirationTtl: STATE_TTL });
   const callback = new URL("/auth/github/callback", c.req.url);
+  // GitHub App user-to-server authorization: no `scope` — access comes from the
+  // App's fine-grained permissions and the repos the user grants at install time.
   const url = new URL("https://github.com/login/oauth/authorize");
-  url.searchParams.set("client_id", c.env.GITHUB_CLIENT_ID!);
+  url.searchParams.set("client_id", c.env.GH_APP_CLIENT_ID!);
   url.searchParams.set("redirect_uri", callback.toString());
-  url.searchParams.set("scope", "read:user public_repo workflow");
   url.searchParams.set("state", state);
-  url.searchParams.set("allow_signup", "true");
   return c.redirect(url.toString(), 302);
 });
 
 app.get("/auth/github/callback", async (c) => {
-  requireSecret(c.env.GITHUB_CLIENT_ID, "GITHUB_CLIENT_ID");
-  requireSecret(c.env.GITHUB_CLIENT_SECRET, "GITHUB_CLIENT_SECRET");
+  requireSecret(c.env.GH_APP_CLIENT_ID, "GH_APP_CLIENT_ID");
+  requireSecret(c.env.GH_APP_CLIENT_SECRET, "GH_APP_CLIENT_SECRET");
   const code = c.req.query("code");
   const state = c.req.query("state");
   if (!code || !state) return c.text("Missing OAuth code or state", 400);
@@ -145,8 +145,8 @@ app.get("/auth/github/callback", async (c) => {
     method: "POST",
     headers: { Accept: "application/json", "Content-Type": "application/json" },
     body: JSON.stringify({
-      client_id: c.env.GITHUB_CLIENT_ID,
-      client_secret: c.env.GITHUB_CLIENT_SECRET,
+      client_id: c.env.GH_APP_CLIENT_ID,
+      client_secret: c.env.GH_APP_CLIENT_SECRET,
       code,
       redirect_uri: new URL("/auth/github/callback", c.req.url).toString(),
     }),

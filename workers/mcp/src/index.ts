@@ -22,8 +22,8 @@ interface Env {
   MCP_OBJECT: DurableObjectNamespace;
   OAUTH_KV: KVNamespace;
   FDS_API_KV?: KVNamespace;
-  GITHUB_CLIENT_ID?: string;
-  GITHUB_CLIENT_SECRET?: string;
+  GH_APP_CLIENT_ID?: string;
+  GH_APP_CLIENT_SECRET?: string;
 }
 
 const txt = (text: string) => ({ content: [{ type: "text" as const, text }] });

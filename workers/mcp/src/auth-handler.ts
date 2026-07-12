@@ -3,8 +3,8 @@ import { Hono } from "hono";
 
 type Bindings = {
   OAUTH_KV: KVNamespace;
-  GITHUB_CLIENT_ID?: string;
-  GITHUB_CLIENT_SECRET?: string;
+  GH_APP_CLIENT_ID?: string;
+  GH_APP_CLIENT_SECRET?: string;
   OAUTH_PROVIDER: OAuthHelpers;
 };
 
@@ -27,7 +27,7 @@ app.get("/authorize", async (c) => {
     return c.text(message, 400);
   }
   if (!oauthReqInfo.clientId) return c.text("Invalid OAuth request", 400);
-  if (!c.env.GITHUB_CLIENT_ID) return c.text("GitHub OAuth is not configured", 503);
+  if (!c.env.GH_APP_CLIENT_ID) return c.text("GitHub App OAuth is not configured", 503);
 
   const nonce = crypto.randomUUID();
   await c.env.OAUTH_KV.put(`authreq:${nonce}`, JSON.stringify(oauthReqInfo), { expirationTtl: 600 });
@@ -35,12 +35,12 @@ app.get("/authorize", async (c) => {
   const callback = new URL("/callback", c.req.url);
   callback.searchParams.set("nonce", nonce);
 
+  // GitHub App user-to-server authorization: no `scope` — access is scoped by the
+  // App's fine-grained permissions and the repos the user grants at install time.
   const github = new URL("https://github.com/login/oauth/authorize");
-  github.searchParams.set("client_id", c.env.GITHUB_CLIENT_ID);
+  github.searchParams.set("client_id", c.env.GH_APP_CLIENT_ID);
   github.searchParams.set("redirect_uri", callback.toString());
-  github.searchParams.set("scope", "read:user public_repo workflow");
   github.searchParams.set("state", nonce);
-  github.searchParams.set("allow_signup", "true");
   return c.redirect(github.toString(), 302);
 });
 
@@ -49,7 +49,7 @@ app.get("/callback", async (c) => {
   const state = c.req.query("state");
   const code = c.req.query("code");
   if (!nonce || !state || nonce !== state || !code) return c.text("Invalid OAuth callback", 400);
-  if (!c.env.GITHUB_CLIENT_ID || !c.env.GITHUB_CLIENT_SECRET) return c.text("GitHub OAuth is not configured", 503);
+  if (!c.env.GH_APP_CLIENT_ID || !c.env.GH_APP_CLIENT_SECRET) return c.text("GitHub App OAuth is not configured", 503);
 
   const raw = await c.env.OAUTH_KV.get(`authreq:${nonce}`);
   if (!raw) return c.text("Expired OAuth request", 400);
@@ -63,8 +63,8 @@ app.get("/callback", async (c) => {
     method: "POST",
     headers: { Accept: "application/json", "Content-Type": "application/json" },
     body: JSON.stringify({
-      client_id: c.env.GITHUB_CLIENT_ID,
-      client_secret: c.env.GITHUB_CLIENT_SECRET,
+      client_id: c.env.GH_APP_CLIENT_ID,
+      client_secret: c.env.GH_APP_CLIENT_SECRET,
       code,
       redirect_uri: redirectUri.toString(),
     }),

@@ -21,15 +21,18 @@ inviting anyone other than the owner to publish.
 - **No private key / installation tokens / webhooks** in phase 1. We don't generate
   App JWTs or installation access tokens, so the App needs no private key and no
   webhook endpoint. (We can add these later for org automation.)
-- **Repo creation stays on the platform PAT** (`GITHUB_TOKEN`), already used for
-  registry writes. Creating repos in the FreeDocStore org is a platform-controlled
-  operation into a platform-owned org — keeping it on the PAT means the App never
-  needs org `Administration`, so the user grant stays as tight as possible. Only
-  the per-repo content writes move to the App user token.
+- **Edit path (the common case) needs only Contents + Pull requests + Workflows.**
+  Console Apply and MCP `update_files` commit/PR as the user's App token against the
+  installed repos — no admin permission needed.
+- **Creating a new KB repo needs `Repository → Administration: write`** in addition.
+  This is only exercised by the publish-new-KB flow (`/api/publish`), which creates
+  the repo with the user's App token. If that permission isn't granted, editing still
+  works; publishing a brand-new KB fails at the repo-create step with a clear GitHub
+  error, and you add the permission then. Registry writes still use the platform PAT.
 
-Net code change once the App exists: drop the `scope` param and point both workers
-at the App's `client_id`/`client_secret`; switch `publish.ts` repo creation from the
-user token to the platform PAT. Everything else (the commit/PR paths) is unchanged.
+Net code change (shipped 2026-07-12): drop the `scope` param and point both workers
+at the App's `client_id`/`client_secret` (`GH_APP_CLIENT_ID` / `GH_APP_CLIENT_SECRET`).
+The commit/PR/publish code paths are unchanged — they just carry an App user token now.
 
 ## What you register (one App, on the FreeDocStore org)
 
@@ -48,12 +51,13 @@ Create at: <https://github.com/organizations/FreeDocStore/settings/apps/new>
 
 **Repository permissions:**
 
-| Permission | Access |
-| --- | --- |
-| Contents | Read and write |
-| Pull requests | Read and write |
-| Workflows | Read and write |
-| Metadata | Read-only (mandatory, auto-selected) |
+| Permission | Access | Needed for |
+| --- | --- | --- |
+| Contents | Read and write | commits, file reads |
+| Pull requests | Read and write | `update_files` / Apply PRs |
+| Workflows | Read and write | pushing `.github/workflows/deploy.yml` |
+| Administration | Read and write | **creating new KB repos** (publish flow) — optional; add when you want console publish to work |
+| Metadata | Read-only (mandatory, auto-selected) | — |
 
 **Organization permissions:** none.
 
