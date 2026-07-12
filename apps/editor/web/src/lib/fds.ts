@@ -16,12 +16,14 @@ export interface Subscription {
 
 export type ThemePreference = 'light' | 'dark' | 'system'
 
-export interface SecretStatus {
-  openai: {
-    configured: boolean
-    label: string
-  }
+export type ByokProvider = 'openai' | 'anthropic'
+
+export interface ProviderKeyStatus {
+  configured: boolean
+  label: string
 }
+
+export type SecretStatus = Record<ByokProvider, ProviderKeyStatus>
 
 export interface PublishKbResult {
   ok: boolean
@@ -95,18 +97,16 @@ export const fds = {
     get(): Promise<SecretStatus> {
       return apiJson<SecretStatus>('/api/secrets')
     },
-    async setOpenAiKey(value: string): Promise<SecretStatus> {
-      const data = await apiJson<{ openai: SecretStatus['openai'] }>('/api/secrets/openai', {
+    async setKey(provider: ByokProvider, value: string): Promise<SecretStatus> {
+      return apiJson<SecretStatus>(`/api/secrets/${provider}`, {
         method: 'PUT',
         body: JSON.stringify({ value }),
       })
-      return { openai: data.openai }
     },
-    async clearOpenAiKey(): Promise<SecretStatus> {
-      const data = await apiJson<{ openai: SecretStatus['openai'] }>('/api/secrets/openai', {
+    async clearKey(provider: ByokProvider): Promise<SecretStatus> {
+      return apiJson<SecretStatus>(`/api/secrets/${provider}`, {
         method: 'DELETE',
       })
-      return { openai: data.openai }
     },
   },
 }

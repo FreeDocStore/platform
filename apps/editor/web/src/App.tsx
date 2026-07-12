@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { fds as app, useAuth, useSubscription, useTheme, type SecretStatus } from './lib/fds'
+import { fds as app, useAuth, useSubscription, useTheme, type ByokProvider, type SecretStatus } from './lib/fds'
 import {
   ACTIVE_KB_KEY,
+  AI_PROVIDERS,
   CONFIG_KEY,
   KBS_KEY,
   REGISTRY_URL,
@@ -32,7 +33,6 @@ import {
   nowIso,
   parseStoredJson,
   pathForRoute,
-  proxyTarget,
   pushRoute,
   resetSteps,
   routeFromLocation,
@@ -46,7 +46,7 @@ import {
   validatePlatformAccess,
   validatePublishForm,
 } from './model'
-import { generateEditProposal, generateKbFiles } from './services/openai'
+import { generateEditProposal, generateKbFiles, pingAi } from './services/ai'
 import { readGitHubFile } from './services/github'
 import { LoadingScreen, SignedOutLanding } from './components/signin'
 import { MobileTabBar, StoreHeader } from './components/header'
@@ -68,7 +68,7 @@ function EditorApp() {
   const [route, setRoute] = useState<AppRoute>(() => routeFromLocation())
   const [settings, setSettings] = useState<Settings>(emptySettings)
   const [secrets, setSecrets] = useState<SecretStatus>(emptySecrets)
-  const [openAiKeyInput, setOpenAiKeyInput] = useState('')
+  const [keyInputs, setKeyInputs] = useState<Record<ByokProvider, string>>({ openai: '', anthropic: '' })
   const [kbs, setKbs] = useState<KnowledgeBaseDraft[]>(() => [createKnowledgeBase(starterPublish)])
   const [platformLoaded, setPlatformLoaded] = useState(false)
   const [connections, setConnections] = useState<PlatformConnections>(initialConnections)
@@ -191,7 +191,7 @@ function EditorApp() {
     if (!user) {
       setPlatformLoaded(false)
       setSecrets(emptySecrets)
-      setOpenAiKeyInput('')
+      setKeyInputs({ openai: '', anthropic: '' })
       return
     }
     let cancelled = false
@@ -349,7 +349,7 @@ function EditorApp() {
       validatePublishForm(form)
       validatePlatformAccess(user)
       validateAi(settings)
-      validateByok(secrets)
+      validateByok(secrets, settings.provider)
       setKbSteps(kbId, updateStep('plan', 'ok', 'Zensical contract ready'))
       setKbSteps(kbId, updateStep('ai', 'busy', 'Asking AI for source files'))
       const nextFiles = await generateKbFiles(settings, form)
@@ -380,7 +380,7 @@ function EditorApp() {
         validatePublishForm(form)
         validatePlatformAccess(user)
         validateAi(settings)
-        validateByok(secrets)
+        validateByok(secrets, settings.provider)
         setKbSteps(kbId, resetSteps('plan', 'busy'))
         setKbSteps(kbId, updateStep('plan', 'ok', 'Zensical contract ready'))
         setKbSteps(kbId, updateStep('ai', 'busy', 'Asking AI for source files'))
@@ -445,7 +445,7 @@ function EditorApp() {
     try {
       validatePlatformAccess(user)
       validateAi(settings)
-      validateByok(secrets)
+      validateByok(secrets, settings.provider)
       const current = source || (await readGitHubFile(editForm.repo, editForm.path, editForm.branch))
       setSource(current)
       const next = await generateEditProposal(settings, editForm, current)
@@ -476,29 +476,30 @@ function EditorApp() {
   async function refreshSecrets() {
     const next = await app.secrets.get()
     setSecrets(next)
+    const hasKey = next[settings.provider]?.configured
     setConnections((current) => ({
       ...current,
-      openai: next.openai.configured ? current.openai : 'needs-setup',
-      detail: next.openai.configured
+      ai: hasKey ? current.ai : 'needs-setup',
+      detail: hasKey
         ? current.detail
-        : 'OpenAI generation uses your BYOK key. Save it once in your FreeDocStore account before prompting KBs.',
+        : `${AI_PROVIDERS[settings.provider].label} generation uses your BYOK key. Save it once in your FreeDocStore account before prompting KBs.`,
     }))
   }
 
-  async function saveOpenAiKey() {
-    const value = openAiKeyInput.trim()
+  async function saveKey(provider: ByokProvider) {
+    const value = keyInputs[provider].trim()
     if (!value) {
-      setStatus('Paste your OpenAI API key before saving.')
+      setStatus(`Paste your ${AI_PROVIDERS[provider].label} API key before saving.`)
       return
     }
     setBusy(true)
-    setStatus('Saving OpenAI BYOK key')
+    setStatus(`Saving ${AI_PROVIDERS[provider].label} BYOK key`)
     try {
-      const next = await app.secrets.setOpenAiKey(value)
+      const next = await app.secrets.setKey(provider, value)
       setSecrets(next)
-      setOpenAiKeyInput('')
-      setConnections((current) => ({ ...current, openai: 'unchecked', detail: 'OpenAI BYOK key saved. Check platform connections to verify it.' }))
-      setStatus('OpenAI BYOK key saved')
+      setKeyInputs((current) => ({ ...current, [provider]: '' }))
+      setConnections((current) => ({ ...current, ai: 'unchecked', detail: `${AI_PROVIDERS[provider].label} BYOK key saved. Check platform connections to verify it.` }))
+      setStatus(`${AI_PROVIDERS[provider].label} BYOK key saved`)
     } catch (error) {
       setStatus(messageOf(error))
     } finally {
@@ -506,14 +507,14 @@ function EditorApp() {
     }
   }
 
-  async function clearOpenAiKey() {
+  async function clearKey(provider: ByokProvider) {
     setBusy(true)
-    setStatus('Removing OpenAI BYOK key')
+    setStatus(`Removing ${AI_PROVIDERS[provider].label} BYOK key`)
     try {
-      const next = await app.secrets.clearOpenAiKey()
+      const next = await app.secrets.clearKey(provider)
       setSecrets(next)
-      setConnections((current) => ({ ...current, openai: 'needs-setup', detail: 'OpenAI BYOK key removed. Save a key before prompting KBs.' }))
-      setStatus('OpenAI BYOK key removed')
+      setConnections((current) => ({ ...current, ai: next[settings.provider]?.configured ? current.ai : 'needs-setup' }))
+      setStatus(`${AI_PROVIDERS[provider].label} BYOK key removed`)
     } catch (error) {
       setStatus(messageOf(error))
     } finally {
@@ -522,44 +523,32 @@ function EditorApp() {
   }
 
   async function checkConnections() {
-    setConnections({ ...initialConnections, github: 'checking', openai: secrets.openai.configured ? 'checking' : 'needs-setup' })
+    const provider = settings.provider
+    setConnections({ ...initialConnections, github: 'checking', ai: secrets[provider]?.configured ? 'checking' : 'needs-setup' })
     setStatus('Checking platform connections')
     try {
       validatePlatformAccess(user)
       const github = await app.proxy.fetch('api.github.com/user', { headers: githubHeaders() })
       let currentSecrets = secrets
-      if (!currentSecrets.openai.configured) {
+      if (!currentSecrets[provider]?.configured) {
         currentSecrets = await app.secrets.get()
         setSecrets(currentSecrets)
       }
-      const openai = currentSecrets.openai.configured
-        ? await app.proxy.fetch(proxyTarget(settings.openaiEndpoint), {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              model: settings.model,
-              response_format: { type: 'json_object' },
-              messages: [
-                { role: 'system', content: 'Return JSON only.' },
-                { role: 'user', content: '{"ok":true}' },
-              ],
-            }),
-          })
-        : null
-      const openaiError = openai && !openai.ok ? await openai.text() : ''
+      const label = AI_PROVIDERS[provider].label
+      const ai = currentSecrets[provider]?.configured ? await pingAi(settings) : null
       setConnections({
         github: github.ok ? 'ready' : 'needs-setup',
-        openai: openai?.ok ? 'ready' : 'needs-setup',
+        ai: ai?.ok ? 'ready' : 'needs-setup',
         cloudflare: 'ready',
-        detail: openai?.ok && github.ok
-          ? 'Connections are ready. GitHub uses platform OAuth/proxy and OpenAI uses your BYOK key.'
-          : currentSecrets.openai.configured
-            ? `GitHub ${github.status}; OpenAI ${openai?.status ?? 'not checked'}. ${openaiError || 'Check your OpenAI account/key.'}`
-            : `GitHub ${github.status}; OpenAI needs your BYOK key in Profile > Platform connections.`,
+        detail: ai?.ok && github.ok
+          ? `Connections are ready. GitHub uses platform OAuth/proxy and ${label} uses your BYOK key.`
+          : currentSecrets[provider]?.configured
+            ? `GitHub ${github.status}; ${label} check failed. ${ai?.error || 'Check your account/key.'}`
+            : `GitHub ${github.status}; ${label} needs your BYOK key in Profile > Platform connections.`,
       })
-      setStatus(github.ok && openai?.ok ? 'Platform connections ready' : 'Some platform connections need setup')
+      setStatus(github.ok && ai?.ok ? 'Platform connections ready' : 'Some platform connections need setup')
     } catch (error) {
-      setConnections({ github: 'error', openai: secrets.openai.configured ? 'error' : 'needs-setup', cloudflare: 'ready', detail: messageOf(error) })
+      setConnections({ github: 'error', ai: secrets[provider]?.configured ? 'error' : 'needs-setup', cloudflare: 'ready', detail: messageOf(error) })
       setStatus(messageOf(error))
     }
   }
@@ -653,10 +642,10 @@ function EditorApp() {
       settings={settings}
       setSettings={setSettings}
       secrets={secrets}
-      openAiKeyInput={openAiKeyInput}
-      setOpenAiKeyInput={setOpenAiKeyInput}
-      onSaveOpenAiKey={saveOpenAiKey}
-      onClearOpenAiKey={clearOpenAiKey}
+      keyInputs={keyInputs}
+      setKeyInput={(provider, value) => setKeyInputs((current) => ({ ...current, [provider]: value }))}
+      onSaveKey={saveKey}
+      onClearKey={clearKey}
       connections={connections}
       onCheck={checkConnections}
       kbs={kbs}

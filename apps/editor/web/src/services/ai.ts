@@ -1,5 +1,6 @@
 import { fds as app } from '../lib/fds'
 import {
+  AI_PROVIDERS,
   type EditForm,
   type Proposal,
   type PublishForm,
@@ -40,7 +41,7 @@ export async function generateKbFiles(settings: Settings, form: PublishForm): Pr
     'Knowledge-base prompt:',
     form.prompt,
   ].join('\n')
-  const json = await callOpenAi(settings, system, user)
+  const json = await callAi(settings, system, user)
   const parsed = parseJson(json) as { files?: RepoFile[] }
   const aiFiles = Array.isArray(parsed.files) ? parsed.files : []
   const normalized = aiFiles
@@ -60,18 +61,43 @@ export async function generateEditProposal(settings: Settings, form: EditForm, c
     'Return only JSON: {"summary":"...","rationale":"...","content":"..."}',
   ].join(' ')
   const user = [`Path: ${form.path}`, '', 'Current source:', '```', current, '```', '', 'Request:', form.instruction].join('\n')
-  const json = await callOpenAi(settings, system, user)
+  const json = await callAi(settings, system, user)
   const parsed = parseJson(json) as Proposal
   if (!parsed.content?.trim()) throw new Error('AI response did not include replacement content.')
   return parsed
 }
 
-export async function callOpenAi(settings: Settings, system: string, user: string): Promise<string> {
-  const res = await app.proxy.fetch(proxyTarget(settings.openaiEndpoint), {
+export async function pingAi(settings: Settings): Promise<{ ok: boolean; error: string }> {
+  try {
+    await callAi(settings, 'Return only JSON.', '{"ok":true}')
+    return { ok: true, error: '' }
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : String(error) }
+  }
+}
+
+export async function callAi(settings: Settings, system: string, user: string): Promise<string> {
+  const spec = AI_PROVIDERS[settings.provider]
+  if (settings.provider === 'anthropic') {
+    const res = await app.proxy.fetch(proxyTarget(spec.endpoint), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: settings.model,
+        max_tokens: 8192,
+        system: `${system} Output only the raw JSON object with no surrounding prose or markdown fences.`,
+        messages: [{ role: 'user', content: user }],
+      }),
+    })
+    if (!res.ok) throw new Error(`Anthropic request failed: ${res.status} ${await res.text()}`)
+    const data = await res.json()
+    const text = data?.content?.[0]?.text
+    if (typeof text !== 'string') throw new Error('Anthropic returned no content.')
+    return text
+  }
+  const res = await app.proxy.fetch(proxyTarget(spec.endpoint), {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       model: settings.model,
       response_format: { type: 'json_object' },

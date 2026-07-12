@@ -1,7 +1,34 @@
 import type { SecretStatus, User } from './lib/fds'
 
-export const DEFAULT_MODEL = 'gpt-4.1-mini'
-export const DEFAULT_ENDPOINT = 'https://api.openai.com/v1/chat/completions'
+export type AiProvider = 'openai' | 'anthropic'
+
+export interface AiProviderSpec {
+  label: string
+  endpoint: string
+  defaultModel: string
+  keyPrefix: string
+  keysUrl: string
+}
+
+export const AI_PROVIDERS: Record<AiProvider, AiProviderSpec> = {
+  openai: {
+    label: 'OpenAI',
+    endpoint: 'https://api.openai.com/v1/chat/completions',
+    defaultModel: 'gpt-4.1-mini',
+    keyPrefix: 'sk-',
+    keysUrl: 'https://platform.openai.com/api-keys',
+  },
+  anthropic: {
+    label: 'Anthropic',
+    endpoint: 'https://api.anthropic.com/v1/messages',
+    defaultModel: 'claude-sonnet-4-6',
+    keyPrefix: 'sk-ant-',
+    keysUrl: 'https://console.anthropic.com/settings/keys',
+  },
+}
+
+export const AI_PROVIDER_IDS = Object.keys(AI_PROVIDERS) as AiProvider[]
+
 export const FDS_MCP = 'https://mcp.freedocstore.online/mcp'
 export const REGISTRY_URL = 'https://freedocstore.online/registry.json'
 export const CONFIG_KEY = 'fds:config:v1'
@@ -18,13 +45,13 @@ export type PwaInstallPrompt = Event & {
 }
 
 export interface Settings {
-  openaiEndpoint: string
+  provider: AiProvider
   model: string
 }
 
 export interface PlatformConnections {
   github: ConnectionState
-  openai: ConnectionState
+  ai: ConnectionState
   cloudflare: ConnectionState
   detail: string
 }
@@ -82,22 +109,20 @@ export interface KnowledgeBaseDraft extends PublishForm {
 }
 
 export const emptySettings: Settings = {
-  openaiEndpoint: DEFAULT_ENDPOINT,
-  model: DEFAULT_MODEL,
+  provider: 'openai',
+  model: AI_PROVIDERS.openai.defaultModel,
 }
 
 export const emptySecrets: SecretStatus = {
-  openai: {
-    configured: false,
-    label: '',
-  },
+  openai: { configured: false, label: '' },
+  anthropic: { configured: false, label: '' },
 }
 
 export const initialConnections: PlatformConnections = {
   github: 'unchecked',
-  openai: 'needs-setup',
+  ai: 'needs-setup',
   cloudflare: 'ready',
-  detail: 'Save your OpenAI BYOK key once in your FreeDocStore account. Cloudflare deploy credentials live in platform/org secrets.',
+  detail: 'Save your OpenAI or Anthropic BYOK key once in your FreeDocStore account. Cloudflare deploy credentials live in platform/org secrets.',
 }
 
 export const starterPublish: PublishForm = {
@@ -151,12 +176,9 @@ export function createKnowledgeBase(form: PublishForm): KnowledgeBaseDraft {
 }
 
 export function normalizeSettings(value: Partial<Settings> | null | undefined): Settings {
-  return {
-    openaiEndpoint: typeof value?.openaiEndpoint === 'string' && value.openaiEndpoint.trim()
-      ? value.openaiEndpoint
-      : DEFAULT_ENDPOINT,
-    model: typeof value?.model === 'string' && value.model.trim() ? value.model : DEFAULT_MODEL,
-  }
+  const provider: AiProvider = value?.provider && value.provider in AI_PROVIDERS ? value.provider : 'openai'
+  const model = typeof value?.model === 'string' && value.model.trim() ? value.model : AI_PROVIDERS[provider].defaultModel
+  return { provider, model }
 }
 
 export function normalizeKnowledgeBase(value: Partial<KnowledgeBaseDraft> & PublishForm): KnowledgeBaseDraft {
@@ -409,12 +431,14 @@ export function validatePublishForm(form: PublishForm) {
 }
 
 export function validateAi(settings: Settings) {
-  if (!settings.openaiEndpoint.trim()) throw new Error('OpenAI endpoint is required.')
+  if (!(settings.provider in AI_PROVIDERS)) throw new Error('Choose an AI provider.')
   if (!settings.model.trim()) throw new Error('Model is required.')
 }
 
-export function validateByok(secrets: SecretStatus) {
-  if (!secrets.openai.configured) throw new Error('Save your OpenAI BYOK key in Profile > Platform connections before using AI generation.')
+export function validateByok(secrets: SecretStatus, provider: AiProvider) {
+  if (!secrets[provider]?.configured) {
+    throw new Error(`Save your ${AI_PROVIDERS[provider].label} BYOK key in Profile > Platform connections before using AI generation.`)
+  }
 }
 
 export function validatePlatformAccess(user: unknown) {

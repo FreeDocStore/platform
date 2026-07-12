@@ -1,21 +1,24 @@
-import { UserCircle, Wifi } from 'lucide-react'
-import { type SecretStatus, type Subscription, type User } from '../lib/fds'
+import { KeyRound, UserCircle, Wifi } from 'lucide-react'
+import { type ByokProvider, type SecretStatus, type Subscription, type User } from '../lib/fds'
 import {
+  AI_PROVIDERS,
+  AI_PROVIDER_IDS,
   type KnowledgeBaseDraft,
   type PlatformConnections,
   type Settings,
   displayName,
 } from '../model'
 import { SettingsPanel } from './settings'
+import { Field } from './ui'
 
 export function ProfilePage({
   settings,
   setSettings,
   secrets,
-  openAiKeyInput,
-  setOpenAiKeyInput,
-  onSaveOpenAiKey,
-  onClearOpenAiKey,
+  keyInputs,
+  setKeyInput,
+  onSaveKey,
+  onClearKey,
   connections,
   onCheck,
   kbs,
@@ -38,10 +41,10 @@ export function ProfilePage({
   settings: Settings
   setSettings: (settings: Settings) => void
   secrets: SecretStatus
-  openAiKeyInput: string
-  setOpenAiKeyInput: (value: string) => void
-  onSaveOpenAiKey: () => void
-  onClearOpenAiKey: () => void
+  keyInputs: Record<ByokProvider, string>
+  setKeyInput: (provider: ByokProvider, value: string) => void
+  onSaveKey: (provider: ByokProvider) => void
+  onClearKey: (provider: ByokProvider) => void
   connections: PlatformConnections
   onCheck: () => void
   kbs: KnowledgeBaseDraft[]
@@ -161,15 +164,83 @@ export function ProfilePage({
           settings={settings}
           setSettings={setSettings}
           secrets={secrets}
-          openAiKeyInput={openAiKeyInput}
-          setOpenAiKeyInput={setOpenAiKeyInput}
-          onSaveOpenAiKey={onSaveOpenAiKey}
-          onClearOpenAiKey={onClearOpenAiKey}
           connections={connections}
           onCheck={onCheck}
-          manageKeys
+        />
+        <ApiKeysPanel
+          secrets={secrets}
+          keyInputs={keyInputs}
+          setKeyInput={setKeyInput}
+          onSaveKey={onSaveKey}
+          onClearKey={onClearKey}
         />
       </section>
+    </div>
+  )
+}
+
+function ApiKeysPanel({
+  secrets,
+  keyInputs,
+  setKeyInput,
+  onSaveKey,
+  onClearKey,
+}: {
+  secrets: SecretStatus
+  keyInputs: Record<ByokProvider, string>
+  setKeyInput: (provider: ByokProvider, value: string) => void
+  onSaveKey: (provider: ByokProvider) => void
+  onClearKey: (provider: ByokProvider) => void
+}) {
+  return (
+    <div className="section-block">
+      <div className="section-title">
+        <KeyRound size={18} />
+        <div>
+          <h2>API keys</h2>
+          <p>Bring your own key. Stored encrypted, used server-side, never exposed to the browser.</p>
+        </div>
+      </div>
+      {AI_PROVIDER_IDS.map((provider) => {
+        const spec = AI_PROVIDERS[provider]
+        const status = secrets[provider]?.configured ? `Saved as ${secrets[provider].label}` : 'No key saved'
+        return (
+          <div className="byok-provider" key={provider}>
+            <div className="byok-strip">
+              <div>
+                <span>{spec.label} API key</span>
+                <strong>{status}</strong>
+                <p>
+                  Get one at <a href={spec.keysUrl} target="_blank" rel="noreferrer">{new URL(spec.keysUrl).host}</a>.
+                </p>
+              </div>
+              {secrets[provider]?.configured && (
+                <button className="secondary-action danger-action" type="button" onClick={() => onClearKey(provider)}>
+                  Remove
+                </button>
+              )}
+            </div>
+            <div className="action-row compact-actions">
+              <Field
+                label={`${spec.label} key`}
+                value={keyInputs[provider]}
+                onChange={(v) => setKeyInput(provider, v)}
+                placeholder={`${spec.keyPrefix}...`}
+                secret
+              />
+              <button
+                className="primary-action"
+                type="button"
+                onClick={() => onSaveKey(provider)}
+                disabled={!keyInputs[provider].trim()}
+              >
+                <KeyRound size={17} />
+                Save
+              </button>
+            </div>
+          </div>
+        )
+      })}
     </div>
   )
 }

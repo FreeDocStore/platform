@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { getCookie, setCookie, deleteCookie } from "hono/cookie";
 import { HTTPException } from "hono/http-exception";
 import { publishKb, type PublishFile } from "./publish";
+import { sealSecret, openSecret, type StoredSecret } from "./encryption";
 
 interface Env {
   FDS_API_KV: KVNamespace;
@@ -51,14 +52,6 @@ interface Session {
   updatedAt: string;
 }
 
-interface StoredSecret {
-  v: number;
-  alg: "AES-GCM";
-  iv: string;
-  ciphertext: string;
-  label: string;
-}
-
 type Variables = {
   session: Session | null;
 };
@@ -69,10 +62,24 @@ const SESSION_PREFIX = "session:";
 const USER_SESSION_PREFIX = "user_session:";
 const USER_KV_PREFIX = "user_kv:";
 const USER_SECRET_PREFIX = "user_secret:";
-const OPENAI_SECRET_KEY = "openai_api_key";
-const SECRET_ENVELOPE_VERSION = 1;
 const SESSION_TTL = 60 * 60 * 24 * 30;
 const STATE_TTL = 60 * 10;
+
+interface ByokProvider {
+  /** Third-party API host the proxy injects this key for. */
+  host: string;
+  /** Accepted key format. */
+  prefix: RegExp;
+}
+
+const BYOK_PROVIDERS: Record<string, ByokProvider> = {
+  openai: { host: "api.openai.com", prefix: /^sk-[A-Za-z0-9_-]{12,}$/ },
+  anthropic: { host: "api.anthropic.com", prefix: /^sk-ant-[A-Za-z0-9_-]{12,}$/ },
+};
+
+const PROXY_HOST_PROVIDER: Record<string, string> = Object.fromEntries(
+  Object.entries(BYOK_PROVIDERS).map(([id, p]) => [p.host, id]),
+);
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -255,7 +262,7 @@ app.delete("/api/account", async (c) => {
   await c.env.FDS_API_KV.delete(`${USER_KV_PREFIX}${session.user.id}:fds:config:v1`);
   await c.env.FDS_API_KV.delete(`${USER_KV_PREFIX}${session.user.id}:fds:kbs:v1`);
   await c.env.FDS_API_KV.delete(`${USER_KV_PREFIX}${session.user.id}:fds:active-kb:v1`);
-  await c.env.FDS_API_KV.delete(userSecretKey(session, OPENAI_SECRET_KEY));
+  await Promise.all(Object.keys(BYOK_PROVIDERS).map((provider) => c.env.FDS_API_KV.delete(userSecretKey(session, provider))));
   await c.env.FDS_API_KV.delete(`${SESSION_PREFIX}${session.id}`);
   await c.env.FDS_API_KV.delete(`${USER_SESSION_PREFIX}${session.user.id}`);
   clearSessionCookie(c);
@@ -292,34 +299,40 @@ app.delete("/api/kv/*", async (c) => {
   return c.json({ ok: true });
 });
 
+async function secretsStatus(env: Env, session: Session): Promise<Record<string, { configured: boolean; label: string }>> {
+  const entries = await Promise.all(
+    Object.keys(BYOK_PROVIDERS).map(async (provider) => {
+      const stored = await readStoredSecret(env, session, provider);
+      return [provider, stored ? { configured: true, label: stored.label } : { configured: false, label: "" }] as const;
+    }),
+  );
+  return Object.fromEntries(entries);
+}
+
 app.get("/api/secrets", async (c) => {
   const session = requireSession(c);
-  const openaiSecret = await readStoredSecret(c.env, session, OPENAI_SECRET_KEY);
-  return c.json({
-    openai: openaiSecret
-      ? { configured: true, label: openaiSecret.label }
-      : { configured: false, label: "" },
-  });
+  return c.json(await secretsStatus(c.env, session));
 });
 
-app.put("/api/secrets/openai", async (c) => {
+app.put("/api/secrets/:provider", async (c) => {
   const session = requireSession(c);
+  const provider = c.req.param("provider");
+  const spec = BYOK_PROVIDERS[provider];
+  if (!spec) return c.json({ error: `Unknown provider: ${provider}` }, 400);
   const body: { value?: unknown } = await c.req.json<{ value?: unknown }>().catch(() => ({}));
   const value = typeof body.value === "string" ? body.value.trim() : "";
-  if (!value) return c.json({ error: "OpenAI API key is required" }, 400);
-  if (!/^sk-[A-Za-z0-9_-]{12,}$/.test(value)) return c.json({ error: "OpenAI API key format is not valid" }, 400);
-  const encrypted = await encryptSecret(c.env, value);
-  await c.env.FDS_API_KV.put(userSecretKey(session, OPENAI_SECRET_KEY), JSON.stringify({
-    ...encrypted,
-    label: redactSecret(value),
-  }));
-  return c.json({ ok: true, openai: { configured: true, label: redactSecret(value) } });
+  if (!value) return c.json({ error: `${provider} API key is required` }, 400);
+  if (!spec.prefix.test(value)) return c.json({ error: `${provider} API key format is not valid` }, 400);
+  await storeSecret(c.env, session, provider, value);
+  return c.json({ ok: true, ...(await secretsStatus(c.env, session)) });
 });
 
-app.delete("/api/secrets/openai", async (c) => {
+app.delete("/api/secrets/:provider", async (c) => {
   const session = requireSession(c);
-  await c.env.FDS_API_KV.delete(userSecretKey(session, OPENAI_SECRET_KEY));
-  return c.json({ ok: true, openai: { configured: false, label: "" } });
+  const provider = c.req.param("provider");
+  if (!BYOK_PROVIDERS[provider]) return c.json({ error: `Unknown provider: ${provider}` }, 400);
+  await c.env.FDS_API_KV.delete(userSecretKey(session, provider));
+  return c.json({ ok: true, ...(await secretsStatus(c.env, session)) });
 });
 
 app.post("/api/publish", async (c) => {
@@ -379,6 +392,7 @@ app.all("/api/proxy", async (c) => {
   if (accept) headers.set("Accept", accept);
   if (contentType) headers.set("Content-Type", contentType);
 
+  const provider = PROXY_HOST_PROVIDER[url.hostname];
   if (url.hostname === "api.github.com") {
     const isWrite = c.req.method !== "GET" && c.req.method !== "HEAD";
     const token = isWrite ? session.githubAccessToken : session.githubAccessToken || c.env.GITHUB_TOKEN;
@@ -388,11 +402,16 @@ app.all("/api/proxy", async (c) => {
     headers.set("Authorization", `Bearer ${token || ""}`);
     headers.set("User-Agent", "freedocstore-api");
     headers.set("X-GitHub-Api-Version", c.req.header("X-GitHub-Api-Version") || "2022-11-28");
-  } else if (url.hostname === "api.openai.com") {
-    const openaiSecret = await readStoredSecret(c.env, session, OPENAI_SECRET_KEY);
-    if (!openaiSecret) return c.json({ error: "OpenAI BYOK key is not configured. Add your OpenAI key in Profile > Platform connections." }, 400);
-    const openaiKey = await decryptSecret(c.env, openaiSecret);
-    headers.set("Authorization", `Bearer ${openaiKey}`);
+  } else if (provider) {
+    const stored = await readStoredSecret(c.env, session, provider);
+    if (!stored) return c.json({ error: `${provider} BYOK key is not configured. Add your ${provider} key in Profile > Platform connections.` }, 400);
+    const key = await decryptSecret(c.env, stored);
+    if (provider === "anthropic") {
+      headers.set("x-api-key", key);
+      headers.set("anthropic-version", c.req.header("anthropic-version") || "2023-06-01");
+    } else {
+      headers.set("Authorization", `Bearer ${key}`);
+    }
   } else {
     return c.json({ error: "Proxy target is not allowed" }, 403);
   }
@@ -533,88 +552,31 @@ function redactSecret(value: string) {
   return `${value.slice(0, 7)}...${value.slice(-4)}`;
 }
 
-async function readStoredSecret(env: Env, session: Session, key: string): Promise<StoredSecret | null> {
-  const raw = await env.FDS_API_KV.get(userSecretKey(session, key));
+async function readStoredSecret(env: Env, session: Session, provider: string): Promise<StoredSecret | null> {
+  const raw = await env.FDS_API_KV.get(userSecretKey(session, provider));
   if (!raw) return null;
   try {
     const parsed = JSON.parse(raw) as Partial<StoredSecret>;
-    if (parsed.v === SECRET_ENVELOPE_VERSION && parsed.alg === "AES-GCM" && parsed.iv && parsed.ciphertext) {
-      return {
-        v: SECRET_ENVELOPE_VERSION,
-        alg: "AES-GCM",
-        iv: parsed.iv,
-        ciphertext: parsed.ciphertext,
-        label: parsed.label || "configured",
-      };
+    if (parsed.v === 2 && parsed.keyCiphertext && parsed.dekWrapped && parsed.iv) {
+      return { v: 2, keyCiphertext: parsed.keyCiphertext, dekWrapped: parsed.dekWrapped, iv: parsed.iv, label: parsed.label || "configured" };
     }
   } catch {
-    // Legacy raw values are handled below so old dev data can still be used once.
+    // Pre-vault-v2 values cannot be read; the user re-enters the key once.
   }
-  return {
-    v: 0,
-    alg: "AES-GCM",
-    iv: "",
-    ciphertext: raw,
-    label: redactSecret(raw),
-  };
+  return null;
 }
 
-async function encryptSecret(env: Env, value: string): Promise<Omit<StoredSecret, "label">> {
-  const key = await importVaultKey(env);
-  const iv = crypto.getRandomValues(new Uint8Array(12));
-  const encoded = new TextEncoder().encode(value);
-  const ciphertext = await crypto.subtle.encrypt({ name: "AES-GCM", iv: toArrayBuffer(iv) }, key, toArrayBuffer(encoded));
-  return {
-    v: SECRET_ENVELOPE_VERSION,
-    alg: "AES-GCM",
-    iv: bytesToBase64(iv),
-    ciphertext: bytesToBase64(new Uint8Array(ciphertext)),
-  };
+async function storeSecret(env: Env, session: Session, provider: string, value: string): Promise<string> {
+  requireSecret(env.FDS_KEY_ENCRYPTION_KEY, "FDS_KEY_ENCRYPTION_KEY");
+  const sealed = await sealSecret(value, env.FDS_KEY_ENCRYPTION_KEY!);
+  const label = redactSecret(value);
+  await env.FDS_API_KV.put(userSecretKey(session, provider), JSON.stringify({ ...sealed, label }));
+  return label;
 }
 
 async function decryptSecret(env: Env, secret: StoredSecret): Promise<string> {
-  if (secret.v === 0) return secret.ciphertext;
-  const key = await importVaultKey(env);
-  const plaintext = await crypto.subtle.decrypt(
-    { name: "AES-GCM", iv: toArrayBuffer(base64ToBytes(secret.iv)) },
-    key,
-    toArrayBuffer(base64ToBytes(secret.ciphertext)),
-  );
-  return new TextDecoder().decode(plaintext);
-}
-
-async function importVaultKey(env: Env): Promise<CryptoKey> {
   requireSecret(env.FDS_KEY_ENCRYPTION_KEY, "FDS_KEY_ENCRYPTION_KEY");
-  const raw = decodeKeyMaterial(env.FDS_KEY_ENCRYPTION_KEY!);
-  if (![16, 24, 32].includes(raw.byteLength)) throwJson(500, "FDS_KEY_ENCRYPTION_KEY must decode to 16, 24, or 32 bytes");
-  return crypto.subtle.importKey("raw", toArrayBuffer(raw), "AES-GCM", false, ["encrypt", "decrypt"]);
-}
-
-function decodeKeyMaterial(value: string): Uint8Array {
-  const trimmed = value.trim();
-  if (/^[A-Fa-f0-9]{32}$|^[A-Fa-f0-9]{48}$|^[A-Fa-f0-9]{64}$/.test(trimmed)) {
-    const bytes = new Uint8Array(trimmed.length / 2);
-    for (let i = 0; i < trimmed.length; i += 2) bytes[i / 2] = Number.parseInt(trimmed.slice(i, i + 2), 16);
-    return bytes;
-  }
-  return base64ToBytes(trimmed);
-}
-
-function bytesToBase64(bytes: Uint8Array): string {
-  let binary = "";
-  for (const byte of bytes) binary += String.fromCharCode(byte);
-  return btoa(binary);
-}
-
-function base64ToBytes(value: string): Uint8Array {
-  const binary = atob(value);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-  return bytes;
-}
-
-function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
-  return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
+  return openSecret(secret, env.FDS_KEY_ENCRYPTION_KEY!);
 }
 
 function normalizeProxyTarget(target: string): URL {
