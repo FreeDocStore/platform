@@ -23,6 +23,7 @@ export function EditPanel({
   onLoad,
   onAsk,
   onApply,
+  onSelectLibrary,
   proposal,
   library,
 }: {
@@ -32,6 +33,7 @@ export function EditPanel({
   onLoad: () => void
   onAsk: () => void
   onApply: (mode: 'pr' | 'direct') => void
+  onSelectLibrary: (kb: RegistryKb) => void
   proposal: Proposal | null
   library: RegistryKb[]
 }) {
@@ -54,7 +56,7 @@ export function EditPanel({
             value={selectedKbId}
             onChange={(event) => {
               const kb = library.find((entry) => entry.id === event.target.value)
-              if (kb) setForm({ ...form, repo: kb.source.repo, branch: kb.source.branch ?? 'main', path: 'docs/index.md' })
+              if (kb) onSelectLibrary(kb)
             }}
           >
             <option value="">Pick a published knowledge base…</option>

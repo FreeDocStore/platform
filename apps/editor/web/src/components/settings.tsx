@@ -30,7 +30,7 @@ export function SettingsPanel({
   const connectedCount = [connections.github, connections.ai, connections.cloudflare].filter((state) => state === 'ready').length
   const keyStatus = secrets[settings.provider]?.configured ? `${providerSpec.label} key saved` : `No ${providerSpec.label} key saved`
   return (
-    <details className="section-block settings-details" open={!compact || connectedCount < 3}>
+    <details className="section-block settings-details" open={!compact}>
       <summary>
         <span className="summary-title">
           <KeyRound size={18} />

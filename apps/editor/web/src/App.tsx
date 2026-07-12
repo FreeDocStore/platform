@@ -421,12 +421,13 @@ function EditorApp() {
     }
   }
 
-  async function loadSource() {
+  async function loadSource(formOverride?: EditForm) {
+    const form = formOverride ?? editForm
     setBusy(true)
     setStatus('Loading source')
     try {
       validatePlatformAccess(user)
-      const content = await readGitHubFile(editForm.repo, editForm.path, editForm.branch)
+      const content = await readGitHubFile(form.repo, form.path, form.branch)
       setSource(content)
       setProposal(null)
       setDiff('Source loaded. Ask AI for a proposal.')
@@ -605,8 +606,10 @@ function EditorApp() {
       onEdit={() => navigate('edit')}
       library={library}
       onEditKb={(kb) => {
-        setEditForm({ ...editForm, repo: kb.source.repo, branch: kb.source.branch ?? 'main', path: 'docs/index.md' })
+        const next = { ...editForm, repo: kb.source.repo, branch: kb.source.branch ?? 'main', path: 'docs/index.md' }
+        setEditForm(next)
         navigate('edit')
+        loadSource(next)
       }}
     />
   ) : route === 'publish' ? (
@@ -653,9 +656,14 @@ function EditorApp() {
           form={editForm}
           setForm={setEditForm}
           busy={busy}
-          onLoad={loadSource}
+          onLoad={() => loadSource()}
           onAsk={askForEditProposal}
           onApply={applyProposal}
+          onSelectLibrary={(kb) => {
+            const next = { ...editForm, repo: kb.source.repo, branch: kb.source.branch ?? 'main', path: 'docs/index.md' }
+            setEditForm(next)
+            loadSource(next)
+          }}
           proposal={proposal}
           library={library}
         />

@@ -948,7 +948,7 @@ h1 {
 
 .preview-body {
   display: grid;
-  min-height: 420px;
+  min-height: 520px;
 }
 
 .preview-summary {
@@ -1005,8 +1005,8 @@ h1 {
 
 .live-frame {
   width: 100%;
-  min-height: 340px;
-  height: 68dvh;
+  min-height: 420px;
+  height: calc(100dvh - 170px);
   border: 0;
   background: #fff;
 }
@@ -1174,7 +1174,7 @@ h1 {
 
 @media (min-width: 960px) {
   .workspace-grid {
-    grid-template-columns: minmax(360px, 480px) minmax(0, 1fr);
+    grid-template-columns: minmax(320px, 360px) minmax(0, 1fr);
     align-items: start;
   }
 
@@ -1201,17 +1201,17 @@ h1 {
 
 @media (min-width: 1120px) {
   .store-topbar-inner {
-    width: min(1024px, 100%);
+    width: min(1440px, 100%);
   }
 
   .app-shell {
-    width: min(1024px, 100%);
+    width: min(1440px, 100%);
     margin: 0 auto;
     padding: 28px 24px 34px;
   }
 
   .workspace-grid {
-    grid-template-columns: minmax(390px, 480px) minmax(0, 1fr);
+    grid-template-columns: minmax(340px, 380px) minmax(0, 1fr);
     align-items: start;
   }
 
@@ -1225,8 +1225,13 @@ h1 {
   }
 
   .code-view {
-    max-height: calc(100dvh - 210px);
+    max-height: calc(100dvh - 170px);
   }
+}
+
+/* Profile stays a comfortable reading width even on the wider shell. */
+.profile-grid {
+  margin-inline: auto;
 }
 
 @media (max-width: 719px) {
