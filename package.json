@@ -7,9 +7,10 @@
     "editor:typecheck": "pnpm --dir apps/editor typecheck",
     "editor:build": "pnpm --dir apps/editor build",
     "api:typecheck": "npm --prefix workers/api run typecheck",
+    "api:test": "npm --prefix workers/api run test",
     "api:deploy": "npm --prefix workers/api run deploy",
     "mcp:typecheck": "npm --prefix workers/mcp run typecheck",
     "mcp:deploy": "npm --prefix workers/mcp run deploy",
-    "test": "npm run editor:typecheck && npm run api:typecheck && npm run mcp:typecheck"
+    "test": "npm run editor:typecheck && npm run api:typecheck && npm run api:test && npm run mcp:typecheck"
   }
 }

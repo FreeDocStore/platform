@@ -6,6 +6,7 @@ on:
       - 'templates/search/scripts/**'
       - 'tests/**'
       - 'extension/**'
+      - 'workers/api/**'
       - '.github/workflows/test.yml'
   push:
     branches: [main]
@@ -13,9 +14,27 @@ on:
       - 'templates/search/scripts/**'
       - 'tests/**'
       - 'extension/**'
+      - 'workers/api/**'
       - '.github/workflows/test.yml'
 
 jobs:
+  api-worker:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: workers/api
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+      - name: Install
+        run: npm ci --no-audit --no-fund || npm install --no-audit --no-fund
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Test
+        run: npm test
+
   extension:
     runs-on: ubuntu-latest
     defaults:
