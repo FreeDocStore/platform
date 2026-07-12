@@ -200,8 +200,10 @@ export function livePageUrl(library: RegistryKb[], form: Pick<EditForm, 'repo' |
   }
 }
 
+export const KB_DOMAIN_SUFFIX = 'freedocstore.online'
+
 export function liveTargetFor(form: Pick<PublishForm, 'slug' | 'customDomain'>) {
-  return form.customDomain ? `https://${form.customDomain}/` : `https://${form.slug}.pages.dev/`
+  return form.customDomain ? `https://${form.customDomain}/` : `https://${form.slug}.${KB_DOMAIN_SUFFIX}/`
 }
 
 export function nextAvailableSlug(kbs: KnowledgeBaseDraft[], desired: string) {
@@ -242,15 +244,7 @@ export function pushRoute(route: AppRoute) {
 }
 
 export function deployWorkflow(project: string, customDomain: string) {
-  const domainStep = customDomain
-    ? `
-      - name: Attach custom domain
-        run: npx wrangler pages domain add "${customDomain}" --project-name="${project}" || true
-        env:
-          CLOUDFLARE_API_TOKEN: \${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: \${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-`
-    : ''
+  const domains = [`${project}.${KB_DOMAIN_SUFFIX}`, ...(customDomain ? [customDomain] : [])].join(' ')
   return `name: Deploy Zensical KB
 
 on:
@@ -344,7 +338,29 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: \${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: \${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-${domainStep}`
+      - name: Attach domains
+        env:
+          CLOUDFLARE_API_TOKEN: \${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: \${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          PROJECT: ${project}
+          DOMAINS: ${domains}
+        run: |
+          set -e
+          api() { curl -sS -H "Authorization: Bearer \$CLOUDFLARE_API_TOKEN" -H "Content-Type: application/json" "\$@"; }
+          for DOMAIN in \$DOMAINS; do
+            api -X POST "https://api.cloudflare.com/client/v4/accounts/\$CLOUDFLARE_ACCOUNT_ID/pages/projects/\$PROJECT/domains" \\
+              --data "{\\"name\\":\\"\$DOMAIN\\"}" > /dev/null || true
+            ZONE="\${DOMAIN#*.}"
+            ZONE_ID=\$(api "https://api.cloudflare.com/client/v4/zones?name=\$ZONE" | python3 -c 'import sys,json;r=json.load(sys.stdin)["result"];print(r[0]["id"] if r else "")')
+            [ -z "\$ZONE_ID" ] && { echo "No zone for \$DOMAIN, skipping"; continue; }
+            EXISTS=\$(api "https://api.cloudflare.com/client/v4/zones/\$ZONE_ID/dns_records?type=CNAME&name=\$DOMAIN" | python3 -c 'import sys,json;print(len(json.load(sys.stdin)["result"]))')
+            if [ "\$EXISTS" = "0" ]; then
+              api -X POST "https://api.cloudflare.com/client/v4/zones/\$ZONE_ID/dns_records" \\
+                --data "{\\"type\\":\\"CNAME\\",\\"name\\":\\"\$DOMAIN\\",\\"content\\":\\"\$PROJECT.pages.dev\\",\\"proxied\\":true}" > /dev/null
+            fi
+            echo "Ensured \$DOMAIN"
+          done
+`
 }
 
 export function ensureFallbackFiles(files: RepoFile[], form: PublishForm, workflow: string): RepoFile[] {

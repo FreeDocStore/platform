@@ -13,8 +13,8 @@
       },
       "cloudflare": {
         "pages_project": "freedocstore-docs",
-        "production_url": "https://freedocstore-docs.pages.dev/",
-        "custom_domains": []
+        "production_url": "https://docs.freedocstore.online/",
+        "custom_domains": ["docs.freedocstore.online"]
       },
       "status": "published"
     },
@@ -31,10 +31,10 @@
       },
       "cloudflare": {
         "pages_project": "true-non-profit",
-        "production_url": "https://true-non-profit.pages.dev/",
-        "custom_domains": []
+        "production_url": "https://true-non-profit.freedocstore.online/",
+        "custom_domains": ["true-non-profit.freedocstore.online"]
       },
-      "status": "draft-0.1"
+      "status": "published"
     }
   ]
 }

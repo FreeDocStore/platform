@@ -138,6 +138,8 @@ async function upsertRegistry(input: PublishInput, liveUrl: string): Promise<str
   }
   const registry = JSON.parse(b64ToText(current.content)) as { knowledge_bases?: any[] };
   const entries = registry.knowledge_bases ?? [];
+  const defaultDomain = `${input.slug}.freedocstore.online`;
+  const domains = [defaultDomain, ...(input.customDomain ? [input.customDomain] : [])];
   const entry = {
     id: input.slug,
     title: input.title,
@@ -147,7 +149,7 @@ async function upsertRegistry(input: PublishInput, liveUrl: string): Promise<str
     cloudflare: {
       pages_project: input.slug,
       production_url: liveUrl,
-      custom_domains: input.customDomain ? [input.customDomain] : [],
+      custom_domains: domains,
     },
     status: "published",
   };
@@ -169,7 +171,7 @@ async function upsertRegistry(input: PublishInput, liveUrl: string): Promise<str
 }
 
 export async function publishKb(input: PublishInput): Promise<PublishResult> {
-  const liveUrl = input.customDomain ? `https://${input.customDomain}/` : `https://${input.slug}.pages.dev/`;
+  const liveUrl = input.customDomain ? `https://${input.customDomain}/` : `https://${input.slug}.freedocstore.online/`;
   const steps: PublishStepResult[] = [];
   let repo = { fullName: `${input.owner}/${input.slug}`, htmlUrl: `https://github.com/${input.owner}/${input.slug}`, created: false };
 
