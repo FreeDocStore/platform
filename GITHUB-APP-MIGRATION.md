@@ -67,17 +67,33 @@ After creating it:
 2. **Install the App** (App settings → Install App → FreeDocStore org → All
    repositories). This is what lets user tokens reach the KB repos.
 
-## Credentials to hand back
+## The created App (2026-07-12)
 
-Phase 1 needs only:
+- **App ID:** `4278932`
+- **Client ID:** `Iv23li4lX93yd8MRMctL` (not secret — appears in authorize URLs)
+- **Installed on:** "Only this account" (FreeDocStore org) — fine for phase 1; can be
+  made public later (App settings → bottom → "Make public") when users publish under
+  their own accounts.
 
-- **Client ID** (`Iv1.xxxxxxxx` / `Iv23...`)
-- **Client secret**
+Still needed before wiring (see checklist below):
 
-Nice to record for later (installation tokens, if we add org automation):
+- **Client secret** — generate + store in SOPS as `fdocs.GH_APP_CLIENT_SECRET`
+- Second **callback URL** for MCP
+- The four **repository permissions**
+- **Install** the App on the FreeDocStore org (All repositories)
 
-- **App ID** (numeric)
-- **Private key** (`.pem`) — store in Bitwarden, not needed yet
+Private key (`.pem`) is not needed for phase 1 (user-to-server only); download it into
+Bitwarden for later installation-token use.
+
+## Post-creation checklist
+
+- [ ] Add the MCP callback URL (`https://mcp.freedocstore.online/callback`) alongside
+      the existing api one ("Add callback URL" on the settings page).
+- [ ] Verify **"Expire user authorization tokens"** is unchecked.
+- [ ] Verify **Webhook → Active** is unchecked.
+- [ ] Permissions & events tab → Contents RW, Pull requests RW, Workflows RW.
+- [ ] Generate a client secret → SOPS `fdocs.GH_APP_CLIENT_SECRET`.
+- [ ] Install App → FreeDocStore org → All repositories.
 
 ## Rollout
 
