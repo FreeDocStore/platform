@@ -122,7 +122,7 @@ export const initialSteps: PublishStep[] = [
   { id: 'ai', label: 'Draft', detail: 'Generate Markdown files', state: 'idle' },
   { id: 'repo', label: 'Repo', detail: 'Create GitHub repository', state: 'idle' },
   { id: 'files', label: 'Files', detail: 'Commit Zensical source', state: 'idle' },
-  { id: 'secrets', label: 'Platform', detail: 'Use stored Cloudflare deploy connection', state: 'idle' },
+  { id: 'registry', label: 'Registry', detail: 'Register in the public library', state: 'idle' },
   { id: 'deploy', label: 'Deploy', detail: 'GitHub Actions publishes to Cloudflare', state: 'idle' },
 ]
 

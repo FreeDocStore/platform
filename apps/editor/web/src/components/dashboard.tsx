@@ -34,17 +34,18 @@ export function DashboardPage({
   library: RegistryKb[]
   onEditKb: (kb: RegistryKb) => void
 }) {
-  const published = kbs.filter((kb) => kb.liveUrl || kb.repoUrl).length
+  const published = kbs.filter((kb) => registryEntryFor(library, kb)).length
   return (
     <div className="dashboard-grid">
       <section className="panel">
         <KnowledgeBaseShelf
-              kbs={kbs}
+          kbs={kbs}
           activeId={activeId}
           onSelect={onSelect}
           onCreate={onCreate}
           onDuplicate={onDuplicate}
           onDelete={onDelete}
+          library={library}
         />
       </section>
       <section className="panel">
@@ -108,6 +109,11 @@ export function DashboardPage({
   )
 }
 
+function registryEntryFor(library: RegistryKb[], draft: KnowledgeBaseDraft): RegistryKb | undefined {
+  const repo = `${draft.owner}/${draft.slug}`.toLowerCase()
+  return library.find((kb) => kb.source.repo.toLowerCase() === repo)
+}
+
 export function KnowledgeBaseShelf({
   kbs,
   activeId,
@@ -115,6 +121,7 @@ export function KnowledgeBaseShelf({
   onCreate,
   onDuplicate,
   onDelete,
+  library,
 }: {
   kbs: KnowledgeBaseDraft[]
   activeId: string
@@ -122,6 +129,7 @@ export function KnowledgeBaseShelf({
   onCreate: () => void
   onDuplicate: () => void
   onDelete: () => void
+  library: RegistryKb[]
 }) {
   return (
     <div className="section-block kb-shelf">
@@ -129,8 +137,8 @@ export function KnowledgeBaseShelf({
         <div className="title-row">
           <BookOpen size={18} />
           <div>
-            <h2>Knowledge bases</h2>
-            <p>{kbs.length} knowledge-base draft{kbs.length === 1 ? '' : 's'}</p>
+            <h2>Drafts</h2>
+            <p>{kbs.length} draft{kbs.length === 1 ? '' : 's'} in your workspace</p>
           </div>
         </div>
         <button className="icon-action" type="button" onClick={onCreate} aria-label="Create KB">
@@ -140,20 +148,26 @@ export function KnowledgeBaseShelf({
       <div className="kb-list" aria-label="Knowledge base drafts">
         {kbs.map((kb) => {
           const active = kb.id === activeId
-          const target = liveTargetFor(kb)
+          const registered = registryEntryFor(library, kb)
+          const target = registered?.cloudflare?.production_url ?? liveTargetFor(kb)
           return (
             <article className={active ? 'kb-card active' : 'kb-card'} key={kb.id}>
               <button className="kb-card-main" type="button" onClick={() => onSelect(kb.id)}>
                 <span className="kb-card-title">{kb.title || 'Untitled KB'}</span>
                 <span className="kb-card-meta">{kb.owner}/{kb.slug}</span>
-                <span className="kb-card-status">{kb.lastStatus || 'Draft'}</span>
+                <span className="kb-card-status">{registered ? 'Published' : kb.lastStatus || 'Draft'}</span>
               </button>
               <div className="kb-card-links">
                 <a href={target} target="_blank" rel="noreferrer" aria-label={`${kb.title} live target`}>
                   <Globe2 size={15} />
                 </a>
-                {kb.repoUrl && (
-                  <a href={kb.repoUrl} target="_blank" rel="noreferrer" aria-label={`${kb.title} GitHub repository`}>
+                {(kb.repoUrl || registered) && (
+                  <a
+                    href={kb.repoUrl || `https://github.com/${registered!.source.repo}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    aria-label={`${kb.title} GitHub repository`}
+                  >
                     <Github size={15} />
                   </a>
                 )}

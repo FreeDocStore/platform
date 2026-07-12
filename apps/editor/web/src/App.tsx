@@ -24,7 +24,6 @@ import {
   githubHeaders,
   initialConnections,
   livePageUrl,
-  liveTargetFor,
   markCurrentError,
   messageOf,
   nextAvailableSlug,
@@ -48,7 +47,7 @@ import {
   validatePublishForm,
 } from './model'
 import { generateEditProposal, generateKbFiles } from './services/openai'
-import { createRepo, readGitHubFile, writeFiles } from './services/github'
+import { readGitHubFile } from './services/github'
 import { LoadingScreen, SignedOutLanding } from './components/signin'
 import { MobileTabBar, StoreHeader } from './components/header'
 import { DashboardPage } from './components/dashboard'
@@ -394,22 +393,25 @@ function EditorApp() {
       validateKbFiles(readyFiles)
       validatePlatformAccess(user)
 
-      setKbSteps(kbId, updateStep('repo', 'busy', 'Creating repository'))
-      const repo = await createRepo(form)
-      setKbSteps(kbId, updateStep('repo', 'ok', repo.html_url))
-      setKbPatch(kbId, { repoUrl: repo.html_url })
+      setKbSteps(kbId, updateStep('repo', 'busy', 'Publishing through the platform'))
+      const result = await app.publishKb({
+        title: form.title,
+        slug: form.slug,
+        owner: form.owner,
+        customDomain: form.customDomain || undefined,
+        description: form.prompt,
+        files: readyFiles,
+      })
+      for (const step of result.steps) {
+        setKbSteps(kbId, updateStep(step.id, step.ok ? 'ok' : 'error', step.detail))
+      }
+      const failed = result.steps.find((step) => !step.ok)
+      if (failed) throw new Error(failed.detail)
 
-      setKbSteps(kbId, updateStep('files', 'busy', 'Writing files to main'))
-      await writeFiles(repo.full_name, readyFiles)
-      setKbSteps(kbId, updateStep('files', 'ok', `${readyFiles.length} files committed`))
-
-      setKbSteps(kbId, updateStep('secrets', 'ok', 'Using stored platform/org deploy secrets'))
-
-      const url = liveTargetFor(form)
-      setKbPatch(kbId, { liveUrl: url, lastStatus: 'Published' })
+      setKbPatch(kbId, { repoUrl: result.repoUrl, liveUrl: result.liveUrl, lastStatus: 'Published' })
       setKbSteps(kbId, updateStep('deploy', 'ok', 'Workflow started on GitHub'))
       setStatus('Published. GitHub Actions is building the Zensical site.')
-      window.open(`${repo.html_url}/actions`, '_blank', 'noopener,noreferrer')
+      window.open(`${result.repoUrl}/actions`, '_blank', 'noopener,noreferrer')
     } catch (error) {
       setStatus(messageOf(error))
       setKbPatch(kbId, { lastStatus: messageOf(error) })

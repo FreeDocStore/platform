@@ -23,6 +23,14 @@ export interface SecretStatus {
   }
 }
 
+export interface PublishKbResult {
+  ok: boolean
+  repo: string
+  repoUrl: string
+  liveUrl: string
+  steps: Array<{ id: 'repo' | 'files' | 'registry'; ok: boolean; detail: string }>
+}
+
 const API_BASE = (import.meta.env.VITE_FDS_API_BASE as string | undefined) || 'https://api.freedocstore.online'
 const THEME_KEY = 'fds:theme:v1'
 
@@ -68,6 +76,20 @@ export const fds = {
     fetch(target: string, init: RequestInit = {}) {
       return apiFetch(`/api/proxy?target=${encodeURIComponent(target)}`, init)
     },
+  },
+  async publishKb(input: {
+    title: string
+    slug: string
+    owner: string
+    customDomain?: string
+    description?: string
+    files: Array<{ path: string; content: string }>
+  }): Promise<PublishKbResult> {
+    const res = await apiFetch('/api/publish', { method: 'POST', body: JSON.stringify(input) })
+    const data = (await res.json().catch(() => null)) as PublishKbResult | { error?: string } | null
+    if (!data) throw new Error(`Publish failed: ${res.status}`)
+    if ('error' in data && data.error) throw new Error(data.error)
+    return data as PublishKbResult
   },
   secrets: {
     get(): Promise<SecretStatus> {
