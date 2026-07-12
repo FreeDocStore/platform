@@ -243,26 +243,42 @@ export function displayName(user: User) {
   return user.name || user.login || user.id || 'User'
 }
 
-export function normalizeRoute(raw: string): AppRoute {
-  const route = raw.replace(/^#?\/?/, '').replace(/^\/+|\/+$/g, '')
-  if (route === 'publish' || route === 'edit' || route === 'profile') return route
-  return 'dashboard'
+export interface AppLocation {
+  route: AppRoute
+  /** KB id being edited (edit route only). */
+  kbId: string
+  /** File path within the KB being edited (edit route only). */
+  file: string
 }
 
-export function routeFromLocation(): AppRoute {
-  const hashRoute = normalizeRoute(window.location.hash)
-  if (hashRoute !== 'dashboard') return hashRoute
-  const path = window.location.pathname.replace(/^\/+|\/+$/g, '')
-  return normalizeRoute(path)
+export function locationFromUrl(): AppLocation {
+  const segments = window.location.pathname.replace(/^\/+|\/+$/g, '').split('/')
+  const first = segments[0] || 'dashboard'
+  if (first === 'edit') {
+    const kbId = segments[1] ? decodeURIComponent(segments[1]) : ''
+    const file = new URLSearchParams(window.location.search).get('file') || ''
+    return { route: 'edit', kbId, file }
+  }
+  if (first === 'publish' || first === 'profile') return { route: first, kbId: '', file: '' }
+  return { route: 'dashboard', kbId: '', file: '' }
 }
 
-export function pathForRoute(route: AppRoute) {
-  return route === 'dashboard' ? '/' : `/${route}`
+export function urlForLocation(loc: Partial<AppLocation> & { route: AppRoute }): string {
+  if (loc.route === 'edit') {
+    const base = loc.kbId ? `/edit/${encodeURIComponent(loc.kbId)}` : '/edit'
+    return loc.file ? `${base}?file=${encodeURIComponent(loc.file)}` : base
+  }
+  return loc.route === 'dashboard' ? '/' : `/${loc.route}`
 }
 
-export function pushRoute(route: AppRoute) {
-  const next = pathForRoute(route)
-  if (window.location.pathname !== next || window.location.hash) window.history.pushState(null, '', next)
+export function pushLocation(loc: Partial<AppLocation> & { route: AppRoute }) {
+  const next = urlForLocation(loc)
+  if (window.location.pathname + window.location.search !== next) window.history.pushState(null, '', next)
+}
+
+export function replaceLocation(loc: Partial<AppLocation> & { route: AppRoute }) {
+  const next = urlForLocation(loc)
+  if (window.location.pathname + window.location.search !== next) window.history.replaceState(null, '', next)
 }
 
 export function deployWorkflow(project: string, customDomain: string) {

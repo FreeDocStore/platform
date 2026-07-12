@@ -32,10 +32,10 @@ import {
   normalizeSettings,
   nowIso,
   parseStoredJson,
-  pathForRoute,
-  pushRoute,
+  locationFromUrl,
+  pushLocation,
+  replaceLocation,
   resetSteps,
-  routeFromLocation,
   starterEdit,
   starterPublish,
   toPublishForm,
@@ -65,7 +65,8 @@ function EditorApp() {
   const { user, loading: authLoading, signIn, signOut, deleteAccount } = useAuth()
   const { subscription, isPro, loading: subLoading, upgrade, manageBilling } = useSubscription()
   const { preference, setPreference } = useTheme()
-  const [route, setRoute] = useState<AppRoute>(() => routeFromLocation())
+  const [route, setRoute] = useState<AppRoute>(() => locationFromUrl().route)
+  const [editKbId, setEditKbId] = useState(() => locationFromUrl().kbId)
   const [settings, setSettings] = useState<Settings>(emptySettings)
   const [secrets, setSecrets] = useState<SecretStatus>(emptySecrets)
   const [keyInputs, setKeyInputs] = useState<Record<ByokProvider, string>>({ openai: '', anthropic: '' })
@@ -101,22 +102,52 @@ function EditorApp() {
 
   useEffect(() => {
     const syncRoute = () => {
-      const next = routeFromLocation()
-      if (window.location.hash) window.history.replaceState(null, '', pathForRoute(next))
-      setRoute(next)
+      const loc = locationFromUrl()
+      setRoute(loc.route)
+      setEditKbId(loc.kbId)
     }
     window.addEventListener('popstate', syncRoute)
-    window.addEventListener('hashchange', syncRoute)
     syncRoute()
-    return () => {
-      window.removeEventListener('popstate', syncRoute)
-      window.removeEventListener('hashchange', syncRoute)
-    }
+    return () => window.removeEventListener('popstate', syncRoute)
   }, [])
 
+  const loadedEditKey = useRef('')
+
+  // Resolve /edit/<kbId>?file=… into the edit form and load the source, including
+  // after a refresh or once the registry finishes loading.
+  useEffect(() => {
+    if (route !== 'edit' || !editKbId) return
+    const kb = library.find((entry) => entry.id === editKbId)
+    if (!kb) return
+    const file = locationFromUrl().file || 'docs/index.md'
+    const key = `${editKbId}:${file}`
+    if (loadedEditKey.current === key) return
+    loadedEditKey.current = key
+    const next = { repo: kb.source.repo, branch: kb.source.branch ?? 'main', path: file, instruction: starterEdit.instruction }
+    setEditForm(next)
+    loadSource(next)
+  }, [route, editKbId, library])
+
+  function goEdit(kbId?: string) {
+    const target = kbId || editKbId || localStorage.getItem('fds:last-edit-kb') || library[0]?.id
+    if (!target) {
+      navigate('dashboard')
+      return
+    }
+    localStorage.setItem('fds:last-edit-kb', target)
+    setRoute('edit')
+    setEditKbId(target)
+    pushLocation({ route: 'edit', kbId: target, file: 'docs/index.md' })
+  }
+
   function navigate(route: AppRoute) {
+    if (route === 'edit') {
+      goEdit()
+      return
+    }
     setRoute(route)
-    pushRoute(route)
+    setEditKbId('')
+    pushLocation({ route })
   }
 
   useEffect(() => {
@@ -433,6 +464,10 @@ function EditorApp() {
       setDiff('Source loaded. Ask AI for a proposal.')
       setActivePreview('source')
       setStatus('Source loaded')
+      if (editKbId) {
+        loadedEditKey.current = `${editKbId}:${form.path}`
+        replaceLocation({ route: 'edit', kbId: editKbId, file: form.path })
+      }
     } catch (error) {
       setStatus(messageOf(error))
     } finally {
@@ -487,19 +522,6 @@ function EditorApp() {
       setBusy(false)
     }
   }
-
-  const pageTitle = {
-    dashboard: 'FreeDocStore Console',
-    publish: 'Publish a knowledge base',
-    edit: 'Edit Markdown with AI',
-    profile: 'Profile and connections',
-  }[route]
-  const pageCopy = {
-    dashboard: 'See every knowledge base, prompt new drafts, and publish GitHub-backed Zensical books.',
-    publish: 'Generate a GitHub-backed documentation repo, deploy it to Cloudflare Pages, and attach a custom domain.',
-    edit: 'Load an existing Markdown file, ask for a replacement draft, and apply the change through GitHub.',
-    profile: 'Manage your FreeDocStore account, workspace, and publishing connections.',
-  }[route]
 
   async function refreshSecrets() {
     const next = await app.secrets.get()
@@ -605,12 +627,7 @@ function EditorApp() {
       onPublish={() => navigate('publish')}
       onEdit={() => navigate('edit')}
       library={library}
-      onEditKb={(kb) => {
-        const next = { ...editForm, repo: kb.source.repo, branch: kb.source.branch ?? 'main', path: 'docs/index.md' }
-        setEditForm(next)
-        navigate('edit')
-        loadSource(next)
-      }}
+      onEditKb={(kb) => goEdit(kb.id)}
     />
   ) : route === 'publish' ? (
     <div className="workspace-grid">
@@ -659,13 +676,7 @@ function EditorApp() {
           onLoad={() => loadSource()}
           onAsk={askForEditProposal}
           onApply={applyProposal}
-          onSelectLibrary={(kb) => {
-            const next = { ...editForm, repo: kb.source.repo, branch: kb.source.branch ?? 'main', path: 'docs/index.md' }
-            setEditForm(next)
-            loadSource(next)
-          }}
           proposal={proposal}
-          library={library}
         />
       </section>
       <section className="panel preview-panel">
@@ -715,25 +726,12 @@ function EditorApp() {
         onUpdate={activateUpdate}
       />
       <main className="app-shell">
-        <header className="workspace-head">
-          <div>
-            <p className="eyebrow">FreeDocStore workspace</p>
-            <h1>{pageTitle}</h1>
-            <p className="lede">{pageCopy}</p>
-          </div>
-          <div className="status-block" aria-live="polite">
-            <span className={busy ? 'pulse-dot busy' : 'pulse-dot'} />
-            <div>
-              <strong>{busy ? 'Working' : 'Status'}</strong>
-              <p>{status}</p>
-              <small>Signed in as {displayName(user)}</small>
-            </div>
-          </div>
-        </header>
+        <div className="status-strip" aria-live="polite">
+          <span className={busy ? 'pulse-dot busy' : 'pulse-dot'} />
+          <span className="status-strip-text">{status}</span>
+          <span className="status-strip-user">{displayName(user)}</span>
+        </div>
         {content}
-        <footer className="store-footer">
-          FreeDocStore publishes Markdown knowledge bases as Zensical books from GitHub repos.
-        </footer>
       </main>
       <MobileTabBar route={route} navigate={navigate} />
     </div>
