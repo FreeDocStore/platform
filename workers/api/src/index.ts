@@ -438,6 +438,14 @@ app.all("/api/proxy", async (c) => {
     headers.set("Authorization", `Bearer ${token || ""}`);
     headers.set("User-Agent", "freedocstore-api");
     headers.set("X-GitHub-Api-Version", c.req.header("X-GitHub-Api-Version") || "2022-11-28");
+  } else if (url.hostname === "models.github.ai") {
+    // Free AI tier: GitHub Models, authenticated with the signed-in user's GitHub
+    // token (falls back to the platform token). Rate-limited by GitHub; on 429 the
+    // console prompts the user to add their own OpenAI/Anthropic key.
+    const token = session.githubAccessToken || c.env.GITHUB_TOKEN;
+    if (!token) return c.json({ error: "Sign in with GitHub to use the free AI tier." }, 403);
+    headers.set("Authorization", `Bearer ${token}`);
+    headers.set("User-Agent", "freedocstore-api");
   } else if (provider) {
     const stored = await readStoredSecret(c.env, session, provider);
     if (!stored) return c.json({ error: `${provider} BYOK key is not configured. Add your ${provider} key in Profile > Platform connections.` }, 400);

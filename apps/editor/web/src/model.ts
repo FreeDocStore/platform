@@ -1,16 +1,24 @@
 import type { SecretStatus, User } from './lib/fds'
 
-export type AiProvider = 'openai' | 'anthropic'
+export type AiProvider = 'github' | 'openai' | 'anthropic'
 
 export interface AiProviderSpec {
   label: string
   endpoint: string
   defaultModel: string
-  keyPrefix: string
-  keysUrl: string
+  /** Free tier that needs no BYOK key (uses the user's GitHub sign-in). */
+  free?: boolean
+  keyPrefix?: string
+  keysUrl?: string
 }
 
 export const AI_PROVIDERS: Record<AiProvider, AiProviderSpec> = {
+  github: {
+    label: 'GitHub Models (free)',
+    endpoint: 'https://models.github.ai/inference/chat/completions',
+    defaultModel: 'openai/gpt-4o-mini',
+    free: true,
+  },
   openai: {
     label: 'OpenAI',
     endpoint: 'https://api.openai.com/v1/chat/completions',
@@ -28,6 +36,9 @@ export const AI_PROVIDERS: Record<AiProvider, AiProviderSpec> = {
 }
 
 export const AI_PROVIDER_IDS = Object.keys(AI_PROVIDERS) as AiProvider[]
+
+/** Providers that require a user-supplied API key (excludes the free GitHub tier). */
+export const BYOK_PROVIDER_IDS = AI_PROVIDER_IDS.filter((id) => !AI_PROVIDERS[id].free) as Exclude<AiProvider, 'github'>[]
 
 export const FDS_MCP = 'https://mcp.freedocstore.online/mcp'
 export const REGISTRY_URL = 'https://freedocstore.online/registry.json'
@@ -113,8 +124,8 @@ export interface KnowledgeBaseDraft extends PublishForm {
 }
 
 export const emptySettings: Settings = {
-  provider: 'openai',
-  model: AI_PROVIDERS.openai.defaultModel,
+  provider: 'github',
+  model: AI_PROVIDERS.github.defaultModel,
   applyMode: 'pr',
 }
 
@@ -181,7 +192,7 @@ export function createKnowledgeBase(form: PublishForm): KnowledgeBaseDraft {
 }
 
 export function normalizeSettings(value: Partial<Settings> | null | undefined): Settings {
-  const provider: AiProvider = value?.provider && value.provider in AI_PROVIDERS ? value.provider : 'openai'
+  const provider: AiProvider = value?.provider && value.provider in AI_PROVIDERS ? value.provider : 'github'
   const model = typeof value?.model === 'string' && value.model.trim() ? value.model : AI_PROVIDERS[provider].defaultModel
   const applyMode: ApplyMode = value?.applyMode === 'direct' ? 'direct' : 'pr'
   return { provider, model, applyMode }
@@ -459,7 +470,8 @@ export function validateAi(settings: Settings) {
 }
 
 export function validateByok(secrets: SecretStatus, provider: AiProvider) {
-  if (!secrets[provider]?.configured) {
+  if (AI_PROVIDERS[provider].free) return
+  if (!secrets[provider as Exclude<AiProvider, 'github'>]?.configured) {
     throw new Error(`Save your ${AI_PROVIDERS[provider].label} BYOK key in Profile > Platform connections before using AI generation.`)
   }
 }

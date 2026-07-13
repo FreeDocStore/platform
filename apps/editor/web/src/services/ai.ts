@@ -95,19 +95,28 @@ export async function callAi(settings: Settings, system: string, user: string): 
     if (typeof text !== 'string') throw new Error('Anthropic returned no content.')
     return text
   }
+  const isGithub = settings.provider === 'github'
   const res = await app.proxy.fetch(proxyTarget(spec.endpoint), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       model: settings.model,
-      response_format: { type: 'json_object' },
+      // GitHub Models' catalog is broader than OpenAI JSON mode; rely on the prompt
+      // + parseJson there, and only ask real OpenAI for strict json_object mode.
+      ...(isGithub ? {} : { response_format: { type: 'json_object' } }),
       messages: [
-        { role: 'system', content: system },
+        { role: 'system', content: isGithub ? `${system} Output only the raw JSON object, no prose or code fences.` : system },
         { role: 'user', content: user },
       ],
     }),
   })
-  if (!res.ok) throw new Error(`OpenAI request failed: ${res.status} ${await res.text()}`)
+  if (!res.ok) {
+    const body = await res.text()
+    if (isGithub && (res.status === 429 || res.status === 403)) {
+      throw new Error(`GitHub Models free limit reached (${res.status}). Add your own OpenAI or Anthropic key in Profile → API keys to keep going, then switch the AI provider.`)
+    }
+    throw new Error(`${isGithub ? 'GitHub Models' : 'OpenAI'} request failed: ${res.status} ${body}`)
+  }
   const data = await res.json()
   const content = data?.choices?.[0]?.message?.content
   if (typeof content !== 'string') throw new Error('OpenAI returned no content.')

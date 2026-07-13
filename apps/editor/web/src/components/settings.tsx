@@ -28,7 +28,11 @@ export function SettingsPanel({
 }) {
   const providerSpec = AI_PROVIDERS[settings.provider]
   const connectedCount = [connections.github, connections.ai, connections.cloudflare].filter((state) => state === 'ready').length
-  const keyStatus = secrets[settings.provider]?.configured ? `${providerSpec.label} key saved` : `No ${providerSpec.label} key saved`
+  const keyStatus = providerSpec.free
+    ? 'Free — uses your GitHub sign-in, no key needed'
+    : secrets[settings.provider as 'openai' | 'anthropic']?.configured
+      ? `${providerSpec.label} key saved`
+      : `No ${providerSpec.label} key saved`
   return (
     <details className="section-block settings-details" open={!compact}>
       <summary>
@@ -67,9 +71,11 @@ export function SettingsPanel({
       </div>
       <div className="byok-strip">
         <div>
-          <span>{providerSpec.label} API key</span>
+          <span>{providerSpec.free ? 'AI' : `${providerSpec.label} API key`}</span>
           <strong>{keyStatus}</strong>
-          <p>Encrypted in your FreeDocStore account and used server-side for all KB generation and AI edits.</p>
+          <p>{providerSpec.free
+            ? 'GitHub Models runs on your GitHub sign-in. If you hit its rate limit, add your own OpenAI/Anthropic key in Profile and switch provider.'
+            : 'Encrypted in your FreeDocStore account and used server-side for all KB generation and AI edits.'}</p>
         </div>
         {onOpenProfile && (
           <button className="secondary-action" type="button" onClick={onOpenProfile}>

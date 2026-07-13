@@ -526,14 +526,19 @@ function EditorApp() {
     }
   }
 
+  function aiReady(secretsObj: SecretStatus, provider: Settings['provider']): boolean {
+    if (AI_PROVIDERS[provider].free) return true
+    return !!secretsObj[provider as 'openai' | 'anthropic']?.configured
+  }
+
   async function refreshSecrets() {
     const next = await app.secrets.get()
     setSecrets(next)
-    const hasKey = next[settings.provider]?.configured
+    const ready = aiReady(next, settings.provider)
     setConnections((current) => ({
       ...current,
-      ai: hasKey ? current.ai : 'needs-setup',
-      detail: hasKey
+      ai: ready ? current.ai : 'needs-setup',
+      detail: ready
         ? current.detail
         : `${AI_PROVIDERS[settings.provider].label} generation uses your BYOK key. Save it once in your FreeDocStore account before prompting KBs.`,
     }))
@@ -566,7 +571,7 @@ function EditorApp() {
     try {
       const next = await app.secrets.clearKey(provider)
       setSecrets(next)
-      setConnections((current) => ({ ...current, ai: next[settings.provider]?.configured ? current.ai : 'needs-setup' }))
+      setConnections((current) => ({ ...current, ai: aiReady(next, settings.provider) ? current.ai : 'needs-setup' }))
       setStatus(`${AI_PROVIDERS[provider].label} BYOK key removed`)
     } catch (error) {
       setStatus(messageOf(error))
@@ -577,31 +582,33 @@ function EditorApp() {
 
   async function checkConnections() {
     const provider = settings.provider
-    setConnections({ ...initialConnections, github: 'checking', ai: secrets[provider]?.configured ? 'checking' : 'needs-setup' })
+    const free = !!AI_PROVIDERS[provider].free
+    setConnections({ ...initialConnections, github: 'checking', ai: aiReady(secrets, provider) ? 'checking' : 'needs-setup' })
     setStatus('Checking platform connections')
     try {
       validatePlatformAccess(user)
       const github = await app.proxy.fetch('api.github.com/user', { headers: githubHeaders() })
       let currentSecrets = secrets
-      if (!currentSecrets[provider]?.configured) {
+      if (!aiReady(currentSecrets, provider)) {
         currentSecrets = await app.secrets.get()
         setSecrets(currentSecrets)
       }
       const label = AI_PROVIDERS[provider].label
-      const ai = currentSecrets[provider]?.configured ? await pingAi(settings) : null
+      const ready = aiReady(currentSecrets, provider)
+      const ai = ready ? await pingAi(settings) : null
       setConnections({
         github: github.ok ? 'ready' : 'needs-setup',
         ai: ai?.ok ? 'ready' : 'needs-setup',
         cloudflare: 'ready',
         detail: ai?.ok && github.ok
-          ? `Connections are ready. GitHub uses platform OAuth/proxy and ${label} uses your BYOK key.`
-          : currentSecrets[provider]?.configured
+          ? `Connections are ready. GitHub uses platform OAuth/proxy and ${label} ${free ? 'runs on your GitHub sign-in' : 'uses your BYOK key'}.`
+          : ready
             ? `GitHub ${github.status}; ${label} check failed. ${ai?.error || 'Check your account/key.'}`
-            : `GitHub ${github.status}; ${label} needs your BYOK key in Profile > Platform connections.`,
+            : `GitHub ${github.status}; ${label} needs your BYOK key in Profile → API keys.`,
       })
       setStatus(github.ok && ai?.ok ? 'Platform connections ready' : 'Some platform connections need setup')
     } catch (error) {
-      setConnections({ github: 'error', ai: secrets[provider]?.configured ? 'error' : 'needs-setup', cloudflare: 'ready', detail: messageOf(error) })
+      setConnections({ github: 'error', ai: aiReady(secrets, provider) ? 'error' : 'needs-setup', cloudflare: 'ready', detail: messageOf(error) })
       setStatus(messageOf(error))
     }
   }

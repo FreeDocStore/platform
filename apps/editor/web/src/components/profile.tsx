@@ -2,7 +2,7 @@ import { KeyRound, UserCircle, Wifi } from 'lucide-react'
 import { type ByokProvider, type SecretStatus, type Subscription, type User } from '../lib/fds'
 import {
   AI_PROVIDERS,
-  AI_PROVIDER_IDS,
+  BYOK_PROVIDER_IDS,
   type KnowledgeBaseDraft,
   type PlatformConnections,
   type Settings,
@@ -198,10 +198,10 @@ function ApiKeysPanel({
         <KeyRound size={18} />
         <div>
           <h2>API keys</h2>
-          <p>Bring your own key. Stored encrypted, used server-side, never exposed to the browser.</p>
+          <p>AI defaults to the free GitHub Models tier (your GitHub sign-in). Add a key here only to use OpenAI/Anthropic or to continue past the free rate limit. Stored encrypted, used server-side, never exposed to the browser.</p>
         </div>
       </div>
-      {AI_PROVIDER_IDS.map((provider) => {
+      {BYOK_PROVIDER_IDS.map((provider) => {
         const spec = AI_PROVIDERS[provider]
         const status = secrets[provider]?.configured ? `Saved as ${secrets[provider].label}` : 'No key saved'
         return (
@@ -211,7 +211,7 @@ function ApiKeysPanel({
                 <span>{spec.label} API key</span>
                 <strong>{status}</strong>
                 <p>
-                  Get one at <a href={spec.keysUrl} target="_blank" rel="noreferrer">{new URL(spec.keysUrl).host}</a>.
+                  Get one at <a href={spec.keysUrl} target="_blank" rel="noreferrer">{spec.keysUrl ? new URL(spec.keysUrl).host : ''}</a>.
                 </p>
               </div>
               {secrets[provider]?.configured && (
