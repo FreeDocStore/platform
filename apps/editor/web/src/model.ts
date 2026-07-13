@@ -55,6 +55,12 @@ export type PwaInstallPrompt = Event & {
   userChoice: Promise<{ outcome: 'accepted' | 'dismissed'; platform: string }>
 }
 
+export interface AiUsage {
+  prompt: number
+  completion: number
+  total: number
+}
+
 export type ApplyMode = 'pr' | 'direct'
 
 export interface Settings {

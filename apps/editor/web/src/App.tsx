@@ -3,6 +3,7 @@ import { fds as app, useAuth, useSubscription, useTheme, type ByokProvider, type
 import {
   ACTIVE_KB_KEY,
   AI_PROVIDERS,
+  type AiUsage,
   CONFIG_KEY,
   KBS_KEY,
   REGISTRY_URL,
@@ -19,7 +20,6 @@ import {
   buildLineDiff,
   cloneSteps,
   createKnowledgeBase,
-  displayName,
   emptySecrets,
   emptySettings,
   githubHeaders,
@@ -80,6 +80,7 @@ function EditorApp() {
   const [diff, setDiff] = useState('')
   const [activePreview, setActivePreview] = useState<'files' | 'source' | 'proposal' | 'diff' | 'live'>('files')
   const [library, setLibrary] = useState<RegistryKb[]>([])
+  const [lastUsage, setLastUsage] = useState<AiUsage | null>(null)
   const [status, setStatus] = useState('Ready')
   const [busy, setBusy] = useState(false)
   const [installPrompt, setInstallPrompt] = useState<PwaInstallPrompt | null>(null)
@@ -383,7 +384,8 @@ function EditorApp() {
       validateByok(secrets, settings.provider)
       setKbSteps(kbId, updateStep('plan', 'ok', 'Zensical contract ready'))
       setKbSteps(kbId, updateStep('ai', 'busy', 'Asking AI for source files'))
-      const nextFiles = await generateKbFiles(settings, form)
+      const { files: nextFiles, usage } = await generateKbFiles(settings, form)
+      setLastUsage(usage)
       validateKbFiles(nextFiles)
       setKbPatch(kbId, { files: nextFiles, lastStatus: 'Files generated' })
       setActivePreview('files')
@@ -415,7 +417,9 @@ function EditorApp() {
         setKbSteps(kbId, resetSteps('plan', 'busy'))
         setKbSteps(kbId, updateStep('plan', 'ok', 'Zensical contract ready'))
         setKbSteps(kbId, updateStep('ai', 'busy', 'Asking AI for source files'))
-        readyFiles = await generateKbFiles(settings, form)
+        const generated = await generateKbFiles(settings, form)
+        setLastUsage(generated.usage)
+        readyFiles = generated.files
         validateKbFiles(readyFiles)
         setKbPatch(kbId, { files: readyFiles })
         setKbSteps(kbId, updateStep('ai', 'ok', `${readyFiles.length} files generated`))
@@ -487,7 +491,8 @@ function EditorApp() {
       validateByok(secrets, settings.provider)
       const current = source || (await readGitHubFile(editForm.repo, editForm.path, editForm.branch))
       setSource(current)
-      const next = await generateEditProposal(settings, editForm, current)
+      const { proposal: next, usage } = await generateEditProposal(settings, editForm, current)
+      setLastUsage(usage)
       setProposal(next)
       setDiff(buildLineDiff(current, next.content))
       setActivePreview('diff')
@@ -755,7 +760,10 @@ function EditorApp() {
         <div className="status-strip" aria-live="polite">
           <span className={busy ? 'pulse-dot busy' : 'pulse-dot'} />
           <span className="status-strip-text">{status}</span>
-          <span className="status-strip-user">{displayName(user)}</span>
+          <span className="status-strip-meta">
+            <span title="AI model in use">{AI_PROVIDERS[settings.provider].label} · {settings.model}</span>
+            {lastUsage && <span title="Tokens used by the last AI call">{lastUsage.total.toLocaleString()} tok</span>}
+          </span>
         </div>
         {content}
       </main>

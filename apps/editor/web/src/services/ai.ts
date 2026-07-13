@@ -1,6 +1,7 @@
 import { fds as app } from '../lib/fds'
 import {
   AI_PROVIDERS,
+  type AiUsage,
   type EditForm,
   type Proposal,
   type PublishForm,
@@ -14,7 +15,7 @@ import {
   upsertFile,
 } from '../model'
 
-export async function generateKbFiles(settings: Settings, form: PublishForm): Promise<RepoFile[]> {
+export async function generateKbFiles(settings: Settings, form: PublishForm): Promise<{ files: RepoFile[]; usage: AiUsage | null }> {
   const workflow = deployWorkflow(form.slug, form.customDomain)
   const system = [
     'You generate FreeDocStore knowledge bases.',
@@ -41,18 +42,18 @@ export async function generateKbFiles(settings: Settings, form: PublishForm): Pr
     'Knowledge-base prompt:',
     form.prompt,
   ].join('\n')
-  const json = await callAi(settings, system, user)
-  const parsed = parseJson(json) as { files?: RepoFile[] }
+  const { text, usage } = await callAi(settings, system, user)
+  const parsed = parseJson(text) as { files?: RepoFile[] }
   const aiFiles = Array.isArray(parsed.files) ? parsed.files : []
   const normalized = aiFiles
     .filter((file) => typeof file.path === 'string' && typeof file.content === 'string')
     .map((file) => ({ path: file.path.replace(/^\/+/, ''), content: file.content }))
     .filter((file) => !file.path.startsWith('site/') && !file.path.endsWith('.html'))
   const withRequired = upsertFile(normalized, '.github/workflows/deploy.yml', workflow)
-  return ensureFallbackFiles(withRequired, form, workflow)
+  return { files: ensureFallbackFiles(withRequired, form, workflow), usage }
 }
 
-export async function generateEditProposal(settings: Settings, form: EditForm, current: string): Promise<Proposal> {
+export async function generateEditProposal(settings: Settings, form: EditForm, current: string): Promise<{ proposal: Proposal; usage: AiUsage | null }> {
   const system = [
     'You are an AI-first Markdown knowledge-base editor.',
     'Return a complete replacement for the file, not a patch.',
@@ -61,10 +62,10 @@ export async function generateEditProposal(settings: Settings, form: EditForm, c
     'Return only JSON: {"summary":"...","rationale":"...","content":"..."}',
   ].join(' ')
   const user = [`Path: ${form.path}`, '', 'Current source:', '```', current, '```', '', 'Request:', form.instruction].join('\n')
-  const json = await callAi(settings, system, user)
-  const parsed = parseJson(json) as Proposal
+  const { text, usage } = await callAi(settings, system, user)
+  const parsed = parseJson(text) as Proposal
   if (!parsed.content?.trim()) throw new Error('AI response did not include replacement content.')
-  return parsed
+  return { proposal: parsed, usage }
 }
 
 export async function pingAi(settings: Settings): Promise<{ ok: boolean; error: string }> {
@@ -76,7 +77,15 @@ export async function pingAi(settings: Settings): Promise<{ ok: boolean; error: 
   }
 }
 
-export async function callAi(settings: Settings, system: string, user: string): Promise<string> {
+function usageFrom(data: any): AiUsage | null {
+  const u = data?.usage
+  if (!u) return null
+  const prompt = u.prompt_tokens ?? u.input_tokens ?? 0
+  const completion = u.completion_tokens ?? u.output_tokens ?? 0
+  return { prompt, completion, total: u.total_tokens ?? prompt + completion }
+}
+
+export async function callAi(settings: Settings, system: string, user: string): Promise<{ text: string; usage: AiUsage | null }> {
   const spec = AI_PROVIDERS[settings.provider]
   if (settings.provider === 'anthropic') {
     const res = await app.proxy.fetch(proxyTarget(spec.endpoint), {
@@ -93,7 +102,7 @@ export async function callAi(settings: Settings, system: string, user: string): 
     const data = await res.json()
     const text = data?.content?.[0]?.text
     if (typeof text !== 'string') throw new Error('Anthropic returned no content.')
-    return text
+    return { text, usage: usageFrom(data) }
   }
   const isGithub = settings.provider === 'github'
   const res = await app.proxy.fetch(proxyTarget(spec.endpoint), {
@@ -119,6 +128,6 @@ export async function callAi(settings: Settings, system: string, user: string): 
   }
   const data = await res.json()
   const content = data?.choices?.[0]?.message?.content
-  if (typeof content !== 'string') throw new Error('OpenAI returned no content.')
-  return content
+  if (typeof content !== 'string') throw new Error(`${isGithub ? 'GitHub Models' : 'OpenAI'} returned no content.`)
+  return { text: content, usage: usageFrom(data) }
 }

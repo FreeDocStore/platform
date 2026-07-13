@@ -59,12 +59,23 @@ export function EditPanel({
       </div>
       <label className="field">
         <span>Change request</span>
-        <textarea value={form.instruction} onChange={(e) => update('instruction', e.target.value)} rows={4} />
+        <textarea
+          value={form.instruction}
+          onChange={(e) => update('instruction', e.target.value)}
+          onKeyDown={(e) => {
+            if ((e.metaKey || e.ctrlKey) && e.key === 'Enter' && !busy) {
+              e.preventDefault()
+              onAsk()
+            }
+          }}
+          rows={4}
+          placeholder="Describe the change…  (⌘↵ to Ask AI)"
+        />
       </label>
       <div className="action-row">
         <button className="primary-action" type="button" onClick={onAsk} disabled={busy}>
           {busy ? <Loader2 className="spin" size={17} /> : <Sparkles size={17} />}
-          Ask AI
+          Ask AI <kbd className="kbd-hint">⌘↵</kbd>
         </button>
       </div>
       <div className="apply-block">
