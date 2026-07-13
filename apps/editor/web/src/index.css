@@ -1500,6 +1500,42 @@ h1 {
   margin-inline: auto;
 }
 
+/* Profile controls are compact, content-sized — not full-width blocks. */
+.profile-grid .action-row {
+  gap: 8px;
+}
+
+.profile-grid .primary-action,
+.profile-grid .secondary-action {
+  flex: 0 0 auto;
+  min-height: 34px;
+  padding: 0 14px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.profile-grid .choice {
+  flex: 0 0 auto;
+  min-height: 30px;
+  padding-inline: 14px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.profile-grid .full-action {
+  width: auto;
+  justify-self: start;
+  min-height: 32px;
+  padding: 0 14px;
+  font-size: 12.5px;
+}
+
+/* API key rows: the input takes the space, the Save button hugs its label. */
+.profile-grid .byok-provider .action-row .field {
+  flex: 1 1 auto;
+  margin-bottom: 0;
+}
+
 @media (max-width: 719px) {
   .store-topbar-inner {
     min-height: 56px;
