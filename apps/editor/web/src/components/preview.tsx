@@ -207,11 +207,45 @@ export function EditPreview({
         </div>
         <p>{proposal?.rationale ?? 'Load a Markdown file and ask AI for a replacement proposal.'}</p>
       </div>
-      {canRender && rendered && text ? (
+      {active === 'diff' ? (
+        <DiffView diff={diff} />
+      ) : canRender && rendered && text ? (
         <div className="markdown-body code-view" dangerouslySetInnerHTML={{ __html: renderMarkdown(text) }} />
       ) : (
         <pre className="code-view">{text || 'Nothing to preview yet.'}</pre>
       )}
+    </div>
+  )
+}
+
+function DiffView({ diff }: { diff: string }) {
+  if (!diff || !/^[+-] /m.test(diff)) {
+    return <div className="code-view diff-view diff-empty">{diff || 'No proposal yet. Describe a change and Ask AI.'}</div>
+  }
+  const lines = diff.split('\n')
+  let added = 0
+  let removed = 0
+  for (const line of lines) {
+    if (line.startsWith('+ ')) added++
+    else if (line.startsWith('- ')) removed++
+  }
+  return (
+    <div className="diff-wrap">
+      <div className="diff-stat">
+        <span className="diff-add-count">+{added}</span>
+        <span className="diff-del-count">−{removed}</span>
+      </div>
+      <div className="code-view diff-view">
+        {lines.map((line, i) => {
+          const kind = line.startsWith('+ ') ? 'add' : line.startsWith('- ') ? 'del' : 'ctx'
+          return (
+            <div className={`diff-line diff-${kind}`} key={i}>
+              <span className="diff-gutter">{kind === 'add' ? '+' : kind === 'del' ? '−' : ' '}</span>
+              <span className="diff-text">{line.slice(2) || ' '}</span>
+            </div>
+          )
+        })}
+      </div>
     </div>
   )
 }
