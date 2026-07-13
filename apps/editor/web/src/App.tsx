@@ -444,9 +444,9 @@ function EditorApp() {
   async function askForEditProposal() {
     setBusy(true)
     setStatus('Asking AI for proposal')
+    const active = usableSettings()
     try {
       validatePlatformAccess(user)
-      const active = usableSettings()
       validateAi(active)
       const current = source || (await readGitHubFile(editForm.repo, editForm.path, editForm.branch))
       setSource(current)
@@ -460,7 +460,7 @@ function EditorApp() {
       const message = messageOf(error)
       setStatus(message)
       setProposal(null)
-      setDiff(`AI request failed — ${AI_PROVIDERS[settings.provider].label}\n\n${message}`)
+      setDiff(`AI request failed — ${AI_PROVIDERS[active.provider].label}\n\n${message}`)
       setActivePreview('diff')
     } finally {
       setBusy(false)

@@ -422,7 +422,12 @@ export class GitHubClient {
       );
     }
     return (body.tree ?? [])
-      .filter((e) => e.type === "blob" && e.path.startsWith("docs/") && e.path.endsWith(".html"))
+      .filter(
+        (e) =>
+          e.type === "blob" &&
+          e.path.startsWith("docs/") &&
+          /\.(html?|mdx?|markdown)$/i.test(e.path),
+      )
       .map((e) => e.path);
   }
 

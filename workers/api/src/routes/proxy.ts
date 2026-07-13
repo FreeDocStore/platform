@@ -30,7 +30,10 @@ export function registerProxyRoutes(app: App) {
       if (isWrite && !token) {
         return c.json({ error: "GitHub writes go through your own account. Sign in with GitHub (granting repo access) and try again." }, 403);
       }
-      headers.set("Authorization", `Bearer ${token || ""}`);
+      // Only send Authorization when we actually have a token. An empty
+      // `Bearer ` header makes GitHub reject an otherwise-valid anonymous read
+      // (e.g. a Google-authed user reading a public repo with no platform token).
+      if (token) headers.set("Authorization", `Bearer ${token}`);
       headers.set("User-Agent", "freedocstore-api");
       headers.set("X-GitHub-Api-Version", c.req.header("X-GitHub-Api-Version") || "2022-11-28");
     } else if (url.hostname === "models.github.ai") {

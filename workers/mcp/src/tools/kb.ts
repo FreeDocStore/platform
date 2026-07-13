@@ -155,9 +155,13 @@ Recommended first flow:
     { repo: z.string().describe("Repo as owner/name, registered KB id, or repo name under FreeDocStore") },
     async ({ repo }) => {
       let fullRepo = repoFromInput(agent.env, repo);
-      const registry = await readRegistry(agent.env.REGISTRY_URL);
-      const kb = findKnowledgeBase(registry, repo);
-      if (kb) fullRepo = kb.source.repo;
+      try {
+        const registry = await readRegistry(agent.env.REGISTRY_URL);
+        const kb = findKnowledgeBase(registry, repo);
+        if (kb) fullRepo = kb.source.repo;
+      } catch {
+        // registry unavailable; fall back to repo input as-is
+      }
       const runs = await getDeployStatus(fullRepo);
       if (!Array.isArray(runs)) return txt(`Error: ${runs.error}`);
       if (runs.length === 0) return txt(`No workflow runs found for ${fullRepo}.`);

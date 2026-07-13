@@ -18,22 +18,26 @@ export function usePwa() {
   useEffect(() => {
     if (!('serviceWorker' in navigator)) return
     let cancelled = false
+    let removeUpdateFound: (() => void) | undefined
     navigator.serviceWorker.ready.then(() => {
       if (!cancelled) setPwaReady(true)
     }).catch(() => {})
     navigator.serviceWorker.getRegistration().then((registration) => {
       if (!registration || cancelled) return
       if (registration.waiting) setUpdateAvailable(true)
-      registration.addEventListener('updatefound', () => {
+      const onUpdateFound = () => {
         const worker = registration.installing
         if (!worker) return
         worker.addEventListener('statechange', () => {
-          if (worker.state === 'installed' && navigator.serviceWorker.controller) setUpdateAvailable(true)
+          if (!cancelled && worker.state === 'installed' && navigator.serviceWorker.controller) setUpdateAvailable(true)
         })
-      })
+      }
+      registration.addEventListener('updatefound', onUpdateFound)
+      removeUpdateFound = () => registration.removeEventListener('updatefound', onUpdateFound)
     }).catch(() => {})
     return () => {
       cancelled = true
+      removeUpdateFound?.()
     }
   }, [])
 

@@ -165,7 +165,8 @@ export function useAuth() {
   }
 
   async function deleteAccount() {
-    await apiFetch('/api/account', { method: 'DELETE' })
+    const res = await apiFetch('/api/account', { method: 'DELETE' })
+    if (!res.ok) throw new Error(`Account deletion failed: ${res.status}`)
     setUser(null)
   }
 

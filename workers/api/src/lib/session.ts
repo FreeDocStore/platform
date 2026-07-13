@@ -92,7 +92,7 @@ export function clearSessionCookie(c: Parameters<typeof deleteCookie>[0]) {
   });
 }
 
-export function requireSession(c: Parameters<AppContext["get"]> extends never ? never : any): Session {
+export function requireSession(c: AppContext): Session {
   const session = c.get("session") as Session | null;
   if (!session) throwJson(401, "Authentication required");
   return session;
