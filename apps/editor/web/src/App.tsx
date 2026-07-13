@@ -502,7 +502,11 @@ function EditorApp() {
       setActivePreview('diff')
       setStatus('Proposal ready')
     } catch (error) {
-      setStatus(messageOf(error))
+      const message = messageOf(error)
+      setStatus(message)
+      setProposal(null)
+      setDiff(`AI request failed — ${AI_PROVIDERS[settings.provider].label}\n\n${message}`)
+      setActivePreview('diff')
     } finally {
       setBusy(false)
     }
@@ -565,8 +569,10 @@ function EditorApp() {
       const next = await app.secrets.setKey(provider, value)
       setSecrets(next)
       setKeyInputs((current) => ({ ...current, [provider]: '' }))
-      setConnections((current) => ({ ...current, ai: 'unchecked', detail: `${AI_PROVIDERS[provider].label} BYOK key saved. Check platform connections to verify it.` }))
-      setStatus(`${AI_PROVIDERS[provider].label} BYOK key saved`)
+      // Saving a key means you want to use it — switch the AI provider to it.
+      setSettings((current) => ({ ...current, provider, model: AI_PROVIDERS[provider].defaultModel }))
+      setConnections((current) => ({ ...current, ai: 'unchecked', detail: `${AI_PROVIDERS[provider].label} is now your AI provider. Ask AI will use your key.` }))
+      setStatus(`${AI_PROVIDERS[provider].label} key saved — now your AI provider`)
     } catch (error) {
       setStatus(messageOf(error))
     } finally {
