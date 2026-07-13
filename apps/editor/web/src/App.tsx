@@ -3,6 +3,7 @@ import { fds as app, useAuth, useSubscription, useTheme, type ByokProvider, type
 import {
   ACTIVE_KB_KEY,
   AI_PROVIDERS,
+  BYOK_PROVIDER_IDS,
   type AiUsage,
   CONFIG_KEY,
   KBS_KEY,
@@ -40,7 +41,6 @@ import {
   toPublishForm,
   updateStep,
   validateAi,
-  validateByok,
   validateKbFiles,
   validatePlatformAccess,
   validatePublishForm,
@@ -339,11 +339,11 @@ function EditorApp() {
     try {
       validatePublishForm(form)
       validatePlatformAccess(user)
-      validateAi(settings)
-      validateByok(secrets, settings.provider)
+      const active = usableSettings()
+      validateAi(active)
       setKbSteps(kbId, updateStep('plan', 'ok', 'Zensical contract ready'))
       setKbSteps(kbId, updateStep('ai', 'busy', 'Asking AI for source files'))
-      const { files: nextFiles, usage } = await generateKbFiles(settings, form)
+      const { files: nextFiles, usage } = await generateKbFiles(active, form)
       setLastUsage(usage)
       validateKbFiles(nextFiles)
       setKbPatch(kbId, { files: nextFiles, lastStatus: 'Files generated' })
@@ -371,12 +371,12 @@ function EditorApp() {
       if (!readyFiles.length) {
         validatePublishForm(form)
         validatePlatformAccess(user)
-        validateAi(settings)
-        validateByok(secrets, settings.provider)
+        const active = usableSettings()
+        validateAi(active)
         setKbSteps(kbId, resetSteps('plan', 'busy'))
         setKbSteps(kbId, updateStep('plan', 'ok', 'Zensical contract ready'))
         setKbSteps(kbId, updateStep('ai', 'busy', 'Asking AI for source files'))
-        const generated = await generateKbFiles(settings, form)
+        const generated = await generateKbFiles(active, form)
         setLastUsage(generated.usage)
         readyFiles = generated.files
         validateKbFiles(readyFiles)
@@ -446,11 +446,11 @@ function EditorApp() {
     setStatus('Asking AI for proposal')
     try {
       validatePlatformAccess(user)
-      validateAi(settings)
-      validateByok(secrets, settings.provider)
+      const active = usableSettings()
+      validateAi(active)
       const current = source || (await readGitHubFile(editForm.repo, editForm.path, editForm.branch))
       setSource(current)
-      const { proposal: next, usage } = await generateEditProposal(settings, editForm, current)
+      const { proposal: next, usage } = await generateEditProposal(active, editForm, current)
       setLastUsage(usage)
       setProposal(next)
       setDiff(buildLineDiff(current, next.content))
@@ -499,9 +499,33 @@ function EditorApp() {
     return !!secretsObj[provider as 'openai' | 'anthropic']?.configured
   }
 
+  /**
+   * If the chosen provider isn't usable (BYOK with no saved key), pick one that is:
+   * a BYOK provider you have a key for, else the free GitHub Models tier.
+   */
+  function usableSettings(): Settings {
+    if (aiReady(secrets, settings.provider)) return settings
+    const configured = BYOK_PROVIDER_IDS.find((id) => secrets[id]?.configured)
+    const target: Settings['provider'] = configured ?? 'github'
+    const next: Settings = { ...settings, provider: target, model: AI_PROVIDERS[target].defaultModel }
+    setSettings(next)
+    setStatus(
+      configured
+        ? `Using ${AI_PROVIDERS[target].label} — the provider you have a key for.`
+        : `No key for ${AI_PROVIDERS[settings.provider].label}; using the free GitHub Models tier.`,
+    )
+    return next
+  }
+
   async function refreshSecrets() {
     const next = await app.secrets.get()
     setSecrets(next)
+    // If the saved provider is a BYOK one with no key, but a different key exists,
+    // switch to it so the UI reflects the provider you can actually use.
+    if (!AI_PROVIDERS[settings.provider].free && !next[settings.provider as 'openai' | 'anthropic']?.configured) {
+      const configured = BYOK_PROVIDER_IDS.find((id) => next[id]?.configured)
+      if (configured) setSettings((s) => ({ ...s, provider: configured, model: AI_PROVIDERS[configured].defaultModel }))
+    }
     const ready = aiReady(next, settings.provider)
     setConnections((current) => ({
       ...current,
