@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Quote } from 'lucide-react'
-import { type Proposal, type PublishForm, type RepoFile } from '../model'
+import { KB_DOMAIN_SUFFIX, type Proposal, type PublishForm, type RepoFile } from '../model'
 import { renderMarkdown } from '../lib/markdown'
 
 export function PreviewTabs({
@@ -76,7 +76,7 @@ export function FilesPreview({ files, summary, form }: { files: RepoFile[]; summ
 function plannedRepoPreview(form: PublishForm): RepoFile[] {
   const title = form.title || 'Untitled Knowledge Base'
   const slug = form.slug || 'knowledge-base'
-  const productionUrl = form.customDomain ? `https://${form.customDomain}/` : `https://${slug}.pages.dev/`
+  const productionUrl = form.customDomain ? `https://${form.customDomain}/` : `https://${slug}.${KB_DOMAIN_SUFFIX}/`
   return [
     {
       path: 'zensical.toml',

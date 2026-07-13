@@ -118,8 +118,12 @@ function EditorApp() {
   // after a refresh or once the registry finishes loading.
   useEffect(() => {
     if (route !== 'edit' || !editKbId) return
+    if (!library.length) return // registry still loading
     const kb = library.find((entry) => entry.id === editKbId)
-    if (!kb) return
+    if (!kb) {
+      setStatus(`"${editKbId}" isn't in the public registry. Pick a knowledge base from the dashboard.`)
+      return
+    }
     const file = locationFromUrl().file || 'docs/index.md'
     const key = `${editKbId}:${file}`
     if (loadedEditKey.current === key) return
@@ -138,6 +142,7 @@ function EditorApp() {
     localStorage.setItem('fds:last-edit-kb', target)
     setRoute('edit')
     setEditKbId(target)
+    setActivePreview('source')
     pushLocation({ route: 'edit', kbId: target, file: 'docs/index.md' })
   }
 
@@ -196,7 +201,6 @@ function EditorApp() {
 
   useEffect(() => {
     const saved = parseStoredJson<Partial<Settings>>(localStorage.getItem('fds-editor-settings'))
-    sessionStorage.removeItem('fds-editor-settings')
     if (saved) setSettings(normalizeSettings(saved))
     const savedKbs = parseStoredJson<unknown>(localStorage.getItem('fds-kb-drafts'))
     if (savedKbs) {
@@ -627,6 +631,9 @@ function EditorApp() {
   if (authLoading) return <LoadingScreen />
   if (!user) return <SignedOutLanding signIn={signIn} />
 
+  // 'files' is a publish-only preview tab; never let it leak into the edit view.
+  const editPreview = activePreview === 'files' ? 'source' : activePreview
+
   const content = route === 'dashboard' ? (
     <DashboardPage
       kbs={kbs}
@@ -697,9 +704,9 @@ function EditorApp() {
         />
       </section>
       <section className="panel preview-panel">
-        <PreviewTabs active={activePreview} setActive={setActivePreview} hasProposal={!!proposal} hasLive={!!livePageUrl(library, editForm)} />
+        <PreviewTabs active={editPreview} setActive={setActivePreview} hasProposal={!!proposal} hasLive={!!livePageUrl(library, editForm)} />
         <EditPreview
-          active={activePreview}
+          active={editPreview}
           source={source}
           proposal={proposal}
           diff={diff}
