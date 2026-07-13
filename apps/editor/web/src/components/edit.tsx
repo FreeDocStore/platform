@@ -1,5 +1,4 @@
 import {
-  Check,
   Copy,
   Download,
   GitPullRequest,
@@ -8,6 +7,7 @@ import {
   Sparkles,
 } from 'lucide-react'
 import {
+  type ApplyMode,
   type EditForm,
   type Proposal,
   githubEditUrl,
@@ -21,6 +21,8 @@ export function EditPanel({
   onLoad,
   onAsk,
   onApply,
+  applyMode,
+  setApplyMode,
   proposal,
 }: {
   form: EditForm
@@ -28,7 +30,9 @@ export function EditPanel({
   busy: boolean
   onLoad: () => void
   onAsk: () => void
-  onApply: (mode: 'pr' | 'direct') => void
+  onApply: (mode: ApplyMode) => void
+  applyMode: ApplyMode
+  setApplyMode: (mode: ApplyMode) => void
   proposal: Proposal | null
 }) {
   const update = <K extends keyof EditForm>(key: K, value: EditForm[K]) => setForm({ ...form, [key]: value })
@@ -63,14 +67,18 @@ export function EditPanel({
           Ask AI
         </button>
       </div>
-      <div className="action-row">
-        <button className="primary-action" type="button" disabled={busy || !proposal} onClick={() => onApply('pr')}>
+      <div className="apply-block">
+        <div className="view-toggle apply-mode">
+          <button className={applyMode === 'pr' ? 'view-tab active' : 'view-tab'} type="button" onClick={() => setApplyMode('pr')}>
+            Reviewed PR
+          </button>
+          <button className={applyMode === 'direct' ? 'view-tab active' : 'view-tab'} type="button" onClick={() => setApplyMode('direct')}>
+            Direct commit
+          </button>
+        </div>
+        <button className="primary-action full-action" type="button" disabled={busy || !proposal} onClick={() => onApply(applyMode)}>
           {busy ? <Loader2 className="spin" size={17} /> : <GitPullRequest size={17} />}
-          Propose as PR
-        </button>
-        <button className="secondary-action" type="button" disabled={busy || !proposal} onClick={() => onApply('direct')}>
-          <Check size={17} />
-          Commit
+          {applyMode === 'pr' ? 'Apply as pull request' : 'Commit to branch'}
         </button>
       </div>
       <div className="action-row compact-actions">

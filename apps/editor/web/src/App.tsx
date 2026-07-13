@@ -679,12 +679,26 @@ function EditorApp() {
           onLoad={() => loadSource()}
           onAsk={askForEditProposal}
           onApply={applyProposal}
+          applyMode={settings.applyMode}
+          setApplyMode={(mode) => setSettings({ ...settings, applyMode: mode })}
           proposal={proposal}
         />
       </section>
       <section className="panel preview-panel">
         <PreviewTabs active={activePreview} setActive={setActivePreview} hasProposal={!!proposal} hasLive={!!livePageUrl(library, editForm)} />
-        <EditPreview active={activePreview} source={source} proposal={proposal} diff={diff} path={editForm.path} liveUrl={livePageUrl(library, editForm)} />
+        <EditPreview
+          active={activePreview}
+          source={source}
+          proposal={proposal}
+          diff={diff}
+          path={editForm.path}
+          liveUrl={livePageUrl(library, editForm)}
+          onQuote={(text) => {
+            const quoted = text.split('\n').map((line) => `> ${line}`).join('\n')
+            setEditForm((current) => ({ ...current, instruction: current.instruction ? `${current.instruction}\n\n${quoted}\n\n` : `${quoted}\n\n` }))
+            setStatus('Quoted selection into the change request')
+          }}
+        />
       </section>
     </div>
   ) : (

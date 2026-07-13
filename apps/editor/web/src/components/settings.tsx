@@ -53,7 +53,7 @@ export function SettingsPanel({
             value={settings.provider}
             onChange={(event) => {
               const provider = event.target.value as Settings['provider']
-              setSettings({ provider, model: AI_PROVIDERS[provider].defaultModel })
+              setSettings({ ...settings, provider, model: AI_PROVIDERS[provider].defaultModel })
             }}
           >
             {AI_PROVIDER_IDS.map((id) => (

@@ -44,9 +44,13 @@ export type PwaInstallPrompt = Event & {
   userChoice: Promise<{ outcome: 'accepted' | 'dismissed'; platform: string }>
 }
 
+export type ApplyMode = 'pr' | 'direct'
+
 export interface Settings {
   provider: AiProvider
   model: string
+  /** How edits are applied: 'pr' opens a reviewable pull request (approval), 'direct' commits to the branch. */
+  applyMode: ApplyMode
 }
 
 export interface PlatformConnections {
@@ -111,6 +115,7 @@ export interface KnowledgeBaseDraft extends PublishForm {
 export const emptySettings: Settings = {
   provider: 'openai',
   model: AI_PROVIDERS.openai.defaultModel,
+  applyMode: 'pr',
 }
 
 export const emptySecrets: SecretStatus = {
@@ -178,7 +183,8 @@ export function createKnowledgeBase(form: PublishForm): KnowledgeBaseDraft {
 export function normalizeSettings(value: Partial<Settings> | null | undefined): Settings {
   const provider: AiProvider = value?.provider && value.provider in AI_PROVIDERS ? value.provider : 'openai'
   const model = typeof value?.model === 'string' && value.model.trim() ? value.model : AI_PROVIDERS[provider].defaultModel
-  return { provider, model }
+  const applyMode: ApplyMode = value?.applyMode === 'direct' ? 'direct' : 'pr'
+  return { provider, model, applyMode }
 }
 
 export function normalizeKnowledgeBase(value: Partial<KnowledgeBaseDraft> & PublishForm): KnowledgeBaseDraft {

@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
+import { Quote } from 'lucide-react'
 import { type Proposal, type PublishForm, type RepoFile } from '../model'
+import { renderMarkdown } from '../lib/markdown'
 
 export function PreviewTabs({
   active,
@@ -145,6 +147,7 @@ export function EditPreview({
   diff,
   path,
   liveUrl,
+  onQuote,
 }: {
   active: 'files' | 'source' | 'proposal' | 'diff' | 'live'
   source: string
@@ -152,7 +155,9 @@ export function EditPreview({
   diff: string
   path: string
   liveUrl: string | null
+  onQuote: (text: string) => void
 }) {
+  const [rendered, setRendered] = useState(false)
   if (active === 'live') {
     return (
       <div className="preview-body">
@@ -174,13 +179,39 @@ export function EditPreview({
     )
   }
   const text = active === 'proposal' ? proposal?.content ?? '' : active === 'source' ? source : diff
+  // Rendered markdown makes sense for the actual document (source/proposal), not the line diff.
+  const canRender = active === 'source' || active === 'proposal'
+
+  function quoteSelection() {
+    const selection = window.getSelection()?.toString().trim()
+    if (selection) onQuote(selection)
+  }
+
   return (
     <div className="preview-body">
       <div className="preview-summary">
-        <strong>{proposal?.summary ?? path}</strong>
+        <div className="preview-summary-head">
+          <strong>{proposal?.summary ?? path}</strong>
+          <div className="preview-tools">
+            <button className="mini-action" type="button" onClick={quoteSelection} title="Quote the selected text into the change request">
+              <Quote size={14} />
+              Quote selection
+            </button>
+            {canRender && (
+              <div className="view-toggle">
+                <button className={rendered ? 'view-tab' : 'view-tab active'} type="button" onClick={() => setRendered(false)}>Raw</button>
+                <button className={rendered ? 'view-tab active' : 'view-tab'} type="button" onClick={() => setRendered(true)}>Rendered</button>
+              </div>
+            )}
+          </div>
+        </div>
         <p>{proposal?.rationale ?? 'Load a Markdown file and ask AI for a replacement proposal.'}</p>
       </div>
-      <pre className="code-view">{text || 'Nothing to preview yet.'}</pre>
+      {canRender && rendered && text ? (
+        <div className="markdown-body code-view" dangerouslySetInnerHTML={{ __html: renderMarkdown(text) }} />
+      ) : (
+        <pre className="code-view">{text || 'Nothing to preview yet.'}</pre>
+      )}
     </div>
   )
 }
