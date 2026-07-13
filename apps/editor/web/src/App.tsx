@@ -14,7 +14,6 @@ import {
   type Proposal,
   type PublishForm,
   type PublishStep,
-  type PwaInstallPrompt,
   type RegistryKb,
   type Settings,
   buildLineDiff,
@@ -46,6 +45,7 @@ import {
   validatePlatformAccess,
   validatePublishForm,
 } from './model'
+import { usePwa } from './hooks/usePwa'
 import { generateEditProposal, generateKbFiles, pingAi } from './services/ai'
 import { readGitHubFile } from './services/github'
 import { LoadingScreen, SignedOutLanding } from './components/signin'
@@ -83,9 +83,7 @@ function EditorApp() {
   const [lastUsage, setLastUsage] = useState<AiUsage | null>(null)
   const [status, setStatus] = useState('Ready')
   const [busy, setBusy] = useState(false)
-  const [installPrompt, setInstallPrompt] = useState<PwaInstallPrompt | null>(null)
-  const [pwaReady, setPwaReady] = useState(false)
-  const [updateAvailable, setUpdateAvailable] = useState(false)
+  const { installPrompt, pwaReady, updateAvailable, installApp, activateUpdate } = usePwa()
   const connectionCheckStarted = useRef(false)
 
   const activeKb = kbs.find((kb) => kb.id === activeKbId) ?? kbs[0] ?? createKnowledgeBase(starterPublish)
@@ -154,49 +152,6 @@ function EditorApp() {
     setRoute(route)
     setEditKbId('')
     pushLocation({ route })
-  }
-
-  useEffect(() => {
-    const onPrompt = (event: Event) => {
-      event.preventDefault()
-      setInstallPrompt(event as PwaInstallPrompt)
-    }
-    window.addEventListener('beforeinstallprompt', onPrompt)
-    return () => window.removeEventListener('beforeinstallprompt', onPrompt)
-  }, [])
-
-  useEffect(() => {
-    if (!('serviceWorker' in navigator)) return
-    let cancelled = false
-    navigator.serviceWorker.ready.then(() => {
-      if (!cancelled) setPwaReady(true)
-    }).catch(() => {})
-    navigator.serviceWorker.getRegistration().then((registration) => {
-      if (!registration || cancelled) return
-      if (registration.waiting) setUpdateAvailable(true)
-      registration.addEventListener('updatefound', () => {
-        const worker = registration.installing
-        if (!worker) return
-        worker.addEventListener('statechange', () => {
-          if (worker.state === 'installed' && navigator.serviceWorker.controller) setUpdateAvailable(true)
-        })
-      })
-    }).catch(() => {})
-    return () => {
-      cancelled = true
-    }
-  }, [])
-
-  async function installApp() {
-    if (!installPrompt) return
-    await installPrompt.prompt()
-    setInstallPrompt(null)
-  }
-
-  async function activateUpdate() {
-    const registration = 'serviceWorker' in navigator ? await navigator.serviceWorker.getRegistration() : null
-    registration?.waiting?.postMessage({ type: 'SKIP_WAITING' })
-    window.location.reload()
   }
 
   useEffect(() => {

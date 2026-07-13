@@ -1,0 +1,166 @@
+@media (min-width: 720px) {
+  #root {
+    --mobile-tab-h: 0px;
+    padding-bottom: 0;
+  }
+
+  .mobile-tabbar {
+    display: none;
+  }
+
+  .workspace-head {
+    grid-template-columns: minmax(0, 1fr) minmax(280px, 380px);
+  }
+
+  h1 {
+    font-size: 38px;
+  }
+
+  .field-grid.two,
+  .target-grid,
+  .dashboard-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+  }
+
+  .connection-grid,
+  .metric-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 960px) {
+  .workspace-grid {
+    grid-template-columns: minmax(320px, 360px) minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .preview-panel {
+    position: sticky;
+    top: 78px;
+  }
+
+  .file-preview-layout {
+    grid-template-columns: 220px minmax(0, 1fr);
+  }
+
+  .file-list {
+    display: grid;
+    align-content: start;
+    border-right: 1px solid var(--line);
+    border-bottom: 0;
+  }
+
+  .file-row {
+    width: 100%;
+  }
+}
+
+@media (min-width: 1120px) {
+  .store-topbar-inner {
+    width: min(1440px, 100%);
+  }
+
+  .app-shell {
+    width: min(1440px, 100%);
+    margin: 0 auto;
+    padding: 14px 24px 24px;
+  }
+
+  .workspace-grid {
+    grid-template-columns: minmax(340px, 380px) minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .dashboard-grid {
+    grid-template-columns: minmax(0, 1.15fr) minmax(320px, 0.85fr);
+  }
+
+  .preview-panel {
+    position: sticky;
+    top: 78px;
+  }
+
+  .code-view {
+    max-height: calc(100dvh - 170px);
+  }
+}
+
+/* Profile stays a comfortable reading width even on the wider shell. */
+.profile-grid {
+  margin-inline: auto;
+}
+
+/* Profile controls are compact, content-sized — not full-width blocks. */
+.profile-grid .action-row {
+  gap: 8px;
+}
+
+.profile-grid .primary-action,
+.profile-grid .secondary-action {
+  flex: 0 0 auto;
+  min-height: 34px;
+  padding: 0 14px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.profile-grid .choice {
+  flex: 0 0 auto;
+  min-height: 30px;
+  padding-inline: 14px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.profile-grid .full-action {
+  width: auto;
+  justify-self: start;
+  min-height: 32px;
+  padding: 0 14px;
+  font-size: 12.5px;
+}
+
+/* API key rows: the input takes the space, the Save button hugs its label. */
+.profile-grid .byok-provider .action-row .field {
+  flex: 1 1 auto;
+  margin-bottom: 0;
+}
+
+@media (max-width: 719px) {
+  .store-topbar-inner {
+    min-height: 56px;
+  }
+
+  .store-topbar .app-nav,
+  .pwa-chip,
+  .signout-action,
+  .brand-lockup small,
+  .account-pill strong {
+    display: none;
+  }
+
+  .account-pill {
+    width: 40px;
+    max-width: none;
+    justify-content: center;
+    padding: 0;
+  }
+
+  .workspace-head {
+    padding-top: 8px;
+  }
+
+  h1 {
+    font-size: 28px;
+  }
+
+  .status-block {
+    padding: 10px;
+  }
+
+  .section-block,
+  .auth-card {
+    padding: 14px;
+  }
+}
