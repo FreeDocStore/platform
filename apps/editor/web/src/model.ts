@@ -252,11 +252,11 @@ export interface AppLocation {
 }
 
 export function locationFromUrl(): AppLocation {
-  const segments = window.location.pathname.replace(/^\/+|\/+$/g, '').split('/')
+  const segments = window.location.pathname.replace(/^\/+|\/+$/g, '').split('/').filter(Boolean)
   const first = segments[0] || 'dashboard'
   if (first === 'edit') {
     const kbId = segments[1] ? decodeURIComponent(segments[1]) : ''
-    const file = new URLSearchParams(window.location.search).get('file') || ''
+    const file = segments.slice(2).map(decodeURIComponent).join('/')
     return { route: 'edit', kbId, file }
   }
   if (first === 'publish' || first === 'profile') return { route: first, kbId: '', file: '' }
@@ -265,20 +265,21 @@ export function locationFromUrl(): AppLocation {
 
 export function urlForLocation(loc: Partial<AppLocation> & { route: AppRoute }): string {
   if (loc.route === 'edit') {
-    const base = loc.kbId ? `/edit/${encodeURIComponent(loc.kbId)}` : '/edit'
-    return loc.file ? `${base}?file=${encodeURIComponent(loc.file)}` : base
+    if (!loc.kbId) return '/edit'
+    const base = `/edit/${encodeURIComponent(loc.kbId)}`
+    return loc.file ? `${base}/${loc.file.split('/').map(encodeURIComponent).join('/')}` : base
   }
   return loc.route === 'dashboard' ? '/' : `/${loc.route}`
 }
 
 export function pushLocation(loc: Partial<AppLocation> & { route: AppRoute }) {
   const next = urlForLocation(loc)
-  if (window.location.pathname + window.location.search !== next) window.history.pushState(null, '', next)
+  if (window.location.pathname !== next) window.history.pushState(null, '', next)
 }
 
 export function replaceLocation(loc: Partial<AppLocation> & { route: AppRoute }) {
   const next = urlForLocation(loc)
-  if (window.location.pathname + window.location.search !== next) window.history.replaceState(null, '', next)
+  if (window.location.pathname !== next) window.history.replaceState(null, '', next)
 }
 
 export function deployWorkflow(project: string, customDomain: string) {

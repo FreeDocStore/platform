@@ -469,7 +469,10 @@ function EditorApp() {
         replaceLocation({ route: 'edit', kbId: editKbId, file: form.path })
       }
     } catch (error) {
-      setStatus(messageOf(error))
+      const message = messageOf(error)
+      setStatus(message)
+      setSource(`Could not load ${form.repo}/${form.path}\n\n${message}\n\nIf this is a 404/403, the FreeDocStore GitHub App may not have access to this repo — check that it's installed on the org with Contents read/write.`)
+      setActivePreview('source')
     } finally {
       setBusy(false)
     }
