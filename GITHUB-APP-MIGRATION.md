@@ -59,6 +59,12 @@ Create at: <https://github.com/organizations/FreeDocStore/settings/apps/new>
 | Administration | Read and write | **creating new KB repos** (publish flow) — optional; add when you want console publish to work |
 | Metadata | Read-only (mandatory, auto-selected) | — |
 
+**Account permissions:**
+
+| Permission | Access | Needed for |
+| --- | --- | --- |
+| Models | Read-only | **free AI tier** — GitHub Models inference via the user's token (the console's default AI provider). Without it, "Ask AI" 403s until the user adds their own OpenAI/Anthropic key |
+
 **Organization permissions:** none.
 
 **Where can this App be installed?** "Any account" (so users can later install it on
