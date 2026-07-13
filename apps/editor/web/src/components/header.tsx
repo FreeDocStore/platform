@@ -3,13 +3,15 @@ import {
   Home,
   LayoutDashboard,
   LibraryBig,
+  Moon,
   PenLine,
   RefreshCw,
   ShieldCheck,
+  Sun,
   UserCircle,
   Wifi,
 } from 'lucide-react'
-import { type User } from '../lib/fds'
+import { type ThemePreference, type User } from '../lib/fds'
 import { type AppRoute, FDS_MCP, displayName } from '../model'
 
 export function StoreHeader({
@@ -20,6 +22,8 @@ export function StoreHeader({
   pwaReady,
   updateAvailable,
   onUpdate,
+  themePreference,
+  setThemePreference,
 }: {
   route: AppRoute
   navigate: (route: AppRoute) => void
@@ -28,7 +32,10 @@ export function StoreHeader({
   pwaReady: boolean
   updateAvailable: boolean
   onUpdate: () => void
+  themePreference: ThemePreference
+  setThemePreference: (preference: ThemePreference) => void
 }) {
+  const isDark = themePreference === 'dark' || (themePreference === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)
   return (
     <header className="store-topbar">
       <div className="store-topbar-inner">
@@ -41,6 +48,15 @@ export function StoreHeader({
         </button>
         <AppNav route={route} navigate={navigate} />
         <div className="account-strip">
+          <button
+            className="icon-action"
+            type="button"
+            onClick={() => setThemePreference(isDark ? 'light' : 'dark')}
+            aria-label={isDark ? 'Switch to light theme' : 'Switch to dark theme'}
+            title={isDark ? 'Light theme' : 'Dark theme'}
+          >
+            {isDark ? <Sun size={17} /> : <Moon size={17} />}
+          </button>
           <span className={pwaReady ? 'pwa-chip ready' : 'pwa-chip'}>
             <Wifi size={14} />
             <span>{pwaReady ? 'Offline ready' : 'Web app'}</span>

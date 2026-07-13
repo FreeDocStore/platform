@@ -727,6 +727,8 @@ function EditorApp() {
         pwaReady={pwaReady}
         updateAvailable={updateAvailable}
         onUpdate={activateUpdate}
+        themePreference={preference}
+        setThemePreference={setPreference}
       />
       <main className="app-shell">
         <div className="status-strip" aria-live="polite">

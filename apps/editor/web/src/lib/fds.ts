@@ -65,8 +65,9 @@ async function apiJson<T>(path: string, init: RequestInit = {}): Promise<T> {
 
 function applyTheme(preference: ThemePreference) {
   const dark = preference === 'dark' || (preference === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)
-  if (dark) document.documentElement.dataset.theme = 'dark'
-  else delete document.documentElement.dataset.theme
+  document.documentElement.dataset.theme = dark ? 'dark' : 'light'
+  const meta = document.querySelector('meta[name="theme-color"]')
+  if (meta) meta.setAttribute('content', dark ? '#000000' : '#ffffff')
 }
 
 export const fds = {
