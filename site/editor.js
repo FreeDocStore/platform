@@ -204,7 +204,12 @@ function buildLineDiff(before, after) {
 }
 
 function restoreSession() {
-  const saved = JSON.parse(sessionStorage.getItem("freedocstore-editor") || "{}");
+  let saved;
+  try {
+    saved = JSON.parse(sessionStorage.getItem("freedocstore-editor") || "{}");
+  } catch {
+    return;
+  }
   for (const [id, value] of Object.entries(saved)) {
     const el = $(id);
     if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) el.value = String(value);

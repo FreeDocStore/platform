@@ -177,6 +177,10 @@ export async function updateRepoFiles(input: {
   const tree = await gh(`${base}/git/trees`, { token, method: "POST", body: { base_tree: baseTreeSha, tree: treeItems } });
   if (!tree?.sha) return { ok: false, error: `Tree create failed: ${tree?.message ?? "unknown"}` };
 
+  // No-op: the new tree matches the base tree (re-saving identical content).
+  // Return the current head instead of creating an empty commit / empty PR.
+  if (tree.sha === baseTreeSha) return { ok: true, branch: baseBranch, commitSha: headSha };
+
   const commit = await gh(`${base}/git/commits`, { token, method: "POST", body: { message: input.message, tree: tree.sha, parents: [headSha] } });
   if (!commit?.sha) return { ok: false, error: `Commit create failed: ${commit?.message ?? "unknown"}` };
 

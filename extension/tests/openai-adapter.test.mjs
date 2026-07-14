@@ -1304,6 +1304,16 @@ test("mergeMemoryEntry: empty section header (no bullets yet) inserts cleanly", 
   const voiceIdx = out.indexOf("## Voice");
   const factIdx = out.indexOf("- first style fact");
   assert.ok(factIdx > styleIdx && factIdx < voiceIdx);
+  // Bullet attaches directly to its header, with a blank line before the next.
+  assert.match(out, /## Style\n- first style fact\n\n## Voice/);
+});
+
+test("mergeMemoryEntry: empty section at end of file keeps a trailing newline and no gap", () => {
+  // Regression: inserting at lines.length appended after the split's trailing
+  // "" element, producing "## Notes\n\n- hi" (stray blank line, no final \n).
+  const out = mergeMemoryEntry("# Mem\n\n## Notes\n", "hi", "Notes");
+  assert.equal(out, "# Mem\n\n## Notes\n- hi\n");
+  assert.ok(out.endsWith("\n"), "file must end with a newline");
 });
 
 test("mergeMemoryEntry: trims surrounding whitespace from the entry", () => {

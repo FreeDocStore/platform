@@ -90,11 +90,14 @@ export function nextAvailableSlug(kbs: KnowledgeBaseDraft[], desired: string) {
   const base = slugify(desired) || 'knowledge-base'
   const used = new Set(kbs.map((kb) => kb.slug))
   if (!used.has(base)) return base
+  // Keep suffixed candidates within the 58-char slug limit validatePublishForm
+  // enforces: trim the base so `${base}${suffix}` never exceeds it.
+  const withSuffix = (suffix: string) => `${base.slice(0, 58 - suffix.length)}${suffix}`
   for (let i = 2; i < 1000; i++) {
-    const candidate = `${base}-${i}`
+    const candidate = withSuffix(`-${i}`)
     if (!used.has(candidate)) return candidate
   }
-  return `${base}-${Date.now()}`
+  return withSuffix(`-${Date.now()}`)
 }
 
 export function deployWorkflow(project: string, customDomain: string) {

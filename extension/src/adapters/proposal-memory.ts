@@ -30,25 +30,25 @@ export function mergeMemoryEntry(
   // (right before the next ## or end of file).
   const lines = current.split("\n");
   let inTarget = false;
+  let headerIdx = -1;
   let lastBulletIdx = -1;
-  let nextSectionIdx = -1;
   for (let i = 0; i < lines.length; i++) {
     const ln = lines[i];
     if (ln.trim() === sectionHeader) {
       inTarget = true;
+      headerIdx = i;
       continue;
     }
-    if (inTarget && /^##\s/.test(ln)) {
-      nextSectionIdx = i;
-      break;
-    }
+    if (inTarget && /^##\s/.test(ln)) break;
     if (inTarget && /^[-*]\s/.test(ln)) lastBulletIdx = i;
   }
 
   if (inTarget) {
     // Insert after the last bullet in the section, or right after the
-    // header if there are no bullets yet.
-    const insertAt = lastBulletIdx >= 0 ? lastBulletIdx + 1 : nextSectionIdx >= 0 ? nextSectionIdx : lines.length;
+    // header if there are no bullets yet. Inserting right after the header
+    // (rather than at the next section / end of file) keeps the bullet
+    // attached to its header and preserves the file's trailing newline.
+    const insertAt = lastBulletIdx >= 0 ? lastBulletIdx + 1 : headerIdx + 1;
     lines.splice(insertAt, 0, bullet);
     return lines.join("\n");
   }

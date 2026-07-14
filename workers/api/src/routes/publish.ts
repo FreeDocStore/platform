@@ -12,7 +12,7 @@ export function registerPublishRoutes(app: App) {
     if (!session.githubAccessToken) {
       return c.json({ error: "Publishing requires signing in with GitHub (repo access)." }, 403);
     }
-    const body = await c.req.json<{
+    const body: {
       title?: string;
       slug?: string;
       owner?: string;
@@ -20,7 +20,7 @@ export function registerPublishRoutes(app: App) {
       description?: string;
       visibility?: string;
       files?: PublishFile[];
-    }>();
+    } = await c.req.json().catch(() => ({}));
     if (body.visibility === "private") {
       return c.json({ error: "FreeDocStore publishes public knowledge bases only. Private KBs belong in ProDocStore." }, 400);
     }
@@ -58,14 +58,14 @@ export function registerPublishRoutes(app: App) {
     if (!session.githubAccessToken) {
       return c.json({ error: "Editing requires signing in with GitHub (repo access)." }, 403);
     }
-    const body = await c.req.json<{
+    const body: {
       repo?: string;
       path?: string;
       content?: string;
       message?: string;
       mode?: string;
       branch?: string;
-    }>();
+    } = await c.req.json().catch(() => ({}));
     const repo = (body.repo ?? "").trim();
     const path = (body.path ?? "").trim();
     const content = typeof body.content === "string" ? body.content : "";
