@@ -35,25 +35,6 @@
         "custom_domains": ["true-non-profit.freedocstore.online"]
       },
       "status": "published"
-    },
-    {
-      "id": "react-spa",
-      "title": "React SPA — Gold Standard",
-      "description": "Gold-standard rubric for the react-spa archetype (React, client-rendered, static-hosted; no SSR). The standard VibeCode QA judges react-spa slices against. Edition v1.",
-      "engine": "zensical",
-      "source": {
-        "repo": "FreeDocStore/react-spa",
-        "branch": "main",
-        "docs_dir": "docs",
-        "config": "zensical.toml"
-      },
-      "cloudflare": {
-        "pages_project": "react-spa",
-        "production_url": "https://react-spa.freedocstore.online/",
-        "custom_domains": ["react-spa.freedocstore.online"]
-      },
-      "kind": "standard",
-      "status": "published"
     }
   ]
 }
