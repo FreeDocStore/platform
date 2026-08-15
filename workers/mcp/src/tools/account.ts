@@ -12,6 +12,7 @@ import {
   nextDraftSlug,
   userKvKey,
 } from "./helpers.js";
+import { logMutation } from "./audit.js";
 
 interface Agent {
   server: McpServer;
@@ -114,6 +115,12 @@ export function registerAccountTools(agent: Agent) {
       });
       await agent.env.FDS_API_KV!.put(userKvKey(userId, "fds:kbs:v1"), JSON.stringify([draft, ...drafts]));
       await agent.env.FDS_API_KV!.put(userKvKey(userId, "fds:active-kb:v1"), JSON.stringify(draft.id));
+      await logMutation(agent.env, agent.props, {
+        tool: "create_workspace_draft",
+        action: "create_draft",
+        target: `${draft.owner}/${draft.slug}`,
+        detail: { draftId: draft.id, title: draft.title, visibility: draft.visibility },
+      });
       return txt(`Created FreeDocStore workspace draft via MCP.\n\n${renderDraft(draft)}`);
     },
   );
@@ -135,6 +142,12 @@ export function registerAccountTools(agent: Agent) {
       });
       await agent.env.FDS_API_KV!.put(userKvKey(userId, "fds:kbs:v1"), JSON.stringify([draft, ...drafts]));
       await agent.env.FDS_API_KV!.put(userKvKey(userId, "fds:active-kb:v1"), JSON.stringify(draft.id));
+      await logMutation(agent.env, agent.props, {
+        tool: "create_sample_knowledge_base",
+        action: "create_draft",
+        target: `${draft.owner}/${draft.slug}`,
+        detail: { draftId: draft.id, title: draft.title },
+      });
       return txt(`Created sample KB draft via MCP.\n\n${renderDraft(draft)}`);
     },
   );

@@ -12,6 +12,7 @@ import {
   repoFromInput,
   requireRepoWrite,
 } from "./helpers.js";
+import { logMutation } from "./audit.js";
 
 interface Agent {
   server: McpServer;
@@ -35,9 +36,12 @@ export function registerWriteTools(agent: Agent) {
       mode: z.enum(["pr", "direct"]).optional().describe("'pr' (default) opens a pull request; 'direct' commits to the base branch"),
       pr_title: z.string().optional().describe("Pull request title, defaults to the commit message"),
       pr_body: z.string().optional().describe("Pull request body describing the proposal"),
+      dry_run: z.boolean().optional().describe("If true, return the computed change plan without writing to GitHub"),
+      confirm: z.boolean().optional().describe("Required (true) for mode 'direct' to commit straight to the base branch"),
     },
-    async ({ repo, message, files, delete_paths, branch, mode, pr_title, pr_body }) => {
+    async ({ repo, message, files, delete_paths, branch, mode, pr_title, pr_body, dry_run, confirm }) => {
       const token = requireRepoWrite(agent.props);
+      const effectiveMode = mode ?? "pr";
       let fullRepo = repoFromInput(agent.env, repo);
       try {
         const registry = await readRegistry(agent.env.REGISTRY_URL);
@@ -46,6 +50,32 @@ export function registerWriteTools(agent: Agent) {
       } catch {
         // registry unavailable; fall back to repo input as-is
       }
+      const changed = [
+        ...files.map((f) => `- ${f.path}`),
+        ...(delete_paths ?? []).map((p) => `- ${p} (deleted)`),
+      ].join("\n");
+
+      if (dry_run) {
+        return txt([
+          `Dry run — no changes written to ${fullRepo}.`,
+          "",
+          `Mode: ${effectiveMode}`,
+          `Base branch: ${branch ?? "main"}`,
+          `Commit message: ${message}`,
+          "",
+          "Files:",
+          changed,
+          "",
+          effectiveMode === "direct"
+            ? "Re-run with dry_run: false and confirm: true to commit directly."
+            : "Re-run with dry_run: false to open the proposal PR.",
+        ].join("\n"));
+      }
+
+      if (effectiveMode === "direct" && !confirm) {
+        return txt(`Direct commit to ${fullRepo} requires confirm: true. Re-run with confirm: true to commit straight to ${branch ?? "main"}, or use mode "pr" to open a reviewable proposal.`);
+      }
+
       const result = await updateRepoFiles({
         token,
         repoFullName: fullRepo,
@@ -53,15 +83,23 @@ export function registerWriteTools(agent: Agent) {
         files,
         deletePaths: delete_paths,
         baseBranch: branch,
-        mode: mode ?? "pr",
+        mode: effectiveMode,
         prTitle: pr_title,
         prBody: pr_body,
       });
       if (!result.ok) return txt(`Update failed for ${fullRepo}: ${result.error}`);
-      const changed = [
-        ...files.map((f) => `- ${f.path}`),
-        ...(delete_paths ?? []).map((p) => `- ${p} (deleted)`),
-      ].join("\n");
+      await logMutation(agent.env, agent.props, {
+        tool: "update_files",
+        action: effectiveMode === "direct" ? "commit" : "open_pr",
+        target: fullRepo,
+        detail: {
+          mode: effectiveMode,
+          branch: result.branch,
+          commitSha: result.commitSha,
+          prNumber: result.prNumber,
+          paths: [...files.map((f) => f.path), ...(delete_paths ?? [])],
+        },
+      });
       if (result.prUrl) {
         return txt([
           `Opened proposal PR #${result.prNumber} on ${fullRepo}.`,
