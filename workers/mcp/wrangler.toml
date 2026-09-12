@@ -14,10 +14,11 @@ REGISTRY_URL = "https://freedocstore.online/registry.json"
 GITHUB_ORG = "FreeDocStore"
 PLATFORM_REPO = "platform"
 DEFAULT_DOMAIN = "pages.dev"
-# GitHub OAuth app client id. Callback URL:
+# GitHub App OAuth. Callback URL:
 # https://mcp.freedocstore.online/callback
-# Secret:
-# GITHUB_CLIENT_SECRET
+# Required secrets:
+# wrangler secret put GH_APP_CLIENT_ID
+# wrangler secret put GH_APP_CLIENT_SECRET
 
 [durable_objects]
 bindings = [

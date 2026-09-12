@@ -15,8 +15,8 @@ COOKIE_DOMAIN = ""
 GITHUB_ORG = "FreeDocStore"
 
 # Required secrets:
-# wrangler secret put GITHUB_CLIENT_ID
-# wrangler secret put GITHUB_CLIENT_SECRET
+# wrangler secret put GH_APP_CLIENT_ID
+# wrangler secret put GH_APP_CLIENT_SECRET
 # wrangler secret put GITHUB_TOKEN
 # wrangler secret put GOOGLE_CLIENT_ID
 # wrangler secret put GOOGLE_CLIENT_SECRET
