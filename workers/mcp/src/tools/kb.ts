@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import {
+  GitHubError,
   findKnowledgeBase,
   getDeployStatus,
   listRepoFiles,
@@ -20,6 +21,16 @@ interface Agent {
   server: McpServer;
   env: Env;
   props: McpProps;
+}
+
+/** Report a GitHub failure as tool text instead of passing it off as an empty result. */
+async function withGitHub<T>(action: string, run: () => Promise<T>): Promise<T | ReturnType<typeof txt>> {
+  try {
+    return await run();
+  } catch (err) {
+    if (err instanceof GitHubError) return txt(`Error ${action}: ${err.message}`);
+    throw err;
+  }
 }
 
 export function registerKbTools(agent: Agent) {
@@ -95,26 +106,28 @@ Recommended first flow:
     },
     async ({ repo, branch }) => {
       const fullRepo = repoFromInput(agent.env, repo);
-      const files = await listRepoFiles(fullRepo, branch ?? "main");
-      if (files.length === 0) return txt(`Could not read ${fullRepo}, or it has no files on ${branch ?? "main"}.`);
-      const paths = new Set(files.map((f) => f.path));
-      const markdown = files.filter((f) => f.path.startsWith("docs/") && f.path.endsWith(".md")).map((f) => f.path);
-      const checks = [
-        ["zensical.toml at repo root", paths.has("zensical.toml")],
-        ["docs/index.md exists", paths.has("docs/index.md")],
-        ["docs/ contains Markdown", markdown.length > 0],
-        ["generated site/ is not committed", !files.some((f) => f.path === "site" || f.path.startsWith("site/"))],
-        ["no embedded static HTML docs", !files.some((f) => f.path.startsWith("docs/") && f.path.endsWith(".html"))],
-      ] as const;
-      const passed = checks.filter(([, ok]) => ok).length;
-      const lines = checks.map(([label, ok]) => `- ${ok ? "OK" : "FAIL"} ${label}`);
-      return txt([
-        `Zensical contract check for ${fullRepo}: ${passed}/${checks.length}`,
-        "",
-        lines.join("\n"),
-        "",
-        `Markdown pages: ${markdown.length ? markdown.join(", ") : "(none)"}`,
-      ].join("\n"));
+      return withGitHub(`checking ${fullRepo}`, async () => {
+        const files = await listRepoFiles(fullRepo, branch ?? "main");
+        if (files.length === 0) return txt(`Could not read ${fullRepo}, or it has no files on ${branch ?? "main"}.`);
+        const paths = new Set(files.map((f) => f.path));
+        const markdown = files.filter((f) => f.path.startsWith("docs/") && f.path.endsWith(".md")).map((f) => f.path);
+        const checks = [
+          ["zensical.toml at repo root", paths.has("zensical.toml")],
+          ["docs/index.md exists", paths.has("docs/index.md")],
+          ["docs/ contains Markdown", markdown.length > 0],
+          ["generated site/ is not committed", !files.some((f) => f.path === "site" || f.path.startsWith("site/"))],
+          ["no embedded static HTML docs", !files.some((f) => f.path.startsWith("docs/") && f.path.endsWith(".html"))],
+        ] as const;
+        const passed = checks.filter(([, ok]) => ok).length;
+        const lines = checks.map(([label, ok]) => `- ${ok ? "OK" : "FAIL"} ${label}`);
+        return txt([
+          `Zensical contract check for ${fullRepo}: ${passed}/${checks.length}`,
+          "",
+          lines.join("\n"),
+          "",
+          `Markdown pages: ${markdown.length ? markdown.join(", ") : "(none)"}`,
+        ].join("\n"));
+      });
     },
   );
 
@@ -127,9 +140,11 @@ Recommended first flow:
     },
     async ({ repo, branch }) => {
       const fullRepo = repoFromInput(agent.env, repo);
-      const files = await listRepoFiles(fullRepo, branch ?? "main");
-      if (files.length === 0) return txt(`No files found for ${fullRepo}.`);
-      return txt(`Files in ${fullRepo}:\n\n${files.map((f) => `- ${f.path}`).join("\n")}`);
+      return withGitHub(`listing files in ${fullRepo}`, async () => {
+        const files = await listRepoFiles(fullRepo, branch ?? "main");
+        if (files.length === 0) return txt(`No files found for ${fullRepo}.`);
+        return txt(`Files in ${fullRepo}:\n\n${files.map((f) => `- ${f.path}`).join("\n")}`);
+      });
     },
   );
 
@@ -143,9 +158,11 @@ Recommended first flow:
     },
     async ({ repo, path, branch }) => {
       const fullRepo = repoFromInput(agent.env, repo);
-      const content = await readRepoFile(fullRepo, path, branch ?? "main");
-      if (content === null) return txt(`Could not read ${path} from ${fullRepo}.`);
-      return txt(`File: ${fullRepo}/${path}\n\n\`\`\`\n${content}\n\`\`\``);
+      return withGitHub(`reading ${path} from ${fullRepo}`, async () => {
+        const content = await readRepoFile(fullRepo, path, branch ?? "main");
+        if (content === null) return txt(`Could not read ${path} from ${fullRepo}.`);
+        return txt(`File: ${fullRepo}/${path}\n\n\`\`\`\n${content}\n\`\`\``);
+      });
     },
   );
 

@@ -29,6 +29,24 @@ export interface RepoFile {
   size?: number;
 }
 
+export class GitHubError extends Error {
+  constructor(
+    readonly status: number,
+    message: string,
+  ) {
+    super(`GitHub API ${status}: ${message}`);
+    this.name = "GitHubError";
+  }
+}
+
+// 404 is a genuine "not found" and callers treat it as empty/null; every other
+// failure (401/403 auth, 429 rate limit, 5xx) must surface as an error.
+function throwIfFailed(res: any): void {
+  if (res?.__status && res.__status !== 404) {
+    throw new GitHubError(res.__status, res.message ?? res.raw ?? "request failed");
+  }
+}
+
 async function gh(url: string, init?: { method?: string; token?: string; body?: unknown }): Promise<any> {
   const headers: Record<string, string> = {
     Accept: "application/vnd.github+json",
@@ -70,9 +88,11 @@ export async function readRegistry(registryUrl: string): Promise<Registry> {
 export async function listRepoFiles(repoFullName: string, branch = "main"): Promise<RepoFile[]> {
   const base = `https://api.github.com/repos/${repoFullName}`;
   const ref = await gh(`${base}/git/ref/heads/${encodeURIComponent(branch)}`);
+  throwIfFailed(ref);
   const headSha = ref?.object?.sha;
   if (!headSha) return [];
   const tree = await gh(`${base}/git/trees/${headSha}?recursive=1`);
+  throwIfFailed(tree);
   if (!Array.isArray(tree?.tree)) return [];
   return tree.tree
     .filter((item: any) => item.type === "blob" || item.type === "tree")
@@ -83,6 +103,7 @@ export async function readRepoFile(repoFullName: string, path: string, branch = 
   const encodedPath = path.split("/").map(encodeURIComponent).join("/");
   const url = `https://api.github.com/repos/${repoFullName}/contents/${encodedPath}?ref=${encodeURIComponent(branch)}`;
   const res = await gh(url);
+  throwIfFailed(res);
   if (typeof res?.content !== "string" || res.encoding !== "base64") return null;
   return b64ToText(res.content);
 }

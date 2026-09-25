@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { registerWriteTools } from "../tools/write";
 import { registerAccountTools } from "../tools/account";
+import { registerKbTools } from "../tools/kb";
 import type { Env, McpProps } from "../tools/helpers";
 
 // --- fakes ------------------------------------------------------------------
@@ -165,5 +166,49 @@ describe("account draft mutators", () => {
     const readOnly: McpProps = { ...writeProps, scopes: ["read"] };
     const tools = captureTools(registerAccountTools, baseEnv(kv), readOnly);
     await expect(tools.create_workspace_draft({ title: "x", prompt: "y" })).rejects.toThrow(/write scope/);
+  });
+});
+
+// --- kb read tools ----------------------------------------------------------
+
+describe("kb read tools surface GitHub failures", () => {
+  const failWith = (status: number, message: string) =>
+    vi.stubGlobal("fetch", vi.fn(async () => json({ message }, status)));
+
+  it.each([
+    [403, "API rate limit exceeded"],
+    [429, "secondary rate limit"],
+    [500, "Server Error"],
+  ])("list_files reports %i instead of 'No files found'", async (status, message) => {
+    failWith(status, message);
+    const tools = captureTools(registerKbTools, baseEnv(memKV()), writeProps);
+    const text = textOf(await tools.list_files({ repo: "kb" }));
+    expect(text).toContain(`GitHub API ${status}: ${message}`);
+    expect(text).not.toMatch(/No files found/);
+  });
+
+  it("list_files still reports a genuinely missing repo as empty", async () => {
+    failWith(404, "Not Found");
+    const tools = captureTools(registerKbTools, baseEnv(memKV()), writeProps);
+    expect(textOf(await tools.list_files({ repo: "kb" }))).toBe("No files found for FreeDocStore/kb.");
+  });
+
+  it.each([
+    [401, "Bad credentials"],
+    [503, "Service Unavailable"],
+  ])("read_file reports %i instead of 'Could not read'", async (status, message) => {
+    failWith(status, message);
+    const tools = captureTools(registerKbTools, baseEnv(memKV()), writeProps);
+    const text = textOf(await tools.read_file({ repo: "kb", path: "docs/index.md" }));
+    expect(text).toContain(`GitHub API ${status}: ${message}`);
+    expect(text).not.toMatch(/^Could not read/);
+  });
+
+  it("check_zensical_repo reports a 5xx instead of an empty-repo verdict", async () => {
+    failWith(502, "Bad Gateway");
+    const tools = captureTools(registerKbTools, baseEnv(memKV()), writeProps);
+    const text = textOf(await tools.check_zensical_repo({ repo: "kb" }));
+    expect(text).toContain("GitHub API 502: Bad Gateway");
+    expect(text).not.toMatch(/no files/);
   });
 });

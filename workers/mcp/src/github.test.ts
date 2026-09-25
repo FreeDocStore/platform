@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  GitHubError,
   findKnowledgeBase,
   getDeployStatus,
   listRepoFiles,
@@ -43,6 +44,12 @@ describe("readRepoFile", () => {
     vi.stubGlobal("fetch", vi.fn(async () => json({ message: "Not Found" }, 404)));
     expect(await readRepoFile(REPO, "nope.md")).toBeNull();
   });
+  it.each([401, 403, 429, 500])("throws GitHubError on %i instead of returning null", async (status) => {
+    vi.stubGlobal("fetch", vi.fn(async () => json({ message: "upstream failure" }, status)));
+    const err = await readRepoFile(REPO, "docs/index.md").catch((e) => e);
+    expect(err).toBeInstanceOf(GitHubError);
+    expect(err).toMatchObject({ status, message: `GitHub API ${status}: upstream failure` });
+  });
 });
 
 describe("listRepoFiles", () => {
@@ -65,6 +72,21 @@ describe("listRepoFiles", () => {
   it("returns [] when the branch ref is missing", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => json({ message: "no ref" }, 404)));
     expect(await listRepoFiles(REPO)).toEqual([]);
+  });
+  it.each([401, 403, 429, 500])("throws GitHubError when the ref lookup fails with %i", async (status) => {
+    vi.stubGlobal("fetch", vi.fn(async () => json({ message: "upstream failure" }, status)));
+    const err = await listRepoFiles(REPO).catch((e) => e);
+    expect(err).toBeInstanceOf(GitHubError);
+    expect(err.status).toBe(status);
+  });
+  it.each([401, 403, 429, 500])("throws GitHubError when the tree fetch fails with %i", async (status) => {
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) =>
+      new URL(String(input)).pathname.includes("/git/trees/")
+        ? json({ message: "tree failure" }, status)
+        : json({ object: { sha: "head" } })));
+    const err = await listRepoFiles(REPO).catch((e) => e);
+    expect(err).toBeInstanceOf(GitHubError);
+    expect(err).toMatchObject({ status, message: `GitHub API ${status}: tree failure` });
   });
 });
 
