@@ -22,6 +22,8 @@ import {
   requireSession,
   userSecretKey,
 } from "../lib/session";
+import { sealSecret } from "../encryption";
+import { forgetGitHubTokenSession } from "../github-token-refresh";
 
 type App = Hono<{ Bindings: Env; Variables: Variables }>;
 
@@ -82,8 +84,10 @@ export function registerAuthRoutes(app: App) {
         redirect_uri: new URL("/auth/github/callback", c.req.url).toString(),
       }),
     });
-    const tokenData = await tokenRes.json<{ access_token?: string; error?: string; error_description?: string }>();
-    if (!tokenData.access_token) return c.text(tokenData.error_description || tokenData.error || "GitHub OAuth failed", 401);
+    const tokenData = await tokenRes.json<{ access_token?: string; expires_in?: number; refresh_token?: string; refresh_token_expires_in?: number; error?: string; error_description?: string }>();
+    if (!tokenData.access_token) return c.text("GitHub OAuth failed. Please start sign-in again.", 401);
+    if (tokenData.refresh_token) requireSecret(c.env.FDS_KEY_ENCRYPTION_KEY, "FDS_KEY_ENCRYPTION_KEY");
+    const tokenReceivedAt = Date.now();
 
     const userRes = await fetch("https://api.github.com/user", {
       headers: {
@@ -105,6 +109,13 @@ export function registerAuthRoutes(app: App) {
         githubUrl: gh.html_url || `https://github.com/${gh.login}`,
       },
       githubAccessToken: tokenData.access_token,
+      githubTokenExpiresAt: typeof tokenData.expires_in === "number" && Number.isFinite(tokenData.expires_in) && tokenData.expires_in > 0 ? tokenReceivedAt + tokenData.expires_in * 1000 : undefined,
+      githubRefreshToken: tokenData.refresh_token && c.env.FDS_KEY_ENCRYPTION_KEY
+        ? await sealSecret(tokenData.refresh_token, c.env.FDS_KEY_ENCRYPTION_KEY)
+        : undefined,
+      githubRefreshTokenExpiresAt: typeof tokenData.refresh_token_expires_in === "number" && Number.isFinite(tokenData.refresh_token_expires_in) && tokenData.refresh_token_expires_in > 0
+        ? tokenReceivedAt + tokenData.refresh_token_expires_in * 1000
+        : undefined,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -190,7 +201,10 @@ export function registerAuthRoutes(app: App) {
 
   app.post("/api/logout", async (c) => {
     const session = c.get("session");
-    if (session) await c.env.FDS_API_KV.delete(`${SESSION_PREFIX}${session.id}`);
+    if (session) {
+      await c.env.FDS_API_KV.delete(`${SESSION_PREFIX}${session.id}`);
+      if (session.user.provider === "github") await forgetGitHubTokenSession(c.env, session.id);
+    }
     clearSessionCookie(c);
     return c.json({ ok: true });
   });
@@ -202,6 +216,7 @@ export function registerAuthRoutes(app: App) {
     await c.env.FDS_API_KV.delete(`${USER_KV_PREFIX}${session.user.id}:fds:active-kb:v1`);
     await Promise.all(Object.keys(BYOK_PROVIDERS).map((provider) => c.env.FDS_API_KV.delete(userSecretKey(session, provider))));
     await c.env.FDS_API_KV.delete(`${SESSION_PREFIX}${session.id}`);
+    if (session.user.provider === "github") await forgetGitHubTokenSession(c.env, session.id);
     await c.env.FDS_API_KV.delete(`${USER_SESSION_PREFIX}${session.user.id}`);
     clearSessionCookie(c);
     return c.json({ ok: true });

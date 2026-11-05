@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import app from './index';
+import { openSecret } from './encryption';
 import { SESSION_PREFIX, STATE_PREFIX, type Env, type Session } from './types';
 
 const session: Session = { id: 'session', user: { id: 'account-a', provider: 'github', login: 'reader', name: '', avatarUrl: '', githubUrl: '' }, githubAccessToken: 'user-token', createdAt: '', updatedAt: '' };
@@ -7,6 +8,7 @@ function environment(state = JSON.stringify({ provider: 'github' })) {
   const put = vi.fn(); const del = vi.fn();
   const env = { EDITOR_BASE_URL: 'https://console.freedocstore.online', PUBLIC_BASE_URL: 'https://freedocstore.online', GITHUB_ORG: 'FreeDocStore',
     GH_APP_CLIENT_ID: 'client', GH_APP_CLIENT_SECRET: 'secret', GOOGLE_CLIENT_ID: 'client', GOOGLE_CLIENT_SECRET: 'secret',
+    FDS_KEY_ENCRYPTION_KEY: '0123456789abcdef0123456789abcdef',
     FDS_API_KV: { get: vi.fn(async (key: string) => key.startsWith(SESSION_PREFIX) ? session : key.startsWith(STATE_PREFIX) ? state : null), put, delete: del },
   } as unknown as Env;
   return { env, put, del };
@@ -68,6 +70,26 @@ describe('browser session boundaries', () => {
     const response = await app.request('https://api.freedocstore.online/auth/github/callback?state=state&code=code', { headers: { Cookie: '__Host-fds-oauth-github=state' } }, env);
     expect(response.status).toBe(401);
     expect(del).toHaveBeenCalledWith(`${STATE_PREFIX}state`); expect(upstream).toHaveBeenCalledTimes(1);
+  });
+
+  it('stores GitHub token expiry and encrypted refresh credentials only in the server session', async () => {
+    const { env, put } = environment();
+    vi.stubGlobal('fetch', vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ access_token: 'access-private', expires_in: 3600, refresh_token: 'refresh-private', refresh_token_expires_in: 86400 })))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ id: 42, login: 'reader' }))));
+    const before = Date.now();
+    const response = await app.request('https://api.freedocstore.online/auth/github/callback?state=state&code=code', { headers: { Cookie: '__Host-fds-oauth-github=state' } }, env);
+    expect(response.status).toBe(302);
+    const sessionWrite = put.mock.calls.find(([key]) => String(key).startsWith(SESSION_PREFIX));
+    expect(sessionWrite).toBeDefined();
+    const saved = JSON.parse(String(sessionWrite?.[1])) as Session;
+    expect(saved.githubAccessToken).toBe('access-private');
+    expect(saved.githubTokenExpiresAt).toBeGreaterThanOrEqual(before + 3_599_000);
+    expect(saved.githubTokenExpiresAt).toBeLessThanOrEqual(before + 3_601_000);
+    expect(saved.githubRefreshToken).not.toBe('refresh-private');
+    expect(await openSecret({ ...saved.githubRefreshToken!, label: 'refresh' }, '0123456789abcdef0123456789abcdef')).toBe('refresh-private');
+    expect(response.headers.get('Location')).not.toContain('access-private');
+    expect(response.headers.get('Set-Cookie')).not.toContain('refresh-private');
   });
 
 });

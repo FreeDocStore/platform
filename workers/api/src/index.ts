@@ -3,6 +3,7 @@ import { getCookie } from "hono/cookie";
 import { HTTPException } from "hono/http-exception";
 import { type Env, type Variables, SESSION_COOKIE } from "./types";
 import { readSession, allowedOrigin, corsErrorResponse } from "./lib/session";
+import { ensureFreshGitHubToken } from "./github-token-refresh";
 import { registerAuthRoutes } from "./routes/auth";
 import { registerKvRoutes } from "./routes/kv";
 import { registerSecretsRoutes } from "./routes/secrets";
@@ -10,6 +11,9 @@ import { registerPublishRoutes } from "./routes/publish";
 import { ProvisioningError } from "./lib/provisioning-http";
 import { registerProvisioningRoutes } from "./routes/provisioning";
 import { registerProxyRoutes } from "./routes/proxy";
+import { GitHubTokenRefreshCoordinator } from "./github-token-refresh";
+
+export { GitHubTokenRefreshCoordinator };
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -24,11 +28,18 @@ app.use("*", async (c, next) => {
   c.header("Access-Control-Allow-Headers", "Content-Type, Accept, X-GitHub-Api-Version, X-FDS-Account");
   c.header("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS");
   if (c.req.method === "OPTIONS") return c.body(null, 204);
-  const session = await readSession(c.env, getCookie(c, SESSION_COOKIE));
+  let session = await readSession(c.env, getCookie(c, SESSION_COOKIE));
   c.set("session", session);
   if (session) {
     const account = c.req.header('X-FDS-Account');
     if (account && account !== session.user.id) return c.json({ error: 'The signed-in account changed. Reload the console before continuing.' }, 409);
+    if (session.user.provider === 'github' && session.githubAccessToken && session.githubTokenExpiresAt && session.githubTokenExpiresAt <= Date.now() + 5 * 60 * 1000) {
+      const token = await ensureFreshGitHubToken(c);
+      session = token
+        ? { ...session, githubAccessToken: token }
+        : await readSession(c.env, session.id);
+      c.set('session', session);
+    }
     if (!['GET', 'HEAD'].includes(c.req.method)) {
       // CORS controls response access; cookie-authenticated mutations also
       // need an origin check before any route or upstream request executes.

@@ -34,3 +34,12 @@ GH_APP_SLUG = "freedocstore"
 [[kv_namespaces]]
 binding = "FDS_API_KV"
 id = "7efa958454744e938ba2cf8e5439e71a"
+
+[durable_objects]
+bindings = [
+  { name = "GH_TOKEN_REFRESHER", class_name = "GitHubTokenRefreshCoordinator" }
+]
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["GitHubTokenRefreshCoordinator"]

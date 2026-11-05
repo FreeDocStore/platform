@@ -8,6 +8,7 @@ import {
   proxyResponseHeaders,
   applyCorsHeaders,
 } from "../lib/session";
+import { ensureFreshGitHubToken } from "../github-token-refresh";
 
 type App = Hono<{ Bindings: Env; Variables: Variables }>;
 
@@ -26,21 +27,27 @@ export function registerProxyRoutes(app: App) {
     const provider = PROXY_HOST_PROVIDER[url.hostname];
     if (url.hostname === "api.github.com") {
       const isWrite = c.req.method !== "GET" && c.req.method !== "HEAD";
-      const token = isWrite ? session.githubAccessToken : session.githubAccessToken || c.env.GITHUB_TOKEN;
-      if (isWrite && !token) {
+      const hadUserToken = Boolean(session.githubAccessToken);
+      const token = hadUserToken ? await ensureFreshGitHubToken(c) : null;
+      if (!token && (isWrite || hadUserToken || session.githubAuthorizationRevoked)) {
+        return c.json({ error: "GitHub authorization has expired. Please sign in again.", reauthorizationRequired: true }, 401);
+      }
+      const effectiveToken = token || (isWrite ? undefined : c.env.GITHUB_TOKEN);
+      if (isWrite && !effectiveToken) {
         return c.json({ error: "GitHub writes go through your own account. Sign in with GitHub (granting repo access) and try again." }, 403);
       }
       // Only send Authorization when we actually have a token. An empty
       // `Bearer ` header makes GitHub reject an otherwise-valid anonymous read
       // (e.g. a Google-authed user reading a public repo with no platform token).
-      if (token) headers.set("Authorization", `Bearer ${token}`);
+      if (effectiveToken) headers.set("Authorization", `Bearer ${effectiveToken}`);
       headers.set("User-Agent", "freedocstore-api");
       headers.set("X-GitHub-Api-Version", c.req.header("X-GitHub-Api-Version") || "2022-11-28");
     } else if (url.hostname === "models.github.ai") {
       // Free AI tier: GitHub Models, authenticated with the signed-in user's GitHub
       // token (falls back to the platform token). Rate-limited by GitHub; on 429 the
       // console prompts the user to add their own OpenAI/Anthropic key.
-      const token = session.githubAccessToken || c.env.GITHUB_TOKEN;
+      const token = session.githubAccessToken ? await ensureFreshGitHubToken(c) : c.env.GITHUB_TOKEN;
+      if (!token && session.githubAuthorizationRevoked) return c.json({ error: "GitHub authorization has expired. Please sign in again.", reauthorizationRequired: true }, 401);
       if (!token) return c.json({ error: "Sign in with GitHub to use the free AI tier." }, 403);
       headers.set("Authorization", `Bearer ${token}`);
       headers.set("User-Agent", "freedocstore-api");

@@ -1,5 +1,8 @@
+import type { StoredSecret } from "./encryption";
+
 export interface Env {
   FDS_API_KV: KVNamespace;
+  GH_TOKEN_REFRESHER: DurableObjectNamespace;
   EDITOR_BASE_URL: string;
   PUBLIC_BASE_URL: string;
   COOKIE_DOMAIN?: string;
@@ -44,6 +47,10 @@ export interface Session {
     email?: string;
   };
   githubAccessToken?: string;
+  githubTokenExpiresAt?: number;
+  githubRefreshToken?: Omit<StoredSecret, "label">;
+  githubRefreshTokenExpiresAt?: number;
+  githubAuthorizationRevoked?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -55,6 +62,7 @@ export type Variables = {
 export const SESSION_COOKIE = "fds_session";
 export const STATE_PREFIX = "oauth_state:";
 export const SESSION_PREFIX = "session:";
+export const GITHUB_TOKEN_REFRESH_SKEW_MS = 5 * 60 * 1000;
 export const USER_SESSION_PREFIX = "user_session:";
 export const USER_KV_PREFIX = "user_kv:";
 export const USER_SECRET_PREFIX = "user_secret:";
