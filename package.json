@@ -5,6 +5,7 @@
   "packageManager": "pnpm@10.30.3",
   "scripts": {
     "check:identity": "node scripts/check-product-identity.mjs",
+    "setup:hooks": "node scripts/install-git-hooks.mjs",
     "test:identity": "node --test scripts/check-product-identity.test.mjs",
     "reader:build": "node templates/read-aloud/build.mjs",
     "test:browser": "npm --prefix extension run test:browser",

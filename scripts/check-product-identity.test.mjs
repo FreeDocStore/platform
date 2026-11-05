@@ -36,3 +36,16 @@ test('rejects disallowed commit messages even if the current files are clean', (
   git(['commit', '--allow-empty', '-qm', `Mention ${forbidden}`]);
   assert.match(auditProductIdentity(cwd).failures[0], /commit message/);
 }));
+
+test('staged checks inspect the index even when the working copy has been cleaned', () => repository(({ cwd, git }) => {
+  writeFileSync(join(cwd, 'README.md'), forbidden); git(['add', 'README.md']);
+  writeFileSync(join(cwd, 'README.md'), 'FreeDocStore');
+  assert.deepEqual(auditProductIdentity(cwd).failures, []);
+  assert.match(auditProductIdentity(cwd, { staged: true }).failures[0], /contents/);
+}));
+
+test('checks a proposed commit message before any commit is created', () => repository(({ cwd }) => {
+  writeFileSync(join(cwd, 'candidate-message.txt'), `Mention ${forbidden}`);
+  const failures = auditProductIdentity(cwd, { messageFile: 'candidate-message.txt' }).failures;
+  assert.deepEqual(failures, ['Disallowed product name in proposed commit message.']);
+}));
