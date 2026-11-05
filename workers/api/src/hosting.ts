@@ -1,4 +1,4 @@
-import { ProvisioningError } from './lib/provisioning-http';
+import { ProvisioningError, retryDelay } from './lib/provisioning-http';
 import { managedRepository } from './provisioning';
 import { writeRepositorySecrets, repositorySecretNames } from './lib/repository-secrets';
 import type { Env } from './types';
@@ -12,7 +12,8 @@ export async function cloudflareRequest<T>(token: string, path: string): Promise
   try {
     response = await fetch(`https://api.cloudflare.com/client/v4${path}`, { headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' }, redirect: 'manual', signal: AbortSignal.timeout(15_000) });
   } catch { throw new ProvisioningError(503, 'Cloudflare did not answer. Retry the connection check.'); }
-  if (response.status === 429 || response.status >= 500) throw new ProvisioningError(503, 'Cloudflare is temporarily unavailable. Retry without replacing your token.');
+  if (response.status === 429) throw new ProvisioningError(503, 'Cloudflare’s request limit was reached. Wait before retrying.', retryDelay(response.headers));
+  if (response.status >= 500) throw new ProvisioningError(503, 'Cloudflare is temporarily unavailable. Retry without replacing your token.');
   const data = await response.json().catch(() => null) as { success?: boolean; result?: T } | null;
   if (!response.ok || data?.success !== true || data.result === undefined) throw new ProvisioningError(403, 'Cloudflare denied access. Check the token, selected account, and Pages permissions.');
   return data.result;

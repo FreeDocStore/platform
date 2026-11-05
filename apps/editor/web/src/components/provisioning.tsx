@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { ApiError, fds, type User } from '../lib/fds'
 import { buildLineDiff, messageOf, type RegistryKb } from '../model'
+import { startDeploymentPolling } from '../services/deployment-polling'
 import { provisioning, type OrganizationInstallation, type SetupRepository, type HostingConnection, type HostingProject, type SetupPlan, type DeploymentStatus } from '../services/provisioning'
 
 export function ProvisioningPage({ user, onEdit }: { user: User; onEdit: (entry: RegistryKb) => void }) {
@@ -81,7 +82,8 @@ function RepositorySetup({ repo, onEdit }: { repo: SetupRepository; onEdit: (ent
   const [mode, setMode] = useState<'pr' | 'direct'>('pr')
   const [plan, setPlan] = useState<SetupPlan | null>(null)
   const [hasSetup, setHasSetup] = useState(false)
-  const [deploymentRefresh, setDeploymentRefresh] = useState(0)
+  const poller = useRef<ReturnType<typeof startDeploymentPolling<DeploymentStatus>> | null>(null)
+  const [pollingError, setPollingError] = useState('')
   const [deployment, setDeployment] = useState<DeploymentStatus | null>(null)
   const [status, setStatus] = useState('')
   const [error, setError] = useState('')
@@ -97,7 +99,7 @@ function RepositorySetup({ repo, onEdit }: { repo: SetupRepository; onEdit: (ent
       if (result.setup) {
         setPreviousTarget(result.setup)
         setProject(result.setup.project); setDomain(result.setup.domain); setHasSetup(true)
-        if (!result.connection?.projects?.some(project => project.name === result.setup!.project)) setProjects(current => [...current, { name: result.setup!.project, production_branch: result.setup!.branch, domains: [] }])
+        if (!result.connection?.projects?.some(project => project.name === result.setup!.project)) setProjects(current => [...current, { name: result.setup!.project, production_branch: result.setup!.branch, domains: [], configured: true }])
       }
       else if (!result.connection?.projects?.length) { setNewProject(true); setProject(suggested) }
     }).catch(error => { if (mounted.current) setError(messageOf(error)) }).finally(() => { if (mounted.current) setBusy('') })
@@ -109,27 +111,23 @@ function RepositorySetup({ repo, onEdit }: { repo: SetupRepository; onEdit: (ent
     try { await task() } catch (error) { if (mounted.current) setError(messageOf(error)) }
     finally { operating.current = false; if (mounted.current) setBusy('') }
   }
-  async function checkDeployment() {
-    const result = await provisioning.status(repo.fullName)
+  async function checkDeployment(signal: AbortSignal) {
+    const result = await provisioning.status(repo.fullName, signal)
+    signal.throwIfAborted()
     if (result.state !== 'live') return result
-    try { return await provisioning.register(repo.fullName) }
-    catch { return { ...result, registrationWarning: 'Your site is verified live, but library registration could not be completed. Check deployment again to retry.' } }
+    try { return await provisioning.register(repo.fullName, signal) }
+    catch (error) { if (signal.aborted) throw error; return { ...result, registrationWarning: 'Your site is verified live, but library registration could not be completed. Check deployment again to retry.' } }
   }
   useEffect(() => {
     if (!hasSetup) return
-    let cancelled = false
-    let timer: ReturnType<typeof setTimeout>
-    const check = async () => {
-      try {
-        const result = await checkDeployment()
-        if (cancelled) return
-        setDeployment(result)
-        if (!['live', 'failed', 'setup-closed'].includes(result.state)) timer = setTimeout(check, 5000)
-      } catch (error) { if (!cancelled) setError(messageOf(error)) }
-    }
-    void check()
-    return () => { cancelled = true; clearTimeout(timer) }
-  }, [hasSetup, repo.fullName, deploymentRefresh])
+    const current = startDeploymentPolling({
+      load: checkDeployment,
+      onValue: value => { setDeployment(value); setPollingError('') },
+      onError: (error, retry) => setPollingError(`${messageOf(error)} ${retry.retryInMs ? `Automatic checks will retry in ${Math.ceil(retry.retryInMs / 1000)} seconds.` : 'Automatic checks paused. Check deployment to try again.'}`),
+    })
+    poller.current = current
+    return () => { current.stop(); if (poller.current === current) poller.current = null }
+  }, [hasSetup, repo.fullName])
   const checkedAccounts = accounts.length > 0
   async function checkAccounts() {
     const result = await provisioning.accounts(token)
@@ -172,12 +170,12 @@ function RepositorySetup({ repo, onEdit }: { repo: SetupRepository; onEdit: (ent
     </section>
     {connection?.status === 'ready' && !token && <section className="section-block"><h2>3. Review the publishing setup</h2>
       <p>Repository: <strong>{repo.fullName}</strong> · default branch: <strong>{repo.branch}</strong>. Existing source files are preserved.</p><p><a href={`https://github.com/${repo.fullName}/tree/${encodeURIComponent(repo.branch)}/.github/workflows`} target="_blank" rel="noreferrer">View existing workflows on GitHub</a></p>
-      <label className="field"><span>Pages project</span><select value={newProject ? '__new' : project} disabled={Boolean(busy)} onChange={event => { const create = event.target.value === '__new'; setNewProject(create); setProject(create ? suggested : event.target.value); changeTarget() }}><option value="">Choose an existing project…</option>{projects.map(item => <option key={item.name} value={item.name}>{item.name} · {item.production_branch}</option>)}<option value="__new">Create a new Pages project</option></select></label>
+      <label className="field"><span>Pages project</span><select value={newProject ? '__new' : project} disabled={Boolean(busy)} onChange={event => { const create = event.target.value === '__new'; setNewProject(create); setProject(create ? suggested : event.target.value); changeTarget() }}><option value="">Choose an existing project…</option>{projects.map(item => <option key={item.name} value={item.name}>{item.name} · {item.configured ? 'configured target' : item.production_branch}</option>)}<option value="__new">Create a new Pages project</option></select></label>
       {newProject && <label className="field"><span>New Pages project name</span><input value={project} disabled={Boolean(busy)} onChange={event => { setProject(event.target.value.toLowerCase()); changeTarget() }} /></label>}
       <label className="field"><span>Custom domain (optional)</span><input value={domain} disabled={Boolean(busy)} placeholder="docs.example.com" onChange={event => { setDomain(event.target.value.toLowerCase()); changeTarget() }} /></label>
       <p>Public address: <strong>{domain ? `https://${domain}/` : project ? `https://${project}.pages.dev/` : 'Choose a project'}</strong></p>
       {newProject && <label className="setup-checkbox"><input type="checkbox" checked={confirmCreate} disabled={Boolean(busy)} onChange={event => setConfirmCreate(event.target.checked)} />Create a new Pages project in {connection.accountName}. This will not move an existing site.</label>}
-      {!newProject && project && <label className="setup-checkbox"><input type="checkbox" checked={confirmUseProject} disabled={Boolean(busy)} onChange={event => setConfirmUseProject(event.target.checked)} />Publish this repository to the selected existing Pages project. This can replace the site currently hosted there.</label>}
+      {!newProject && project && <label className="setup-checkbox"><input type="checkbox" checked={confirmUseProject} disabled={Boolean(busy)} onChange={event => setConfirmUseProject(event.target.checked)} />Publish this repository to the selected {projects.find(item => item.name === project)?.configured ? 'configured' : 'existing'} Pages project. This can replace the site currently hosted there.</label>}
       {repoints && <label className="setup-checkbox"><input type="checkbox" checked={confirmRepoint} disabled={Boolean(busy)} onChange={event => setConfirmRepoint(event.target.checked)} />Change the previous publishing target ({previousTarget.project}) to the account, project and domain shown above.</label>}
       <button className="secondary-action" type="button" disabled={Boolean(busy) || !project || (newProject ? !confirmCreate : !confirmUseProject) || Boolean(repoints && !confirmRepoint)} onClick={() => void run('Preparing setup review…', async () => { const next = await provisioning.plan(repo.fullName, project, domain, confirmCreate, confirmUseProject, confirmRepoint); if (mounted.current) { setPlan(next); setConfirmWorkflow(false) } })}>Review setup changes</button>
       {plan && <div className="setup-review"><h3>Setup review · {plan.accountName}</h3><p>{plan.repo} → {plan.url}</p>{plan.warning && <p role="status">{plan.warning}</p>}
@@ -188,7 +186,7 @@ function RepositorySetup({ repo, onEdit }: { repo: SetupRepository; onEdit: (ent
         <button className="primary-action" type="button" disabled={Boolean(busy) || (plan.replacesWorkflow && !confirmWorkflow)} onClick={() => void run('Applying reviewed setup…', async () => {
           const result = await provisioning.apply(plan.planId, mode, confirmWorkflow)
           if (!mounted.current) return
-          setPreviousTarget({ project: plan.project, domain: plan.domain, accountId: connection.accountId }); setPlan(null); setHasSetup(true); setDeploymentRefresh(value => value + 1)
+          setPreviousTarget({ project: plan.project, domain: plan.domain, accountId: connection.accountId }); setPlan(null); setHasSetup(true); poller.current?.refresh()
           setDeployment(result.prUrl ? { state: 'awaiting-review', prUrl: result.prUrl, message: 'Review and merge the setup pull request. The first build starts when it is merged.' } : { state: 'waiting', message: 'Setup applied. Check the first deployment or trigger it below.' })
           setStatus(result.unchanged ? 'Setup is already current. Trigger deployment below.' : result.prUrl ? 'Setup pull request created.' : 'Setup committed. GitHub Actions will build the site.')
         })}>{mode === 'pr' ? 'Open setup pull request' : 'Commit reviewed setup'}</button>
@@ -196,9 +194,10 @@ function RepositorySetup({ repo, onEdit }: { repo: SetupRepository; onEdit: (ent
     </section>}
     {hasSetup && <section className="section-block"><h2>4. Deploy and verify</h2>
       {deployment && <><p role="status">{deployment.message}</p>{deployment.prUrl && <a href={deployment.prUrl} target="_blank" rel="noreferrer">Review setup pull request</a>}{deployment.runUrl && <p><a href={deployment.runUrl} target="_blank" rel="noreferrer">Open deployment logs</a></p>}{deployment.failedSteps?.map(step => <p key={step}>{step}</p>)}{deployment.pagesReady && deployment.pagesUrl && <p><a href={deployment.pagesUrl} target="_blank" rel="noreferrer">Open verified Pages site</a></p>}{deployment.registrationWarning && <p role="status">{deployment.registrationWarning}</p>}{deployment.registryKbId && <p><button className="secondary-action" type="button" onClick={() => onEdit({ id: deployment.registryKbId!, title: repo.name, source: { repo: repo.fullName, branch: repo.branch }, cloudflare: { production_url: deployment.url } })}>Edit this knowledge base in FreeDocStore</button></p>}{deployment.state === 'live' && deployment.url && <p><a className="primary-action" href={deployment.url} target="_blank" rel="noreferrer">Open published knowledge base</a></p>}</>}
-      <div className="action-row"><button className="secondary-action" type="button" disabled={Boolean(busy)} onClick={() => void run('Checking deployment…', async () => { const result = await checkDeployment(); if (mounted.current) setDeployment(result) })}>Check deployment</button>
-        <button className="primary-action" type="button" disabled={Boolean(busy) || deployment?.state === 'awaiting-review'} onClick={() => void run('Triggering deployment…', async () => { await provisioning.deploy(repo.fullName); if (mounted.current) { setDeployment({ state: 'waiting', message: 'Deployment requested. Check progress shortly.' }); setDeploymentRefresh(value => value + 1) } })}>Deploy / retry</button></div>
+      <div className="action-row"><button className="secondary-action" type="button" disabled={Boolean(busy)} onClick={() => poller.current?.refresh()}>Check deployment</button>
+        <button className="primary-action" type="button" disabled={Boolean(busy) || deployment?.state === 'awaiting-review'} onClick={() => void run('Triggering deployment…', async () => { await provisioning.deploy(repo.fullName); if (mounted.current) { setDeployment({ state: 'waiting', message: 'Deployment requested. Check progress shortly.' }); poller.current?.refresh() } })}>Deploy / retry</button></div>
     </section>}
+    {pollingError && <p role="status">{pollingError}</p>}
     {busy && <p role="status" aria-live="polite">{busy}</p>}{status && <p role="status">{status}</p>}{error && <p role="alert">{error}</p>}
   </>
 }

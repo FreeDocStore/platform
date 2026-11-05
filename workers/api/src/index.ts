@@ -49,7 +49,10 @@ registerProvisioningRoutes(app);
 app.notFound((c) => c.json({ error: "Not found" }, 404));
 
 app.onError((err, c) => {
-  if (err instanceof ProvisioningError) return c.json({ error: err.message }, err.status);
+  if (err instanceof ProvisioningError) {
+    if (err.retryAfterSeconds) c.header('Retry-After', String(err.retryAfterSeconds));
+    return c.json({ error: err.message, ...(err.retryAfterSeconds ? { retryAfterSeconds: err.retryAfterSeconds } : {}) }, err.status);
+  }
   if (err instanceof HTTPException) return corsErrorResponse(c, err.getResponse());
   console.error(err);
   return corsErrorResponse(c, c.json({ error: "Internal server error" }, 500));

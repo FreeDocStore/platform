@@ -73,6 +73,19 @@ is embedded in a generated workflow, diff, browser URL or error response.
 
 ## Recovery and limits
 
+- A previously configured target can be reviewed after a reload even if the
+  saved Cloudflare project inventory predates its creation. This does not infer
+  that the target exists in a different account.
+- Status reads do not rewrite setup metadata. Dispatch intent is recorded
+  separately for each setup revision, so retrying an older configuration cannot
+  replace a newer setup record.
+- Deployment polling resumes after temporary network/provider failures with
+  increasing delays, honors provider cooldowns and pauses after five consecutive
+  errors. Manual checks cannot bypass an active provider cooldown. PR review
+  waits are checked less frequently than active builds.
+- Public verification rechecks the current source before declaring the site
+  live, including when the source changes during the public-page checks.
+
 - GitHub/Cloudflare outages are reported separately from denied permissions.
 - A closed, unmerged setup PR requires another review. A pending PR cannot be
   dispatched as though its workflow were already on the default branch.

@@ -5,6 +5,7 @@ on:
     paths:
       - 'templates/search/scripts/**'
       - 'templates/read-aloud/**'
+      - 'templates/publishing/**'
       - 'apps/editor/**'
       - 'tests/**'
       - 'extension/**'
@@ -16,6 +17,7 @@ on:
     paths:
       - 'templates/search/scripts/**'
       - 'templates/read-aloud/**'
+      - 'templates/publishing/**'
       - 'apps/editor/**'
       - 'tests/**'
       - 'extension/**'

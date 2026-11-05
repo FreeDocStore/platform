@@ -30,13 +30,7 @@ function githubToken(c: Context<Bindings>) {
 }
 
 export function registerProvisioningRoutes(app: App) {
-  app.use('/api/provisioning/*', async (c, next) => {
-    try { githubToken(c); await next(); }
-    catch (error) {
-      if (error instanceof ProvisioningError) return c.json({ error: error.message }, error.status);
-      throw error;
-    }
-  });
+  app.use('/api/provisioning/*', async (c, next) => { githubToken(c); await next(); });
   app.use('/api/provisioning/*', bodyLimit({ maxSize: 8192, onError: c => c.json({ error: 'Setup request exceeds 8 KiB.' }, 413) }));
 
   app.get('/api/provisioning/installations', async c => {
@@ -91,10 +85,11 @@ export function registerProvisioningRoutes(app: App) {
     const plan = await setupPlan(githubToken(c), field(input, 'repo'), field(input, 'project'), field(input, 'domain').toLowerCase());
     const connection = await c.env.FDS_API_KV.get<HostingConnection>(hostingKey(plan.repo), 'json');
     if (connection?.status !== 'ready') throw new ProvisioningError(409, 'Connect this repository to your Cloudflare account before reviewing its deployment setup.');
-    const existingProject = connection.projects?.find(project => project.name === plan.project);
-    if (existingProject && existingProject.production_branch !== plan.branch) throw new ProvisioningError(409, 'The Pages project uses another production branch. Choose the correct project or review its branch settings in Cloudflare.');
-    if (existingProject && input.confirmUseProject !== true) throw new ProvisioningError(409, 'Confirm that this repository should publish to the selected existing Pages project. Its current site may be replaced.');
     const previous = await c.env.FDS_API_KV.get<DeploymentSetup>(deploymentKey(plan.repo), 'json');
+    const configuredProject = previous?.accountId === connection.accountId && previous.project === plan.project ? { name: previous.project, production_branch: previous.branch } : undefined;
+    const existingProject = connection.projects?.find(project => project.name === plan.project) ?? configuredProject;
+    if (existingProject && existingProject.production_branch !== plan.branch) throw new ProvisioningError(409, 'The Pages project uses another production branch. Choose the correct project or review its branch settings in Cloudflare.');
+    if (existingProject && input.confirmUseProject !== true) throw new ProvisioningError(409, 'Confirm that this repository should publish to the selected Pages project. Its current site may be replaced.');
     if (previous && (previous.project !== plan.project || previous.domain !== plan.domain || previous.accountId !== connection.accountId) && input.confirmRepoint !== true) throw new ProvisioningError(409, 'This changes the previously configured hosting target. Confirm the move after checking the account, project and domain.');
     if (!existingProject && input.confirmCreateProject !== true) throw new ProvisioningError(409, 'Confirm creation of a new Pages project, or select an existing one.');
     const id = crypto.randomUUID();
@@ -117,7 +112,7 @@ export function registerProvisioningRoutes(app: App) {
     const result = plan.files.length ? await commitFiles({ token, repoFullName: plan.repo, baseBranch: plan.branch, message: 'Configure FreeDocStore public publishing', files: plan.files.map(file => ({ path: file.path, content: file.content })), expectedFiles: Object.fromEntries(plan.files.map(file => [file.path, file.expectedSha])), mode: input.mode, prBody: `Reviewed public publishing setup for ${plan.url}. Existing source and unrelated repository files are preserved.` }) : { ok: true, unchanged: true };
     if (!result.ok) return c.json(result, result.errorCode === 'source_conflict' ? 409 : 502);
     const setup: DeploymentSetup = { repo: plan.repo, branch: plan.branch, project: plan.project, domain: plan.domain, accountId: plan.accountId, workflow: plan.workflow,
-      updatedAt: new Date().toISOString(), expectedSha: result.commitSha, prNumber: result.prNumber, prUrl: result.prUrl };
+      updatedAt: new Date().toISOString(), revision: crypto.randomUUID(), expectedSha: result.commitSha, prNumber: result.prNumber, prUrl: result.prUrl };
 
     await c.env.FDS_API_KV.put(deploymentKey(plan.repo), JSON.stringify(setup));
     await c.env.FDS_API_KV.delete(key);

@@ -22,7 +22,7 @@ async function setupMock(page, options = {}) {
     requests.push({ endpoint, body, boundAccount: route.request().headers()['x-fds-account'] });
     if (endpoint === 'installations') { await reply({ installations: options.noInstallations ? [] : [{ id: 7, account: { login: 'CustomerOrg', type: 'Organization' }, permissions: { contents: 'write', actions: 'write', secrets: 'write', workflows: 'write' } }], installUrl: 'https://github.com/apps/freedocstore/installations/new' }); return true; }
     if (endpoint === 'repositories') { await reply({ repositories: [{ fullName: repo, name: 'knowledge', branch: 'release', canConfigure: true }] }); return true; }
-    if (endpoint === 'connection') { await reply({ connection: connected ? connection : null, setup: applied ? { project: 'customer-docs', branch: 'release', domain: '', accountId: account.id } : null }); return true; }
+    if (endpoint === 'connection') { await reply({ connection: connected ? { ...connection, projects: options.missingProjectSnapshot ? [] : projects } : null, setup: applied ? { project: 'customer-docs', branch: 'release', domain: '', accountId: account.id } : null }); return true; }
     if (endpoint === 'accounts') {
       if (options.cloudflareUnavailable) await reply({ error: 'Cloudflare is temporarily unavailable. Retry without replacing your token.' }, 503);
       else await reply({ accounts: [account], ...(body.accountId ? { projects } : {}) });
@@ -41,6 +41,7 @@ async function setupMock(page, options = {}) {
     if (endpoint === 'deploy') { retry = true; checked = 0; await reply({ ok: true }); return true; }
     if (endpoint === 'status') {
       checked++;
+      if (options.transientStatus && checked === 1) { await reply({ error: 'GitHub is temporarily unavailable.', retryAfterSeconds: 1 }, 503); return true; }
       if (options.pullRequest) await reply({ state: 'awaiting-review', prUrl: `https://github.com/${repo}/pull/42`, message: 'Review and merge the setup pull request.' });
       else if (options.failed && !retry) await reply({ state: 'failed', failedSteps: ['deploy: Ensure Cloudflare Pages project'], runUrl: `https://github.com/${repo}/actions/runs/1`, message: 'Deployment failed. Check token permissions and retry.' });
       else if (checked === 1 && retry) await reply({ state: 'building', message: 'GitHub Actions: queued.' });
@@ -136,4 +137,27 @@ test('missing installations and temporary provider failures have actionable reco
   await page.getByRole('button', { name: 'Check token and accounts' }).click();
   await expect(page.getByRole('alert').filter({ hasText: 'temporarily unavailable' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Check token and accounts' })).toBeEnabled();
+});
+
+
+test('a reloaded configured target can be reviewed without pasting hosting credentials again', async ({ page }) => {
+  const requests = await setupMock(page, { connected: true, applied: true, missingProjectSnapshot: true });
+  await chooseRepository(page);
+  await expect(page.getByRole('combobox', { name: 'Pages project', exact: true })).toHaveValue('customer-docs');
+  await expect(page.getByRole('combobox', { name: 'Pages project', exact: true })).toContainText('configured target');
+  await page.getByLabel('Publish this repository to the selected configured Pages project.', { exact: false }).check();
+  await page.getByRole('button', { name: 'Review setup changes' }).click();
+  await expect(page.getByText('Setup review · Customer Cloudflare', { exact: true })).toBeVisible();
+  expect(requests.filter(request => ['accounts', 'connect'].includes(request.endpoint))).toHaveLength(0);
+});
+
+test('automatic deployment checks recover after a transient provider error', async ({ page }) => {
+  await page.clock.install();
+  const requests = await setupMock(page, { connected: true, applied: true, transientStatus: true });
+  await chooseRepository(page);
+  await expect(page.getByText(/Automatic checks will retry in 5 seconds/)).toBeVisible();
+  await page.clock.fastForward(5000);
+  await expect(page.getByRole('link', { name: 'Open published knowledge base' })).toBeVisible();
+  await expect(page.getByText(/Automatic checks will retry/)).toHaveCount(0);
+  expect(requests.filter(request => request.endpoint === 'status')).toHaveLength(2);
 });

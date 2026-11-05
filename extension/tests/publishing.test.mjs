@@ -82,3 +82,12 @@ test('Zensical fallback and scalar updates stay within the project section', asy
   assert.match(updated, /\[project.extra\]\nsite_url = "preserve-this"/);
   assert.throws(() => setTomlScalar('site_name="old"', 'site_url', 'url'), /\[project\]/);
 });
+
+test('changes to shared publishing code trigger tests and rebuild both consumers', async () => {
+  const { readFileSync } = await import('node:fs');
+  const { parse } = await import('yaml');
+  for (const file of ['test.yml', 'deploy-api.yml', 'deploy-editor.yml']) {
+    const workflow = parse(readFileSync(new URL(`../../.github/workflows/${file}`, import.meta.url), 'utf8'));
+    assert.ok(workflow.on.push.paths.includes('templates/publishing/**'), `${file} must watch the shared publishing dependency`);
+  }
+});

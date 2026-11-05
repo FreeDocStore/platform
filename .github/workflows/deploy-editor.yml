@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - 'apps/editor/**'
+      - 'templates/publishing/**'
       - '.github/workflows/deploy-editor.yml'
   workflow_dispatch:
 

@@ -61,14 +61,15 @@ async function apiFetch(path: string, init: RequestInit = {}) {
 }
 
 export class ApiError extends Error {
-  constructor(public status: number, message: string) { super(message) }
+  constructor(public status: number, message: string, public retryAfterSeconds?: number) { super(message) }
 }
 
 export async function apiJson<T>(path: string, init: RequestInit = {}): Promise<T> {
   const res = await apiFetch(path, init)
   if (!res.ok) {
-    const body = await res.json().catch(() => null) as { error?: string } | null
-    throw new ApiError(res.status, typeof body?.error === 'string' ? body.error : `Request failed (${res.status}). Retry.`)
+    const body = await res.json().catch(() => null) as { error?: string; retryAfterSeconds?: number } | null
+    const retry = body?.retryAfterSeconds
+    throw new ApiError(res.status, typeof body?.error === 'string' ? body.error : `Request failed (${res.status}). Retry.`, typeof retry === 'number' && Number.isFinite(retry) && retry > 0 ? Math.min(86400, retry) : undefined)
   }
   return res.json() as Promise<T>
 }

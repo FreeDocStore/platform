@@ -4,7 +4,7 @@ import { blake2b } from 'blakejs';
 import app from './index';
 import type { Env, Session } from './types';
 import { sealRepositorySecret } from './lib/repository-secrets';
-import { deploymentKey, deploymentStatus, dispatchDeployment, type DeploymentSetup } from './deployment';
+import { deploymentKey, dispatchKey, deploymentStatus, dispatchDeployment, type DeploymentSetup } from './deployment';
 import { hostingKey } from './hosting';
 
 const REPO = 'ExampleOrg/knowledge';
@@ -197,7 +197,7 @@ it('verifies the exact public source version after a merged setup PR', async () 
   const status = await deploymentStatus(f.env, session.githubAccessToken!, setup);
   expect(status.state).toBe('live');
   expect(status.pagesReady).toBe(true);
-  expect(JSON.parse(f.values.get(deploymentKey(REPO))!).expectedSha).toBe(HEAD);
+  expect(f.values.has(deploymentKey(REPO))).toBe(false);
   expect(f.calls.filter(call => call.url.hostname.endsWith('.pages.dev')).every(call => call.auth === null)).toBe(true);
 });
 
@@ -249,7 +249,8 @@ it('dispatches only the reviewed workflow on the actual default branch', async (
   f.files.set('.github/workflows/deploy.yml', { content: target.workflow, sha: SOURCE_SHA });
   await dispatchDeployment(f.env, session.githubAccessToken!, target);
   expect(f.calls.find(call => call.url.pathname.endsWith('/dispatches'))?.body).toEqual({ ref: 'release' });
-  expect(JSON.parse(f.values.get(deploymentKey(REPO))!).expectedSha).toBe(HEAD);
+  expect(JSON.parse(f.values.get(dispatchKey(target))!).expectedSha).toBe(HEAD);
+  expect(f.values.has(deploymentKey(REPO))).toBe(false);
 });
 
 
@@ -259,4 +260,80 @@ it('does not silently migrate an existing source engine when Zensical configurat
   expect(response.status).toBe(422);
   expect((await response.json() as any).error).toContain('existing MkDocs configuration');
   expect(f.calls.some(call => call.url.pathname.endsWith('/git/blobs'))).toBe(false);
+});
+
+
+it('resumes a configured project missing from the older account inventory without reconnecting credentials', async () => {
+  const f = fixture(); await f.connect();
+  const connection = JSON.parse(f.values.get(hostingKey(REPO))!); connection.projects = [];
+  f.values.set(hostingKey(REPO), JSON.stringify(connection));
+  f.values.set(deploymentKey(REPO), JSON.stringify(setup()));
+  const before = f.calls.filter(call => call.url.hostname === 'api.cloudflare.com').length;
+  const result = await f.request('plan', { repo: REPO, project: 'customer-docs', confirmUseProject: true });
+  expect(result.status).toBe(200);
+  expect(f.calls.filter(call => call.url.hostname === 'api.cloudflare.com')).toHaveLength(before);
+});
+
+it('does not infer that a previous account project exists in another Cloudflare account', async () => {
+  const f = fixture(); await f.connect();
+  const connection = JSON.parse(f.values.get(hostingKey(REPO))!); connection.projects = [];
+  f.values.set(hostingKey(REPO), JSON.stringify(connection));
+  f.values.set(deploymentKey(REPO), JSON.stringify({ ...setup(), accountId: 'different-account' }));
+  expect((await f.request('plan', { repo: REPO, project: 'customer-docs', confirmUseProject: true, confirmRepoint: true })).status).toBe(409);
+});
+
+it('a merged-PR status read cannot overwrite a newer setup record', async () => {
+  const f = fixture();
+  const newer = { ...setup(), project: 'new-project', revision: 'newer' };
+  f.values.set(deploymentKey(REPO), JSON.stringify(newer));
+  await deploymentStatus(f.env, session.githubAccessToken!, { ...setup(), prNumber: 42 });
+  expect(JSON.parse(f.values.get(deploymentKey(REPO))!)).toEqual(newer);
+});
+
+it('an older deployment retry cannot overwrite a newer setup record', async () => {
+  const f = fixture(); const older = { ...setup(), revision: 'older' };
+  const newer = { ...setup(), project: 'new-project', revision: 'newer' };
+  f.values.set(deploymentKey(REPO), JSON.stringify(newer));
+  f.files.set('.github/workflows/deploy.yml', { content: older.workflow, sha: SOURCE_SHA });
+  await dispatchDeployment(f.env, session.githubAccessToken!, older);
+  expect(JSON.parse(f.values.get(deploymentKey(REPO))!)).toEqual(newer);
+  expect(f.values.has(dispatchKey(newer))).toBe(false);
+});
+
+it('requires PR merge even if the reviewed workflow is already on the default branch', async () => {
+  const f = fixture(); const target = { ...setup(), prNumber: 42 };
+  f.files.set('.github/workflows/deploy.yml', { content: target.workflow, sha: SOURCE_SHA });
+  const original = globalThis.fetch;
+  vi.stubGlobal('fetch', async (input: string | URL | Request, init?: RequestInit) => String(input).endsWith('/pulls/42') ? new Response(JSON.stringify({ state: 'open', merged: false })) : original(input, init));
+  await expect(dispatchDeployment(f.env, session.githubAccessToken!, target)).rejects.toThrow('Merge the setup pull request');
+  expect(f.calls.some(call => call.url.pathname.endsWith('/dispatches'))).toBe(false);
+});
+
+it('does not report live if the source advances while the public site is being checked', async () => {
+  const options: { head?: string } = {}; const f = fixture(options); const original = globalThis.fetch;
+  vi.stubGlobal('fetch', async (input: string | URL | Request, init?: RequestInit) => {
+    const response = await original(input, init);
+    if (new URL(String(input)).hostname.endsWith('.pages.dev') && init?.method === 'HEAD') options.head = 'c'.repeat(40);
+    return response;
+  });
+  const result = await deploymentStatus(f.env, session.githubAccessToken!, setup());
+  expect(result.state).toBe('verifying');
+  expect(result.message).toContain('source changed during verification');
+});
+
+it('returns a browser-readable cooldown for provider rate limiting', async () => {
+  const f = fixture();
+  vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ message: 'API rate limit exceeded' }), { status: 403, headers: { 'x-ratelimit-remaining': '0', 'Retry-After': '120' } })));
+  const response = await f.request('installations');
+  expect(response.status).toBe(503); expect(response.headers.get('Retry-After')).toBe('120');
+  const data = await response.json() as any;
+  expect(data.retryAfterSeconds).toBe(120); expect(data.error).toContain('request limit');
+});
+
+it('preserves a Cloudflare cooldown without writing credentials', async () => {
+  const f = fixture({ cloudflareFailure: 429 });
+  const response = await f.connect();
+  expect(response.status).toBe(503);
+  expect((await response.json() as any).retryAfterSeconds).toBe(60);
+  expect(f.calls.some(call => call.method === 'PUT')).toBe(false);
 });
