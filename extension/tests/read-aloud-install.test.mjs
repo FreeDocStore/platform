@@ -84,3 +84,23 @@ test('installs nested pages and asset without modifying errors or following syml
     assert.ok(asset.includes('localService'));
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
+
+test('source links and narration share the same nested-index mapping', () => {
+  const root = mkdtempSync(path.join(tmpdir(), 'fds-source-'));
+  try {
+    const site = path.join(root, 'site');
+    const docs = path.join(root, 'docs');
+    mkdirSync(path.join(site, 'guide'), { recursive: true });
+    mkdirSync(path.join(docs, 'guide'), { recursive: true });
+    writeFileSync(path.join(docs, 'guide/index.md'), '# Nested guide');
+    const output = path.join(site, 'guide/index.html');
+    writeFileSync(output, '<html><head><meta name="source-path" content="docs/wrong.md"><meta name="source-repo" content="old/repo"></head><body><main>Guide</main></body></html>');
+    installReadAloud(site, { sourceDir: docs, repo: 'FreeDocStore/example' });
+    const html = readFileSync(output, 'utf8');
+    assert.match(html, /name="source-path" content="docs\/guide\/index.md"/);
+    assert.match(html, /name="source-repo" content="FreeDocStore\/example"/);
+    assert.equal((html.match(/name="source-path"/g) || []).length, 1);
+    assert.doesNotMatch(html, /wrong.md|old\/repo/);
+    assert.equal(installReadAloud(site, { sourceDir: docs, repo: 'FreeDocStore/example' }), 0);
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});

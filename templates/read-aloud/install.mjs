@@ -25,7 +25,7 @@ function safeFile(root, relative) {
   return lstatSync(current).isFile() ? current : null;
 }
 
-function pageMetadata(html, relative, sourceDir, report, siteDir) {
+function pageMetadata(html, relative, sourceDir, report, siteDir, repo) {
   const rel = relative.replace(/\\/g, '/').replace(/\.html?$/i, '');
   const candidates = rel === 'index' ? ['index.md'] : rel.endsWith('/index') ? [`${rel.slice(0, -6)}.md`, `${rel}.md`] : [`${rel}.md`, `${rel}/index.md`];
   const source = candidates.map(candidate => ({ candidate, filename: safeFile(sourceDir, candidate) })).find(x => x.filename);
@@ -33,6 +33,7 @@ function pageMetadata(html, relative, sourceDir, report, siteDir) {
   const bytes = readFileSync(source.filename);
   const sha = createHash('sha1').update(`blob ${bytes.length}\0`).update(bytes).digest('hex');
   const metas = { 'source-sha': sha };
+  if (repo) { metas['source-repo'] = repo; metas['source-path'] = `docs/${source.candidate}`; }
   const manifestPath = safeFile(sourceDir, `${source.candidate}.audio.json`);
   if (manifestPath) {
     try {
@@ -54,12 +55,13 @@ function pageMetadata(html, relative, sourceDir, report, siteDir) {
       metas['audio-sha'] = sha;
     } catch (error) { report(`Skipped narration for ${relative}: ${error.message}`); }
   }
+  if (repo) html = html.replace(/<meta\b[^>]*\bname\s*=\s*["'](?:source-repo|source-path)["'][^>]*>\s*/gi, '');
   const clean = html.replace(/<meta\b[^>]*\bname\s*=\s*["'](?:source-sha|audio-file|audio-sha|audio-sections)["'][^>]*>\s*/gi, '');
-  const tags = Object.entries(metas).map(([name, content]) => `<meta name="${name}" content="${content}">`).join('\n');
+  const tags = Object.entries(metas).map(([name, content]) => `<meta name="${name}" content="${String(content).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}">`).join('\n');
   return clean.replace(/<\/head\s*>/i, `${tags}\n$&`);
 }
 
-export function installReadAloud(siteDir, { sourceDir = 'docs', report = console.warn } = {}) {
+export function installReadAloud(siteDir, { sourceDir = 'docs', report = console.warn, repo = process.env.GITHUB_REPOSITORY } = {}) {
   const root = path.resolve(siteDir);
   if (lstatSync(root).isSymbolicLink()) throw new Error('Site directory must not be a symbolic link');
   const assets = path.join(root, 'assets');
@@ -73,7 +75,7 @@ export function installReadAloud(siteDir, { sourceDir = 'docs', report = console
       if (entry.isDirectory()) walk(filename);
       else if (entry.isFile() && /\.html?$/i.test(entry.name) && entry.name !== '404.html') {
         const before = readFileSync(filename, 'utf8');
-        const after = injectReadAloud(pageMetadata(before, path.relative(root, filename), sourceDir, report, root));
+        const after = injectReadAloud(pageMetadata(before, path.relative(root, filename), sourceDir, report, root, repo));
         if (after !== before) { writeFileSync(filename, after); changed++; }
       }
     }

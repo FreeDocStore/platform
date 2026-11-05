@@ -135,67 +135,15 @@ jobs:
         with:
           repository: FreeDocStore/platform
           path: _freedocstore
-          sparse-checkout: templates/read-aloud
+          sparse-checkout: |
+            templates/read-aloud
+            templates/publishing
       - name: Install published-page read aloud
         run: node _freedocstore/templates/read-aloud/install.mjs site
-      - name: Inject FreeDocStore source metadata
-        run: |
-          node <<'NODE'
-          const fs = require('node:fs');
-          const path = require('node:path');
-
-          const repo = process.env.GITHUB_REPOSITORY;
-          if (!repo) throw new Error('GITHUB_REPOSITORY is not set');
-
-          const siteDir = 'site';
-          const docsDir = 'docs';
-          const sourceExts = ['.md', '.mdx', '.markdown', '.html', '.htm'];
-
-          function walk(dir) {
-            if (!fs.existsSync(dir)) return [];
-            return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
-              const full = path.join(dir, entry.name);
-              return entry.isDirectory() ? walk(full) : [full];
-            });
-          }
-
-          function escapeAttr(value) {
-            return String(value)
-              .replace(/&/g, '&amp;')
-              .replace(/"/g, '&quot;')
-              .replace(/</g, '&lt;')
-              .replace(/>/g, '&gt;');
-          }
-
-          function sourceForHtml(file) {
-            let rel = path.relative(siteDir, file).split(path.sep).join('/');
-            if (rel === 'index.html') rel = 'index';
-            else if (rel.endsWith('/index.html')) rel = rel.slice(0, -'/index.html'.length);
-            else rel = rel.replace(/\.html?$/i, '');
-            const candidates = sourceExts.map((ext) => path.posix.join(docsDir, rel + ext));
-            return candidates.find((candidate) => fs.existsSync(candidate)) ?? candidates[0];
-          }
-
-          for (const file of walk(siteDir).filter((candidate) => /\.html?$/i.test(candidate))) {
-            let html = fs.readFileSync(file, 'utf8');
-            html = html.replace(/<meta\s+[^>]*name=["']source-repo["'][^>]*>\s*/gi, '');
-            html = html.replace(/<meta\s+[^>]*name=["']source-path["'][^>]*>\s*/gi, '');
-            const sourcePath = sourceForHtml(file);
-            const meta = [
-              '<meta name="source-repo" content="' + escapeAttr(repo) + '">',
-              '<meta name="source-path" content="' + escapeAttr(sourcePath) + '">',
-            ].join('\\n      ');
-            if (/<head[^>]*>/i.test(html)) {
-              html = html.replace(/<head([^>]*)>/i, '<head$1>\\n      ' + meta);
-            } else {
-              html = meta + '\\n' + html;
-            }
-            fs.writeFileSync(file, html);
-          }
-          NODE
       - name: Ensure Cloudflare Pages project
-        run: npx wrangler pages project create "${project}" --production-branch=main || true
+        run: node _freedocstore/templates/publishing/cloudflare.mjs project
         env:
+          PROJECT: ${project}
           CLOUDFLARE_API_TOKEN: \${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: \${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       - name: Deploy to Cloudflare Pages
@@ -209,22 +157,7 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: \${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           PROJECT: ${project}
           DOMAINS: ${domains}
-        run: |
-          set -e
-          api() { curl -sS -H "Authorization: Bearer \$CLOUDFLARE_API_TOKEN" -H "Content-Type: application/json" "\$@"; }
-          for DOMAIN in \$DOMAINS; do
-            api -X POST "https://api.cloudflare.com/client/v4/accounts/\$CLOUDFLARE_ACCOUNT_ID/pages/projects/\$PROJECT/domains" \\
-              --data "{\\"name\\":\\"\$DOMAIN\\"}" > /dev/null || true
-            ZONE="\${DOMAIN#*.}"
-            ZONE_ID=\$(api "https://api.cloudflare.com/client/v4/zones?name=\$ZONE" | python3 -c 'import sys,json;r=json.load(sys.stdin)["result"];print(r[0]["id"] if r else "")')
-            [ -z "\$ZONE_ID" ] && { echo "No zone for \$DOMAIN, skipping"; continue; }
-            EXISTS=\$(api "https://api.cloudflare.com/client/v4/zones/\$ZONE_ID/dns_records?type=CNAME&name=\$DOMAIN" | python3 -c 'import sys,json;print(len(json.load(sys.stdin)["result"]))')
-            if [ "\$EXISTS" = "0" ]; then
-              api -X POST "https://api.cloudflare.com/client/v4/zones/\$ZONE_ID/dns_records" \\
-                --data "{\\"type\\":\\"CNAME\\",\\"name\\":\\"\$DOMAIN\\",\\"content\\":\\"\$PROJECT.pages.dev\\",\\"proxied\\":true}" > /dev/null
-            fi
-            echo "Ensured \$DOMAIN"
-          done
+        run: node _freedocstore/templates/publishing/cloudflare.mjs domains
 `
 }
 

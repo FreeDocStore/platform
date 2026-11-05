@@ -43,7 +43,31 @@ describe('browser session boundaries', () => {
   it.each(['google', null, [], { provider: 'github', next: 123 }])('rejects invalid or cross-provider OAuth state %j', async state => {
     const { env } = environment(typeof state === 'string' ? JSON.stringify({ provider: state }) : JSON.stringify(state));
     const upstream = vi.fn(); vi.stubGlobal('fetch', upstream);
-    const res = await app.request('https://api.freedocstore.online/auth/github/callback?state=state&code=code', {}, env);
+    const res = await app.request('https://api.freedocstore.online/auth/github/callback?state=state&code=code', { headers: { Cookie: '__Host-fds-oauth-github=state' } }, env);
     expect(res.status).toBe(400); expect(upstream).not.toHaveBeenCalled();
   });
+  it.each(['github', 'google'])('binds %s OAuth state to a secure browser cookie', async provider => {
+    const { env } = environment();
+    const start = await app.request(`https://api.freedocstore.online/auth/${provider}/start`, {}, env);
+    expect(start.status).toBe(302);
+    const state = new URL(start.headers.get('Location')!).searchParams.get('state');
+    expect(start.headers.get('Set-Cookie')).toContain(`__Host-fds-oauth-${provider}=${state}`);
+    expect(start.headers.get('Set-Cookie')).toMatch(/HttpOnly/);
+    expect(start.headers.get('Set-Cookie')).toMatch(/Secure/);
+    expect(start.headers.get('Set-Cookie')).toMatch(/SameSite=Lax/);
+  });
+  it.each(['', '__Host-fds-oauth-github=someone-elses-state'])('rejects a callback without the initiating browser nonce %s', async cookie => {
+    const { env, del } = environment(); const upstream = vi.fn(); vi.stubGlobal('fetch', upstream);
+    const response = await app.request('https://api.freedocstore.online/auth/github/callback?state=state&code=code', { headers: { Cookie: cookie } }, env);
+    expect(response.status).toBe(400);
+    expect(del).not.toHaveBeenCalled(); expect(upstream).not.toHaveBeenCalled();
+  });
+  it('accepts matching provider and browser state before exchanging the code', async () => {
+    const { env, del } = environment();
+    const upstream = vi.fn(async () => new Response(JSON.stringify({ error: 'bad_code' }), { status: 400 })); vi.stubGlobal('fetch', upstream);
+    const response = await app.request('https://api.freedocstore.online/auth/github/callback?state=state&code=code', { headers: { Cookie: '__Host-fds-oauth-github=state' } }, env);
+    expect(response.status).toBe(401);
+    expect(del).toHaveBeenCalledWith(`${STATE_PREFIX}state`); expect(upstream).toHaveBeenCalledTimes(1);
+  });
+
 });

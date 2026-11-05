@@ -1,5 +1,6 @@
 import manifest from './model-manifest.json'
 import { encodeWav, MAX_AUDIO_BYTES } from './format'
+import { verifiedDownload } from './download'
 
 // Only immutable public assets leave the worker. Page text is used in local inference.
 const nativeFetch = globalThis.fetch.bind(globalThis)
@@ -14,31 +15,10 @@ globalThis.fetch = async (input, init) => {
   const pinned = `${prefix}${manifest.revision}/${pathname}`
   let cache: Cache | undefined
   try { cache = await caches.open('fds-audio-model-v1') } catch { /* generation also works without persistent cache */ }
-  const cached = await cache?.match(pinned)
-  const response = cached ?? await nativeFetch(pinned, { credentials: 'omit' })
-  if (!response.ok) throw new Error(`Model download failed (${response.status}): ${pathname}`)
-  const reader = response.body!.getReader()
-  const parts: Uint8Array[] = []
-  let bytes = 0
-  while (true) {
-    const { done, value } = await reader.read()
-    if (done) break
-    bytes += value.byteLength
-    if (bytes > expected.bytes) { await reader.cancel(); throw new Error(`Model download is larger than expected: ${pathname}`) }
-    parts.push(value)
-    postMessage({ type: 'progress', message: `Loading ${pathname} · ${Math.round(bytes / expected.bytes * 100)}%` })
-  }
-  const buffer = new Uint8Array(bytes)
-  let offset = 0
-  for (const part of parts) { buffer.set(part, offset); offset += part.byteLength }
-  const sha = [...new Uint8Array(await crypto.subtle.digest('SHA-256', buffer))].map(n => n.toString(16).padStart(2, '0')).join('')
-  if (bytes !== expected.bytes || sha !== expected.sha256) {
-    await cache?.delete(pinned)
-    throw new Error(`Model integrity check failed: ${pathname}. Try again to download a clean copy.`)
-  }
-  const verified = new Response(buffer, { headers: { 'Content-Type': 'application/octet-stream', 'Content-Length': String(bytes) } })
-  if (!cached && cache) { try { await cache.put(pinned, verified.clone()) } catch { /* quota failure must not prevent synthesis */ } }
-  return verified
+  return verifiedDownload(pinned, expected, {
+    fetch: nativeFetch, cache,
+    progress: percent => postMessage({ type: 'progress', message: `Loading ${pathname} · ${percent}%` }),
+  })
 }
 
 let running = false

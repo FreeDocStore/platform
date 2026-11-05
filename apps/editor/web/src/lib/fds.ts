@@ -44,12 +44,14 @@ export interface EditResult {
 
 const API_BASE = (import.meta.env.VITE_FDS_API_BASE as string | undefined) || 'https://api.freedocstore.online'
 const THEME_KEY = 'fds:theme:v1'
+let boundAccount: string | null = null
 
 async function apiFetch(path: string, init: RequestInit = {}) {
   const res = await fetch(`${API_BASE}${path}`, {
     ...init,
     credentials: 'include',
     headers: {
+      ...(boundAccount && path !== '/api/me' ? { 'X-FDS-Account': boundAccount } : {}),
       ...(init.body && !(init.body instanceof FormData) ? { 'Content-Type': 'application/json' } : {}),
       ...(init.headers || {}),
     },
@@ -146,6 +148,7 @@ export function useAuth() {
     setLoading(true)
     try {
       const data = await apiJson<{ authenticated: boolean; user: User | null }>('/api/me')
+      boundAccount = data.authenticated ? data.user?.id ?? null : null
       setUser(data.authenticated ? data.user : null)
     } catch {
       setUser(null)
@@ -163,14 +166,19 @@ export function useAuth() {
   }
 
   async function signOut() {
-    await apiFetch('/api/logout', { method: 'POST' }).catch(() => {})
+    const res = await apiFetch('/api/logout', { method: 'POST' })
+    if (!res.ok) throw new Error(`Sign out failed: ${res.status}. Reload and try again.`)
+    boundAccount = null
     setUser(null)
+    window.location.reload()
   }
 
   async function deleteAccount() {
     const res = await apiFetch('/api/account', { method: 'DELETE' })
     if (!res.ok) throw new Error(`Account deletion failed: ${res.status}`)
+    boundAccount = null
     setUser(null)
+    window.location.reload()
   }
 
   return { user, loading, signIn, signOut, deleteAccount, refresh }
@@ -202,7 +210,8 @@ export function useSubscription() {
 
 export function useTheme() {
   const [preference, setPreferenceState] = useState<ThemePreference>(() => {
-    const stored = localStorage.getItem(THEME_KEY)
+    let stored: string | null = null
+    try { stored = localStorage.getItem(THEME_KEY) } catch { /* Use the system theme if storage is unavailable. */ }
     return stored === 'light' || stored === 'dark' || stored === 'system' ? stored : 'system'
   })
 
@@ -215,7 +224,7 @@ export function useTheme() {
   }, [preference])
 
   function setPreference(next: ThemePreference) {
-    localStorage.setItem(THEME_KEY, next)
+    try { localStorage.setItem(THEME_KEY, next) } catch { /* Theme changes still apply to this session. */ }
     setPreferenceState(next)
   }
 

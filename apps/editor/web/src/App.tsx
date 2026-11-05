@@ -61,11 +61,25 @@ import { SettingsPanel } from './components/settings'
 import { ProfilePage } from './components/profile'
 
 function App() {
-  return <EditorApp />
+  const auth = useAuth()
+  if (auth.loading) return <LoadingScreen />
+  if (!auth.user) return <SignedOutLanding signIn={auth.signIn} />
+  // Account changes discard the entire workspace and its pending UI operations.
+  return <EditorApp key={auth.user.id} auth={auth} />
 }
 
-function EditorApp() {
-  const { user, loading: authLoading, signIn, signOut, deleteAccount } = useAuth()
+function EditorApp({ auth }: { auth: ReturnType<typeof useAuth> }) {
+  const { user, signIn, deleteAccount } = auth
+  const storageKey = (key: string) => `fds:account:${user!.id}:${key}`
+  function readLocal(key: string) {
+    try { return localStorage.getItem(storageKey(key)) } catch { return null }
+  }
+  function saveLocal(key: string, value: string) {
+    try { localStorage.setItem(storageKey(key), value) } catch { /* Cloud workspace remains available if local storage is blocked or full. */ }
+  }
+  function signOut() {
+    auth.signOut().catch(error => setStatus(messageOf(error)))
+  }
   const { subscription, isPro, loading: subLoading, upgrade, manageBilling } = useSubscription()
   const { preference, setPreference } = useTheme()
   const [route, setRoute] = useState<AppRoute>(() => locationFromUrl().route)
@@ -75,6 +89,7 @@ function EditorApp() {
   const [keyInputs, setKeyInputs] = useState<Record<ByokProvider, string>>({ openai: '', anthropic: '' })
   const [kbs, setKbs] = useState<KnowledgeBaseDraft[]>(() => [createKnowledgeBase(starterPublish)])
   const [platformLoaded, setPlatformLoaded] = useState(false)
+  const [cloudReady, setCloudReady] = useState(false)
   const [connections, setConnections] = useState<PlatformConnections>(initialConnections)
   const [activeKbId, setActiveKbId] = useState('')
   const [editForm, setEditForm] = useState<EditForm>(starterEdit)
@@ -82,6 +97,8 @@ function EditorApp() {
   const [sourceKey, setSourceKey] = useState('')
   const [proposal, setProposal] = useState<Proposal | null>(null)
   const [proposalKey, setProposalKey] = useState('')
+  const [proposalSource, setProposalSource] = useState('')
+  const editRun = useRef(0)
   const [diff, setDiff] = useState('')
   const [activePreview, setActivePreview] = useState<'files' | 'source' | 'proposal' | 'diff' | 'live'>('files')
   const [library, setLibrary] = useState<RegistryKb[]>([])
@@ -124,7 +141,7 @@ function EditorApp() {
   // Resolve /edit/<kbId>?file=… into the edit form and load the source, including
   // after a refresh or once the registry finishes loading.
   useEffect(() => {
-    if (route !== 'edit' || !editKbId) return
+    if (!platformLoaded || route !== 'edit' || !editKbId) return
     if (!library.length) return // registry still loading
     const kb = library.find((entry) => entry.id === editKbId)
     if (!kb) {
@@ -138,15 +155,15 @@ function EditorApp() {
     const next = { repo: kb.source.repo, branch: kb.source.branch ?? 'main', path: file, instruction: starterEdit.instruction }
     setEditForm(next)
     loadSource(next)
-  }, [route, editKbId, library])
+  }, [route, editKbId, library, platformLoaded])
 
   function goEdit(kbId?: string) {
-    const target = kbId || editKbId || localStorage.getItem('fds:last-edit-kb') || library[0]?.id
+    const target = kbId || editKbId || readLocal('last-edit-kb') || library[0]?.id
     if (!target) {
       navigate('dashboard')
       return
     }
-    localStorage.setItem('fds:last-edit-kb', target)
+    saveLocal('last-edit-kb', target)
     setRoute('edit')
     setEditKbId(target)
     setActivePreview('source')
@@ -164,30 +181,6 @@ function EditorApp() {
   }
 
   useEffect(() => {
-    const saved = parseStoredJson<Partial<Settings>>(localStorage.getItem('fds-editor-settings'))
-    if (saved) setSettings(normalizeSettings(saved))
-    const savedKbs = parseStoredJson<unknown>(localStorage.getItem('fds-kb-drafts'))
-    if (savedKbs) {
-      const parsed = savedKbs
-      if (Array.isArray(parsed) && parsed.length) {
-        const normalized = parsed.map(normalizeKnowledgeBase)
-        setKbs(normalized)
-        const storedActive = localStorage.getItem('fds-active-kb')
-        setActiveKbId(normalized.some((kb) => kb.id === storedActive) ? storedActive || normalized[0].id : normalized[0].id)
-      }
-    } else {
-      const pub = parseStoredJson<Partial<PublishForm>>(localStorage.getItem('fds-publish-draft'))
-      if (pub) {
-        const legacy = createKnowledgeBase({ ...starterPublish, ...pub })
-        setKbs([legacy])
-        setActiveKbId(legacy.id)
-      }
-    }
-    const edit = parseStoredJson<Partial<EditForm>>(localStorage.getItem('fds-edit-draft'))
-    if (edit) setEditForm({ ...starterEdit, ...edit })
-  }, [])
-
-  useEffect(() => {
     if (!user) {
       setPlatformLoaded(false)
       setSecrets(emptySecrets)
@@ -195,6 +188,17 @@ function EditorApp() {
       return
     }
     let cancelled = false
+    // Unscoped legacy caches have no trustworthy account owner. Never import
+    // them automatically into a signed-in workspace.
+    const saved = parseStoredJson<Partial<Settings>>(readLocal('settings'))
+    if (saved) setSettings(normalizeSettings(saved))
+    const localKbs = parseStoredJson<KnowledgeBaseDraft[]>(readLocal('drafts'))
+    if (Array.isArray(localKbs) && localKbs.length) {
+      setKbs(localKbs.map(normalizeKnowledgeBase))
+      setActiveKbId(readLocal('active') || '')
+    }
+    const edit = parseStoredJson<Partial<EditForm>>(readLocal('edit'))
+    if (edit) setEditForm({ ...starterEdit, ...edit })
     async function loadPlatformState() {
       try {
         const [savedSettings, savedKbs, savedActive] = await Promise.all([
@@ -209,6 +213,7 @@ function EditorApp() {
           setKbs(normalized)
           setActiveKbId(normalized.some((kb) => kb.id === savedActive) ? savedActive || normalized[0].id : normalized[0].id)
         }
+        setCloudReady(true)
         setStatus('Loaded platform workspace')
       } catch (error) {
         if (!cancelled) setStatus(`Platform workspace unavailable: ${messageOf(error)}`)
@@ -232,23 +237,26 @@ function EditorApp() {
   }, [activeKbId, kbs])
 
   useEffect(() => {
-    localStorage.setItem('fds-editor-settings', JSON.stringify(normalizeSettings(settings)))
-    if (user && platformLoaded) app.kv.set(CONFIG_KEY, normalizeSettings(settings)).catch((error) => setStatus(`Could not save platform settings: ${messageOf(error)}`))
-  }, [platformLoaded, settings, user])
+    if (!platformLoaded) return
+    saveLocal('settings', JSON.stringify(normalizeSettings(settings)))
+    if (user && cloudReady) app.kv.set(CONFIG_KEY, normalizeSettings(settings)).catch((error) => setStatus(`Could not save platform settings: ${messageOf(error)}`))
+  }, [platformLoaded, cloudReady, settings, user])
 
   useEffect(() => {
-    localStorage.setItem('fds-kb-drafts', JSON.stringify(kbs))
-    if (user && platformLoaded) app.kv.set(KBS_KEY, kbs).catch((error) => setStatus(`Could not save platform KBs: ${messageOf(error)}`))
-  }, [kbs, platformLoaded, user])
+    if (!platformLoaded) return
+    saveLocal('drafts', JSON.stringify(kbs))
+    if (user && cloudReady) app.kv.set(KBS_KEY, kbs).catch((error) => setStatus(`Could not save platform KBs: ${messageOf(error)}`))
+  }, [kbs, platformLoaded, cloudReady, user])
 
   useEffect(() => {
-    if (activeKbId) localStorage.setItem('fds-active-kb', activeKbId)
-    if (user && platformLoaded && activeKbId) app.kv.set(ACTIVE_KB_KEY, activeKbId).catch(() => {})
-  }, [activeKbId, platformLoaded, user])
+    if (!platformLoaded) return
+    if (activeKbId) saveLocal('active', activeKbId)
+    if (user && cloudReady && activeKbId) app.kv.set(ACTIVE_KB_KEY, activeKbId).catch(() => {})
+  }, [activeKbId, platformLoaded, cloudReady, user])
 
   useEffect(() => {
-    localStorage.setItem('fds-edit-draft', JSON.stringify(editForm))
-  }, [editForm])
+    if (platformLoaded) saveLocal('edit', JSON.stringify(editForm))
+  }, [editForm, platformLoaded])
 
   const generatedSummary = useMemo(() => {
     if (!files.length) return 'No files generated yet.'
@@ -411,9 +419,9 @@ function EditorApp() {
       const failed = result.steps.find((step) => !step.ok)
       if (failed) throw new Error(failed.detail)
 
-      setKbPatch(kbId, { repoUrl: result.repoUrl, liveUrl: result.liveUrl, lastStatus: 'Published' })
-      setKbSteps(kbId, updateStep('deploy', 'ok', 'Workflow started on GitHub'))
-      setStatus('Published. GitHub Actions is building the Zensical site.')
+      setKbPatch(kbId, { repoUrl: result.repoUrl, liveUrl: result.liveUrl, lastStatus: 'Submitted' })
+      setKbSteps(kbId, updateStep('deploy', 'idle', 'Check GitHub Actions to verify deployment'))
+      setStatus('Source submitted. Check GitHub Actions to confirm the build and deployment.')
       window.open(`${result.repoUrl}/actions`, '_blank', 'noopener,noreferrer')
     } catch (error) {
       setStatus(messageOf(error))
@@ -427,6 +435,7 @@ function EditorApp() {
   async function loadSource(formOverride?: EditForm) {
     const form = formOverride ?? editForm
     const key = `${form.repo}:${form.branch}:${form.path}`
+    const mine = ++editRun.current
     setBusy(true)
     setProposal(null)
     setSourceKey('')
@@ -434,7 +443,7 @@ function EditorApp() {
     try {
       validatePlatformAccess(user)
       const content = await readGitHubFile(form.repo, form.path, form.branch)
-      if (editIdentityRef.current !== key) return
+      if (editIdentityRef.current !== key || editRun.current !== mine) return
       setSource(content)
       setSourceKey(`${form.repo}:${form.branch}:${form.path}`)
       setProposal(null)
@@ -446,19 +455,20 @@ function EditorApp() {
         replaceLocation({ route: 'edit', kbId: editKbId, file: form.path })
       }
     } catch (error) {
-      if (editIdentityRef.current !== key) return
+      if (editIdentityRef.current !== key || editRun.current !== mine) return
       setSourceKey('')
       const message = messageOf(error)
       setStatus(message)
       setSource(`Could not load ${form.repo}/${form.path}\n\n${message}\n\nIf this is a 404/403, the FreeDocStore GitHub App may not have access to this repo — check that it's installed on the org with Contents read/write.`)
       setActivePreview('source')
     } finally {
-      setBusy(false)
+      if (editRun.current === mine) setBusy(false)
     }
   }
 
   async function askForEditProposal() {
     const key = editIdentity
+    const mine = ++editRun.current
     setBusy(true)
     setStatus('Asking AI for proposal')
     const active = usableSettings()
@@ -466,36 +476,40 @@ function EditorApp() {
       validatePlatformAccess(user)
       validateAi(active)
       const current = sourceKey === key ? source : await readGitHubFile(editForm.repo, editForm.path, editForm.branch)
-      if (editIdentityRef.current !== key) return
+      if (editIdentityRef.current !== key || editRun.current !== mine) return
       setSource(current)
       setSourceKey(key)
       const { proposal: next, usage } = await generateEditProposal(active, editForm, current)
-      if (editIdentityRef.current !== key) return
+      if (editIdentityRef.current !== key || editRun.current !== mine) return
       setLastUsage(usage)
       setProposal(next)
       setProposalKey(key)
+      setProposalSource(current)
       setDiff(buildLineDiff(current, next.content))
       setActivePreview('diff')
       setStatus('Proposal ready')
     } catch (error) {
-      if (editIdentityRef.current !== key) return
+      if (editIdentityRef.current !== key || editRun.current !== mine) return
       const message = messageOf(error)
       setStatus(message)
       setProposal(null)
       setDiff(`AI request failed — ${AI_PROVIDERS[active.provider].label}\n\n${message}`)
       setActivePreview('diff')
     } finally {
-      setBusy(false)
+      if (editRun.current === mine) setBusy(false)
     }
   }
 
   async function applyProposal(mode: 'pr' | 'direct') {
     if (!visibleProposal || sourceKey !== editIdentity) return
     const key = editIdentity
+    const mine = ++editRun.current
     setBusy(true)
     setStatus(mode === 'pr' ? 'Opening a pull request' : 'Committing to the base branch')
     try {
       validatePlatformAccess(user)
+      const expectedSourceSha = await sourceBlobSha(proposalSource)
+      if (editIdentityRef.current !== key || editRun.current !== mine) return
       const result = await app.editFile({
         repo: editForm.repo,
         path: editForm.path,
@@ -503,9 +517,9 @@ function EditorApp() {
         message: visibleProposal.summary || `Update ${editForm.path} via FreeDocStore`,
         mode,
         branch: editForm.branch,
-        expectedSourceSha: await sourceBlobSha(source),
+        expectedSourceSha,
       })
-      if (editIdentityRef.current !== key) return
+      if (editIdentityRef.current !== key || editRun.current !== mine) return
       const link = result.prUrl || result.commitUrl
       if (mode === 'direct') setSource(visibleProposal.content)
       setProposal(null)
@@ -513,9 +527,10 @@ function EditorApp() {
       setStatus(result.prUrl ? `Opened PR #${result.prNumber}` : 'Committed to the base branch')
       if (link) window.open(link, '_blank', 'noopener,noreferrer')
     } catch (error) {
+      if (editIdentityRef.current !== key || editRun.current !== mine) return
       setStatus(messageOf(error))
     } finally {
-      setBusy(false)
+      if (editRun.current === mine) setBusy(false)
     }
   }
 
@@ -638,7 +653,7 @@ function EditorApp() {
     checkConnections()
   }, [platformLoaded, user])
 
-  if (authLoading) return <LoadingScreen />
+  if (!platformLoaded) return <LoadingScreen />
   if (!user) return <SignedOutLanding signIn={signIn} />
 
   // 'files' is a publish-only preview tab; never let it leak into the edit view.

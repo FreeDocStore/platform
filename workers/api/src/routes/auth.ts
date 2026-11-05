@@ -1,4 +1,5 @@
 import type { Hono } from "hono";
+import { getCookie, setCookie, deleteCookie } from "hono/cookie";
 import {
   type Env,
   type Variables,
@@ -45,6 +46,7 @@ export function registerAuthRoutes(app: App) {
     const state = crypto.randomUUID();
     const next = safeNext(c.req.query("next"), c.env.EDITOR_BASE_URL);
     await c.env.FDS_API_KV.put(`${STATE_PREFIX}${state}`, JSON.stringify({ provider: "github", next }), { expirationTtl: STATE_TTL });
+    setCookie(c, "__Host-fds-oauth-github", state, { httpOnly: true, secure: true, sameSite: "Lax", path: "/", maxAge: STATE_TTL });
     const callback = new URL("/auth/github/callback", c.req.url);
     // GitHub App user-to-server authorization: no `scope` — access comes from the
     // App's fine-grained permissions and the repos the user grants at install time.
@@ -61,6 +63,9 @@ export function registerAuthRoutes(app: App) {
     const code = c.req.query("code");
     const state = c.req.query("state");
     if (!code || !state) return c.text("Missing OAuth code or state", 400);
+    // The server-side nonce must also belong to the browser that started sign-in.
+    if (getCookie(c, "__Host-fds-oauth-github") !== state) return c.text("Sign-in state does not match this browser. Start sign-in again.", 400);
+    deleteCookie(c, "__Host-fds-oauth-github", { secure: true, path: "/" });
     const stateRaw = await c.env.FDS_API_KV.get(`${STATE_PREFIX}${state}`);
     if (!stateRaw) return c.text("OAuth state expired", 400);
     await c.env.FDS_API_KV.delete(`${STATE_PREFIX}${state}`);
@@ -113,6 +118,7 @@ export function registerAuthRoutes(app: App) {
     const state = crypto.randomUUID();
     const next = safeNext(c.req.query("next"), c.env.EDITOR_BASE_URL);
     await c.env.FDS_API_KV.put(`${STATE_PREFIX}${state}`, JSON.stringify({ provider: "google", next }), { expirationTtl: STATE_TTL });
+    setCookie(c, "__Host-fds-oauth-google", state, { httpOnly: true, secure: true, sameSite: "Lax", path: "/", maxAge: STATE_TTL });
     const callback = new URL("/auth/google/callback", c.req.url);
     const url = new URL("https://accounts.google.com/o/oauth2/v2/auth");
     url.searchParams.set("client_id", c.env.GOOGLE_CLIENT_ID!);
@@ -130,6 +136,9 @@ export function registerAuthRoutes(app: App) {
     const code = c.req.query("code");
     const state = c.req.query("state");
     if (!code || !state) return c.text("Missing OAuth code or state", 400);
+    // The server-side nonce must also belong to the browser that started sign-in.
+    if (getCookie(c, "__Host-fds-oauth-google") !== state) return c.text("Sign-in state does not match this browser. Start sign-in again.", 400);
+    deleteCookie(c, "__Host-fds-oauth-google", { secure: true, path: "/" });
     const stateRaw = await c.env.FDS_API_KV.get(`${STATE_PREFIX}${state}`);
     if (!stateRaw) return c.text("OAuth state expired", 400);
     await c.env.FDS_API_KV.delete(`${STATE_PREFIX}${state}`);

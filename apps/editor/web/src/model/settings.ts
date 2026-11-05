@@ -25,7 +25,7 @@ export const emptySecrets: SecretStatus = {
 export const initialConnections: PlatformConnections = {
   github: 'unchecked',
   ai: 'needs-setup',
-  cloudflare: 'ready',
+  cloudflare: 'unchecked',
   detail: 'Save your OpenAI or Anthropic BYOK key once in your FreeDocStore account. Cloudflare deploy credentials live in platform/org secrets.',
 }
 
