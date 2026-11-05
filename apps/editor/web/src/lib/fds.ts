@@ -35,6 +35,7 @@ export interface PublishKbResult {
 
 export interface EditResult {
   ok: boolean
+  unchanged?: boolean
   branch?: string
   commitSha?: string
   commitUrl?: string

@@ -154,13 +154,14 @@ test('narration cancellation discards late worker output and publication cannot 
     };
   });
   let publishCount = 0;
+  let unchanged = false;
   let release;
   const pending = new Promise(resolve => { release = resolve; });
   await mockConsole(page, async (route, reply, url) => {
     if (url.pathname === '/api/audio') {
       publishCount++;
       await pending;
-      await reply({ ok: true, prUrl: 'https://github.com/FreeDocStore/example/pull/99' }); return true;
+      await reply(unchanged ? { ok: true, unchanged: true } : { ok: true, prUrl: 'https://github.com/FreeDocStore/example/pull/99' }); return true;
     }
     return false;
   });
@@ -183,4 +184,22 @@ test('narration cancellation discards late worker output and publication cannot 
   release();
   await expect(page.getByRole('link', { name: 'Review narration proposal' })).toBeVisible();
   expect(publishCount).toBe(1);
+  unchanged = true;
+  await publish.click();
+  await expect(page.getByText('This recording is already on the base branch. No proposal was needed.')).toBeVisible();
+});
+
+
+test('unchanged text proposals show an explicit result without inventing a PR', async ({ page }) => {
+  await mockConsole(page, async (route, reply, url) => {
+    if (url.pathname === '/api/edit') { await reply({ ok: true, unchanged: true, branch: 'main' }); return true; }
+    return false;
+  });
+  await page.goto('/edit/example/docs/index.md');
+  await expect(page.getByText('# Original source', { exact: false }).first()).toBeVisible();
+  await page.getByRole('button', { name: /Ask AI/ }).first().click();
+  await expect(page.getByRole('button', { name: 'Print proposal' })).toBeEnabled();
+  await page.getByRole('button', { name: 'Apply as pull request' }).click();
+  await expect(page.getByText('No changes to apply. The base branch already contains this content.', { exact: false }).first()).toBeVisible();
+  await expect(page.getByText(/PR #undefined/)).toHaveCount(0);
 });

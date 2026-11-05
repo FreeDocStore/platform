@@ -520,6 +520,13 @@ function EditorApp({ auth }: { auth: ReturnType<typeof useAuth> }) {
         expectedSourceSha,
       })
       if (editIdentityRef.current !== key || editRun.current !== mine) return
+      if (result.unchanged) {
+        setSource(visibleProposal.content)
+        setProposal(null)
+        setDiff('No changes to apply. The base branch already contains this content.')
+        setStatus('No changes to apply')
+        return
+      }
       const link = result.prUrl || result.commitUrl
       if (mode === 'direct') setSource(visibleProposal.content)
       setProposal(null)

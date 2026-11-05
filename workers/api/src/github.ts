@@ -17,6 +17,7 @@ export interface FileChange {
 
 export interface CommitResult {
   ok: boolean;
+  unchanged?: boolean;
   error?: string;
   errorCode?: 'source_conflict' | 'upstream_error';
   branch?: string;
@@ -105,7 +106,7 @@ export async function commitFiles(input: {
 
   // No-op: the new tree matches the base tree (re-saving identical content).
   // Return the current head instead of creating an empty commit / empty PR.
-  if (tree.sha === baseTreeSha) return { ok: true, branch: baseBranch, commitSha: headSha };
+  if (tree.sha === baseTreeSha) return { ok: true, unchanged: true, branch: baseBranch, commitSha: headSha };
 
   const commit = await gh(`${base}/git/commits`, { token, method: "POST", body: { message: input.message, tree: tree.sha, parents: [headSha] } });
   if (!commit?.sha) return { ok: false, error: `Commit create failed: ${commit?.message ?? "unknown"}` };

@@ -59,6 +59,7 @@ export function AudioPanel({ repo, branch, path, source }: { repo: string; branc
     try {
       const result = await fds.publishAudio({ repo, branch, path, sourceSha: audio.sha, audio: audioBase64(audio.wav), modelRevision: manifest.revision })
       if (mine !== run.current) return
+      if (result.unchanged) { setResultUrl(''); setStatus('This recording is already on the base branch. No proposal was needed.'); return }
       if (!result.prUrl) throw new Error('The server did not return a review link.')
       setResultUrl(result.prUrl); setStatus('Narration proposal created. Review and merge it to publish.')
     } catch (error) { if (mine === run.current) setStatus(String(error)) }
