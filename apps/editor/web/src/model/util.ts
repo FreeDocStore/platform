@@ -73,10 +73,19 @@ export function isValidDomain(value: string) {
 }
 
 export function setTomlScalar(content: string, key: string, value: string) {
-  const escaped = value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
-  const line = `${key} = "${escaped}"`
-  const pattern = new RegExp(`^${key}\\s*=\\s*(['"]).*\\1$`, 'm')
-  return pattern.test(content) ? content.replace(pattern, line) : `${line}\n${content}`
+  const lines = content.split('\n')
+  const start = lines.findIndex(line => /^\s*\[project\]\s*(?:#.*)?$/.test(line))
+  if (start < 0) throw new Error('Zensical configuration must include a [project] section. Ask AI to regenerate the configuration.')
+  let end = lines.findIndex((line, index) => index > start && /^\s*\[/.test(line))
+  if (end < 0) end = lines.length
+  const pattern = new RegExp(`^\\s*${key}\\s*=`)
+  const current = lines.findIndex((line, index) => index > start && index < end && pattern.test(line))
+  const replacement = `${key} = ${JSON.stringify(value)}`
+  if (current >= 0) {
+    if (/={1}\s*(?:"""|''')/.test(lines[current])) throw new Error(`Use a single-line ${key} in the generated Zensical configuration.`)
+    lines[current] = replacement
+  } else lines.splice(start + 1, 0, replacement)
+  return lines.join('\n')
 }
 
 export function textToBase64(text: string) {

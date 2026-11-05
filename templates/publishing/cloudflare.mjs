@@ -18,17 +18,18 @@ export function cloudflareClient({ token, fetch: request = fetch }) {
   };
 }
 
-export async function ensureProject(api, account, project) {
+export async function ensureProject(api, account, project, branch = 'main') {
   const route = `/accounts/${encodeURIComponent(account)}/pages/projects/${encodeURIComponent(project)}`;
   const existing = await api(route, { allowMissing: true });
   if (existing) {
-    if (existing.production_branch !== 'main') throw new Error('The Pages project must use main as its production branch.');
+    if (existing.production_branch !== branch) throw new Error(`The Pages project must use ${branch} as its production branch.`);
     return;
   }
-  await api(`/accounts/${encodeURIComponent(account)}/pages/projects`, { method: 'POST', body: { name: project, production_branch: 'main' } });
+  await api(`/accounts/${encodeURIComponent(account)}/pages/projects`, { method: 'POST', body: { name: project, production_branch: branch } });
 }
 
 export async function ensureDomains(api, account, project, domains, report = console.log) {
+  if (!domains.length) return;
   const route = `/accounts/${encodeURIComponent(account)}/pages/projects/${encodeURIComponent(project)}/domains`;
   const attached = await api(route);
   if (!Array.isArray(attached)) throw new Error('Invalid Pages domains response');
@@ -61,7 +62,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   if (!account || !project) throw new Error('CLOUDFLARE_ACCOUNT_ID and PROJECT are required');
   const api = cloudflareClient({ token });
   const mode = process.argv[2];
-  if (mode === 'project') await ensureProject(api, account, project);
+  if (mode === 'project') await ensureProject(api, account, project, branch = 'main');
   else if (mode === 'domains') await ensureDomains(api, account, project, domains.split(/\s+/).filter(Boolean));
   else throw new Error('Usage: node cloudflare.mjs <project|domains>');
 }

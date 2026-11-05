@@ -10,7 +10,7 @@ export interface AiProviderSpec {
   keysUrl?: string
 }
 
-export type AppRoute = 'dashboard' | 'publish' | 'edit' | 'profile'
+export type AppRoute = 'dashboard' | 'publish' | 'provision' | 'edit' | 'profile'
 export type AuthProvider = 'github' | 'google'
 export type StepState = 'idle' | 'busy' | 'ok' | 'error'
 export type ConnectionState = 'unchecked' | 'checking' | 'ready' | 'needs-setup' | 'error'

@@ -8,7 +8,7 @@ export function locationFromUrl(): AppLocation {
     const file = segments.slice(2).map(decodeURIComponent).join('/')
     return { route: 'edit', kbId, file }
   }
-  if (first === 'publish' || first === 'profile') return { route: first, kbId: '', file: '' }
+  if (first === 'publish' || first === 'profile' || first === 'provision') return { route: first, kbId: '', file: '' }
   return { route: 'dashboard', kbId: '', file: '' }
 }
 

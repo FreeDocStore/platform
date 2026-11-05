@@ -22,7 +22,7 @@ createServer((req, res) => {
     res.setHeader('content-type', 'text/html'); return res.end(html);
   }
   if (url.pathname === '/_audio') { res.setHeader('content-type', 'text/html'); return res.end('<!doctype html><title>Audio test</title>'); }
-  const file = url.pathname === '/reader.js' ? resolve(root, 'templates/read-aloud/read-aloud.js') : url.pathname.startsWith('/edit/') || url.pathname === '/' ? resolve(root, 'apps/editor/web/dist/index.html') : resolve(root, 'apps/editor/web/dist', `.${url.pathname}`);
+  const file = url.pathname === '/reader.js' ? resolve(root, 'templates/read-aloud/read-aloud.js') : url.pathname.startsWith('/edit/') || ['/', '/provision', '/publish', '/profile'].includes(url.pathname) ? resolve(root, 'apps/editor/web/dist/index.html') : resolve(root, 'apps/editor/web/dist', `.${url.pathname}`);
   const dist = resolve(root, 'apps/editor/web/dist');
   if ((url.pathname !== '/reader.js' && !file.startsWith(`${dist}/`)) || !existsSync(file)) { res.statusCode = 404; return res.end(); }
   const types = { '.html': 'text/html', '.css': 'text/css', '.js': 'text/javascript', '.mjs': 'text/javascript', '.wasm': 'application/wasm', '.json': 'application/json' };

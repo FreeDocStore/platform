@@ -55,3 +55,30 @@ test('generated deployment uses shared checked helpers before deploying and atta
   assert.match(steps[domains].run, /cloudflare.mjs domains$/);
   assert.doesNotMatch(deployWorkflow('example', ''), /\|\| true/);
 });
+
+test('customer workflows use the actual branch and native Pages hosting without shell interpolation', async () => {
+  const { bundle } = await import('./_bundle.mjs');
+  const { parse } = await import('yaml');
+  const { deployWorkflow } = await import(await bundle('../templates/publishing/workflow.ts'));
+  const text = deployWorkflow('customer-docs', '', { branch: 'release/$HOME', managed: true });
+  const workflow = parse(text);
+  assert.deepEqual(workflow.on.push.branches, ['release/$HOME']);
+  assert.equal(workflow.jobs.deploy.env.PRODUCTION_BRANCH, 'release/$HOME');
+  assert.match(workflow.jobs.deploy.steps.find(step => step.name === 'Deploy to Cloudflare Pages').run, /--branch="\$PRODUCTION_BRANCH"/);
+  assert.doesNotMatch(text, /customer-docs\.freedocstore\.online/);
+  assert.throws(() => deployWorkflow('example', '', { branch: '${{secrets.VALUE}}' }), /workflow expressions/);
+});
+
+test('Zensical fallback and scalar updates stay within the project section', async () => {
+  const { bundle } = await import('./_bundle.mjs');
+  const { ensureFallbackFiles } = await import(await bundle('../apps/editor/web/src/model/kb.ts'));
+  const { setTomlScalar } = await import(await bundle('../apps/editor/web/src/model/util.ts'));
+  const form = { title: 'Customer docs', owner: 'CustomerOrg', slug: 'knowledge', customDomain: '', prompt: 'Public documentation', visibility: 'public' };
+  const files = ensureFallbackFiles([], form, 'workflow');
+  assert.match(files.find(file => file.path === 'zensical.toml').content, /^\[project\]/);
+  const config = '[project]\nsite_name = "Docs"\n[project.extra]\nsite_url = "preserve-this"\n';
+  const updated = setTomlScalar(config, 'site_url', 'https://example.com/');
+  assert.match(updated, /^\[project\]\nsite_url = "https:\/\/example.com\/"\n/);
+  assert.match(updated, /\[project.extra\]\nsite_url = "preserve-this"/);
+  assert.throws(() => setTomlScalar('site_name="old"', 'site_url', 'url'), /\[project\]/);
+});

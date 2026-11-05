@@ -60,9 +60,16 @@ async function apiFetch(path: string, init: RequestInit = {}) {
   return res
 }
 
-async function apiJson<T>(path: string, init: RequestInit = {}): Promise<T> {
+export class ApiError extends Error {
+  constructor(public status: number, message: string) { super(message) }
+}
+
+export async function apiJson<T>(path: string, init: RequestInit = {}): Promise<T> {
   const res = await apiFetch(path, init)
-  if (!res.ok) throw new Error(`${res.status} ${await res.text()}`)
+  if (!res.ok) {
+    const body = await res.json().catch(() => null) as { error?: string } | null
+    throw new ApiError(res.status, typeof body?.error === 'string' ? body.error : `Request failed (${res.status}). Retry.`)
+  }
   return res.json() as Promise<T>
 }
 

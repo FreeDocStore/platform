@@ -10,7 +10,10 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "hono": "^4.12.27"
+    "blakejs": "^1.2.1",
+    "hono": "^4.13.16",
+    "smol-toml": "^1.9.1",
+    "tweetnacl": "^1.0.3"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20250520.0",

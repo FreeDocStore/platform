@@ -54,6 +54,7 @@ import { DashboardPage } from './components/dashboard'
 import { PublishPanel, SelectedKbHeader } from './components/publish'
 import { EditPanel } from './components/edit'
 import { AudioPanel } from './components/audio'
+import { ProvisioningPage } from './components/provisioning'
 import { RepositoryPanel } from './components/repository'
 import { sourceBlobSha } from './audio/format'
 import { EditPreview, FilesPreview, PreviewTabs } from './components/preview'
@@ -121,7 +122,7 @@ function EditorApp({ auth }: { auth: ReturnType<typeof useAuth> }) {
   useEffect(() => {
     fetch(REGISTRY_URL)
       .then((res) => (res.ok ? res.json() : null))
-      .then((data: { knowledge_bases?: RegistryKb[] } | null) => setLibrary(data?.knowledge_bases ?? []))
+      .then((data: { knowledge_bases?: RegistryKb[] } | null) => setLibrary(current => [...(data?.knowledge_bases ?? []).filter(entry => !current.some(kb => kb.id === entry.id)), ...current]))
       .catch(() => setLibrary([]))
   }, [])
 
@@ -666,7 +667,7 @@ function EditorApp({ auth }: { auth: ReturnType<typeof useAuth> }) {
   // 'files' is a publish-only preview tab; never let it leak into the edit view.
   const editPreview = activePreview === 'files' ? 'source' : activePreview
 
-  const content = route === 'dashboard' ? (
+  const content = route === 'provision' ? <ProvisioningPage user={user} onEdit={entry => { setLibrary(current => [...current.filter(kb => kb.id !== entry.id), entry]); goEdit(entry.id) }} /> : route === 'dashboard' ? (
     <DashboardPage
       kbs={kbs}
       activeId={activeKb?.id ?? ''}
@@ -678,6 +679,7 @@ function EditorApp({ auth }: { auth: ReturnType<typeof useAuth> }) {
       onCreate={createNewKb}
       onDuplicate={duplicateActiveKb}
       onDelete={deleteActiveKb}
+      onSetup={() => navigate('provision')}
       onPublish={() => navigate('publish')}
       onEdit={() => navigate('edit')}
       library={library}

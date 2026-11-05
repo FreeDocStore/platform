@@ -7,6 +7,8 @@ import { registerAuthRoutes } from "./routes/auth";
 import { registerKvRoutes } from "./routes/kv";
 import { registerSecretsRoutes } from "./routes/secrets";
 import { registerPublishRoutes } from "./routes/publish";
+import { ProvisioningError } from "./lib/provisioning-http";
+import { registerProvisioningRoutes } from "./routes/provisioning";
 import { registerProxyRoutes } from "./routes/proxy";
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
@@ -42,10 +44,12 @@ registerAuthRoutes(app);
 registerSecretsRoutes(app);
 registerPublishRoutes(app);
 registerProxyRoutes(app);
+registerProvisioningRoutes(app);
 
 app.notFound((c) => c.json({ error: "Not found" }, 404));
 
 app.onError((err, c) => {
+  if (err instanceof ProvisioningError) return c.json({ error: err.message }, err.status);
   if (err instanceof HTTPException) return corsErrorResponse(c, err.getResponse());
   console.error(err);
   return corsErrorResponse(c, c.json({ error: "Internal server error" }, 500));

@@ -54,3 +54,16 @@
   color: var(--accent-2);
 }
 
+
+.provisioning-page { width: min(100%, 960px); margin-inline: auto; padding: clamp(18px, 4vw, 36px); }
+.provisioning-page h1 { font-size: clamp(1.5rem, 4vw, 2rem); margin: 0 0 8px; }
+.provisioning-page h2 { font-size: 1.15rem; margin: 0 0 12px; }
+.provisioning-page p { overflow-wrap: anywhere; }
+.provisioning-page .field { margin-block: 16px; }
+.provisioning-page .section-block { padding-block: 24px; }
+.setup-checkbox { display: flex; gap: 10px; align-items: flex-start; margin-block: 16px; line-height: 1.5; }
+.setup-checkbox input { flex: 0 0 auto; width: 18px; height: 18px; margin-top: 3px; }
+.setup-review { margin-top: 20px; }
+.setup-review details { margin-block: 12px; }
+.setup-review summary { cursor: pointer; overflow-wrap: anywhere; }
+.setup-diff { max-height: 420px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font-size: .8rem; line-height: 1.5; padding: 16px; border: 1px solid var(--line); border-radius: 10px; }

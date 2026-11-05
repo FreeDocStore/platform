@@ -5,6 +5,8 @@ export interface Env {
   COOKIE_DOMAIN?: string;
   GITHUB_ORG: string;
   GH_APP_CLIENT_ID?: string;
+  GH_APP_ID?: string;
+  GH_APP_SLUG?: string;
   GH_APP_CLIENT_SECRET?: string;
   GITHUB_TOKEN?: string;
   GOOGLE_CLIENT_ID?: string;

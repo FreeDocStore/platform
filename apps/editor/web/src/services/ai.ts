@@ -22,6 +22,7 @@ export async function generateKbFiles(settings: Settings, form: PublishForm): Pr
     'Only output GitHub repo source files for a Zensical project.',
     'Do not output generated HTML or static site output.',
     'Use Markdown under docs/, zensical.toml at the repo root, and a concise README.',
+    'Zensical TOML must begin with [project]; place site_name, site_url, repo_url and other project settings inside that section.',
     'Return only JSON: {"files":[{"path":"...","content":"..."}]}',
   ].join(' ')
   const user = [

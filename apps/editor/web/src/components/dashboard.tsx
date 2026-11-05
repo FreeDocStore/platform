@@ -19,6 +19,7 @@ export function DashboardPage({
   onDuplicate,
   onDelete,
   onPublish,
+  onSetup,
   onEdit,
   library,
   onEditKb,
@@ -30,6 +31,7 @@ export function DashboardPage({
   onDuplicate: () => void
   onDelete: () => void
   onPublish: () => void
+  onSetup: () => void
   onEdit: () => void
   library: RegistryKb[]
   onEditKb: (kb: RegistryKb) => void
@@ -63,7 +65,11 @@ export function DashboardPage({
             <div><span>Selected</span><strong>{kbs.find((kb) => kb.id === activeId)?.slug ?? 'None'}</strong></div>
           </div>
           <div className="action-row">
-            <button className="primary-action" type="button" onClick={onPublish}>
+            <button className="primary-action" type="button" onClick={onSetup}>
+              <Github size={17} />
+              Set up your repository
+            </button>
+            <button className="secondary-action" type="button" onClick={onPublish}>
               <LibraryBig size={17} />
               Prompt a KB
             </button>

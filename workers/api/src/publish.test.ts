@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { publishKb, type PublishInput } from "./publish";
+import { publishKb, registerManagedKnowledgeBase, type PublishInput } from "./publish";
 
 const ORG = "FreeDocStore";
 
@@ -201,4 +201,21 @@ describe("publishKb", () => {
     expect(gh.registry.knowledge_bases[0].description).toBe("second");
     expect(gh.registry.knowledge_bases).toHaveLength(1);
   });
+});
+
+
+it('registers a verified organization-owned site without assuming platform hosting or a matching repo slug', async () => {
+  const gh = mockGitHub();
+  const id = await registerManagedKnowledgeBase({ repo: 'CustomerOrg/knowledge', branch: 'release', project: 'customer-docs', domain: '', url: 'https://customer-docs.pages.dev/', userToken: 'user-token', platformToken: 'platform-token', org: ORG });
+  expect(id).toBe('customerorg-knowledge');
+  expect(gh.registry.knowledge_bases[0].source).toMatchObject({ repo: 'CustomerOrg/knowledge', branch: 'release' });
+  expect(gh.registry.knowledge_bases[0].cloudflare).toEqual({ pages_project: 'customer-docs', production_url: 'https://customer-docs.pages.dev/', custom_domains: [] });
+  expect(gh.registry.knowledge_bases[0].status).toBe('published');
+  expect(gh.calls.some(call => call.method === 'POST')).toBe(false);
+});
+
+it('does not register a Pages project already associated with another repository', async () => {
+  const gh = mockGitHub({ registry: { knowledge_bases: [{ id: 'someone', source: { repo: 'OtherOrg/docs' }, cloudflare: { production_url: 'https://customer-docs.pages.dev/' } }] } });
+  await expect(registerManagedKnowledgeBase({ repo: 'CustomerOrg/knowledge', branch: 'main', project: 'customer-docs', domain: '', url: 'https://customer-docs.pages.dev/', userToken: 'user-token', org: ORG })).rejects.toThrow('already belongs');
+  expect(gh.putCount()).toBe(0);
 });

@@ -65,7 +65,7 @@
   left: 0;
   z-index: 40;
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 2px;
   min-height: var(--mobile-tab-h);
   border-top: 1px solid var(--line);

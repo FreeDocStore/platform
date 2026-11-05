@@ -89,6 +89,10 @@ export function AppNav({ route, navigate }: { route: AppRoute; navigate: (route:
         <LibraryBig size={17} />
         Publish
       </button>
+      <button className={route === 'provision' ? 'mode active' : 'mode'} onClick={() => navigate('provision')} type="button">
+        <ShieldCheck size={17} />
+        Set up
+      </button>
       <button className={route === 'edit' ? 'mode active' : 'mode'} onClick={() => navigate('edit')} type="button">
         <PenLine size={17} />
         Edit
@@ -108,6 +112,7 @@ export function AppNav({ route, navigate }: { route: AppRoute; navigate: (route:
 export function MobileTabBar({ route, navigate }: { route: AppRoute; navigate: (route: AppRoute) => void }) {
   const items: { route: AppRoute; label: string; icon: ReactNode }[] = [
     { route: 'dashboard', label: 'Console', icon: <LayoutDashboard size={18} /> },
+    { route: 'provision', label: 'Set up', icon: <ShieldCheck size={18} /> },
     { route: 'publish', label: 'Publish', icon: <LibraryBig size={18} /> },
     { route: 'edit', label: 'Edit', icon: <PenLine size={18} /> },
     { route: 'profile', label: 'Profile', icon: <UserCircle size={18} /> },

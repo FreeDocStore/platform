@@ -1,3 +1,5 @@
+import { deployWorkflow } from '../../../../../templates/publishing/workflow'
+export { deployWorkflow }
 import { starterPublish } from './settings'
 import type {
   EditForm,
@@ -100,66 +102,6 @@ export function nextAvailableSlug(kbs: KnowledgeBaseDraft[], desired: string) {
   return withSuffix(`-${Date.now()}`)
 }
 
-export function deployWorkflow(project: string, customDomain: string) {
-  const domains = [`${project}.${KB_DOMAIN_SUFFIX}`, ...(customDomain ? [customDomain] : [])].join(' ')
-  return `name: Deploy Zensical KB
-
-on:
-  push:
-    branches: [main]
-  workflow_dispatch:
-
-permissions:
-  contents: read
-  deployments: write
-
-concurrency:
-  group: deploy-zensical
-  cancel-in-progress: true
-
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-      - uses: actions/setup-node@v6
-        with:
-          node-version: 22
-      - run: python -m pip install zensical
-      - run: python -m zensical build --strict
-      - name: Fetch FreeDocStore reader
-        uses: actions/checkout@v7
-        with:
-          repository: FreeDocStore/platform
-          path: _freedocstore
-          sparse-checkout: |
-            templates/read-aloud
-            templates/publishing
-      - name: Install published-page read aloud
-        run: node _freedocstore/templates/read-aloud/install.mjs site
-      - name: Ensure Cloudflare Pages project
-        run: node _freedocstore/templates/publishing/cloudflare.mjs project
-        env:
-          PROJECT: ${project}
-          CLOUDFLARE_API_TOKEN: \${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: \${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-      - name: Deploy to Cloudflare Pages
-        run: npx wrangler pages deploy site --project-name="${project}" --branch=main
-        env:
-          CLOUDFLARE_API_TOKEN: \${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: \${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-      - name: Attach domains
-        env:
-          CLOUDFLARE_API_TOKEN: \${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: \${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          PROJECT: ${project}
-          DOMAINS: ${domains}
-        run: node _freedocstore/templates/publishing/cloudflare.mjs domains
-`
-}
 
 export function ensureFallbackFiles(files: RepoFile[], form: PublishForm, workflow: string): RepoFile[] {
   let next = [...files]
@@ -178,7 +120,7 @@ export function ensureFallbackFiles(files: RepoFile[], form: PublishForm, workfl
   } else {
     next.push({
       path: 'zensical.toml',
-      content: `site_name = "${form.title.replace(/"/g, '\\"')}"\nsite_url = "${siteUrl}"\nrepo_url = "https://github.com/${form.owner}/${form.slug}"\ndocs_dir = "docs"\nsite_dir = "site"\n\n[nav]\nitems = [\n  { title = "Overview", path = "index.md" },\n  { title = "First Principles", path = "first-principles.md" },\n  { title = "Assessment Method", path = "assessment-method.md" },\n  { title = "Register", path = "register.md" },\n]\n`,
+      content: `[project]\nsite_name = ${JSON.stringify(form.title)}\nsite_url = ${JSON.stringify(siteUrl)}\nrepo_url = ${JSON.stringify(`https://github.com/${form.owner}/${form.slug}`)}\ndocs_dir = "docs"\nsite_dir = "site"\n`,
     })
   }
   if (!next.some((file) => file.path === 'docs/index.md')) {

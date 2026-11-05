@@ -157,9 +157,15 @@ async function readRegistry(input: PublishInput) {
   return { token, url, current, registry };
 }
 
-function assertRegistryOwnership(input: PublishInput, registry: Registry) {
-  const repo = `${input.owner}/${input.slug}`.toLowerCase();
-  const domains = new Set([`${input.slug}.freedocstore.online`, ...(input.customDomain ? [input.customDomain] : [])].map(domain => domain.toLowerCase()));
+interface RegistryTarget { repo: string; branch: string; project: string; domains: string[] }
+
+function registryTarget(input: PublishInput): RegistryTarget {
+  return { repo: `${input.owner}/${input.slug}`, branch: 'main', project: input.slug, domains: [`${input.slug}.freedocstore.online`, ...(input.customDomain ? [input.customDomain] : [])] };
+}
+
+function assertRegistryOwnership(input: PublishInput, registry: Registry, target = registryTarget(input)) {
+  const repo = target.repo.toLowerCase();
+  const domains = new Set([...target.domains, `${target.project}.pages.dev`].map(domain => domain.toLowerCase()));
   const sameSlug = registry.knowledge_bases.filter(entry => entry.id.toLowerCase() === input.slug.toLowerCase());
   if (sameSlug.length > 1) throw new Error('Registry contains an ambiguous knowledge-base id. Resolve it before publishing.');
   for (const entry of registry.knowledge_bases) {
@@ -172,18 +178,18 @@ function assertRegistryOwnership(input: PublishInput, registry: Registry) {
   }
 }
 
-async function upsertRegistry(input: PublishInput, liveUrl: string, status: 'submitted' | 'failed' = 'submitted'): Promise<string> {
+async function upsertRegistry(input: PublishInput, liveUrl: string, status: 'submitted' | 'failed' | 'published' = 'submitted', target = registryTarget(input)): Promise<string> {
   for (let attempt = 0; attempt < 3; attempt++) {
     const { token, url, current, registry } = await readRegistry(input);
-    assertRegistryOwnership(input, registry);
+    assertRegistryOwnership(input, registry, target);
     const entries = [...registry.knowledge_bases];
     const entry = {
       id: input.slug,
       title: input.title,
       description: (input.description ?? input.title).slice(0, 300),
       engine: 'zensical',
-      source: { repo: `${input.owner}/${input.slug}`, branch: 'main', docs_dir: 'docs', config: 'zensical.toml' },
-      cloudflare: { pages_project: input.slug, production_url: liveUrl, custom_domains: [`${input.slug}.freedocstore.online`, ...(input.customDomain ? [input.customDomain] : [])] },
+      source: { repo: target.repo, branch: target.branch, docs_dir: 'docs', config: 'zensical.toml' },
+      cloudflare: { pages_project: target.project, production_url: liveUrl, custom_domains: target.domains },
       status,
     };
     const index = entries.findIndex(kb => kb.id.toLowerCase() === input.slug.toLowerCase());
@@ -247,4 +253,20 @@ export async function publishKb(input: PublishInput): Promise<PublishResult> {
   }
 
   return { ok: true, repo: repo.fullName, repoUrl: repo.htmlUrl, liveUrl, steps };
+}
+
+
+/** Register only after deployment identity has been verified on the public site. */
+export async function registerManagedKnowledgeBase(input: { repo: string; branch: string; project: string; domain: string; url: string; userToken: string; platformToken?: string; org: string }) {
+  const [owner, name] = input.repo.split('/');
+  const draft: PublishInput = { title: name, slug: `${owner}-${name}`.toLowerCase().replace(/[^a-z0-9-]/g, '-').slice(0, 58).replace(/-$/, ''), owner, files: [], userToken: input.userToken, platformToken: input.platformToken, org: input.org };
+  const { registry } = await readRegistry(draft);
+  const existing = registry.knowledge_bases.find(entry => entry.source.repo.toLowerCase() === input.repo.toLowerCase());
+  if (existing) {
+    draft.slug = existing.id;
+    if (typeof existing.title === 'string') draft.title = existing.title;
+    if (typeof existing.description === 'string') draft.description = existing.description;
+  }
+  await upsertRegistry(draft, input.url, 'published', { repo: input.repo, branch: input.branch, project: input.project, domains: input.domain ? [input.domain] : [] });
+  return draft.slug;
 }

@@ -68,7 +68,7 @@ export async function commitFiles(input: {
   mode: "pr" | "direct";
   prTitle?: string;
   prBody?: string;
-  expectedFiles?: Record<string, string>;
+  expectedFiles?: Record<string, string | null>;
 }): Promise<CommitResult> {
   const base = `https://api.github.com/repos/${input.repoFullName}`;
   const baseBranch = input.baseBranch ?? "main";
@@ -87,6 +87,7 @@ export async function commitFiles(input: {
   for (const [path, sha] of Object.entries(input.expectedFiles ?? {})) {
     const encodedPath = path.split('/').map(encodeURIComponent).join('/');
     const file = await gh(`${base}/contents/${encodedPath}?ref=${headSha}`, { token });
+    if (sha === null && file.__status === 404) continue;
     if (file.__status || typeof file.sha !== 'string') return { ok: false, errorCode: 'upstream_error', error: `Could not read source ${path} (${file.__status ?? 'invalid response'}). Check repository access and retry.` };
     if (file.sha !== sha) return { ok: false, errorCode: 'source_conflict', error: `Source changed: ${path}. Reload the page and regenerate the proposal or narration.` };
   }

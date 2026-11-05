@@ -13,6 +13,8 @@ EDITOR_BASE_URL = "https://console.freedocstore.online"
 PUBLIC_BASE_URL = "https://freedocstore.online"
 COOKIE_DOMAIN = ""
 GITHUB_ORG = "FreeDocStore"
+GH_APP_ID = "4278932"
+GH_APP_SLUG = "freedocstore"
 
 # Required secrets:
 # wrangler secret put GH_APP_CLIENT_ID
