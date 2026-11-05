@@ -4,9 +4,9 @@ import { mockConsole } from './console-mock.mjs';
 const repo = 'CustomerOrg/knowledge';
 const account = { id: 'a'.repeat(32), name: 'Customer Cloudflare' };
 const projects = [{ name: 'customer-docs', production_branch: 'release', domains: [] }];
-const connection = { repo, accountId: account.id, accountName: account.name, status: 'ready', projects, updatedAt: '2026-11-05T00:00:00Z' };
+const connection = { repo, accountId: account.id, accountName: account.name, status: 'ready', version: 'A'.repeat(32), projects, updatedAt: '2026-11-05T00:00:00Z' };
 const token = 'test-only-hosting-token-not-for-real-use';
-const plan = { planId: 'review-plan', repo, branch: 'release', project: 'customer-docs', domain: '', url: 'https://customer-docs.pages.dev/', accountName: account.name, files: [{ path: '.github/workflows/deploy.yml', before: 'name: Previous deployment', content: 'name: FreeDocStore public publishing', expectedSha: 'b'.repeat(40) }], replacesWorkflow: true, warning: 'Existing source files are preserved.' };
+const plan = { planId: 'review-plan', credentialVersion: connection.version, repo, branch: 'release', project: 'customer-docs', domain: '', url: 'https://customer-docs.pages.dev/', accountName: account.name, files: [{ path: '.github/workflows/deploy.yml', before: 'name: Previous deployment', content: 'name: FreeDocStore public publishing', expectedSha: 'b'.repeat(40) }], replacesWorkflow: true, warning: 'Existing source files are preserved.' };
 
 async function setupMock(page, options = {}) {
   const requests = [];
@@ -22,17 +22,19 @@ async function setupMock(page, options = {}) {
     requests.push({ endpoint, body, boundAccount: route.request().headers()['x-fds-account'] });
     if (endpoint === 'installations') { await reply({ installations: options.noInstallations ? [] : [{ id: 7, account: { login: 'CustomerOrg', type: 'Organization' }, permissions: { contents: 'write', actions: 'write', secrets: 'write', workflows: 'write' } }], installUrl: 'https://github.com/apps/freedocstore/installations/new' }); return true; }
     if (endpoint === 'repositories') { await reply({ repositories: [{ fullName: repo, name: 'knowledge', branch: 'release', canConfigure: true }] }); return true; }
-    if (endpoint === 'connection') { await reply({ connection: connected ? { ...connection, projects: options.missingProjectSnapshot ? [] : projects } : null, setup: applied ? { project: 'customer-docs', branch: 'release', domain: '', accountId: account.id } : null }); return true; }
+    if (endpoint === 'connection') { await reply({ connection: connected ? { ...connection, version: options.legacy ? undefined : connection.version, projects: options.missingProjectSnapshot ? [] : projects } : null, setup: applied ? { project: 'customer-docs', branch: 'release', domain: '', accountId: account.id } : null }); return true; }
     if (endpoint === 'accounts') {
       if (options.cloudflareUnavailable) await reply({ error: 'Cloudflare is temporarily unavailable. Retry without replacing your token.' }, 503);
       else await reply({ accounts: [account], ...(body.accountId ? { projects } : {}) });
       return true;
     }
     if (endpoint === 'connect') {
-      if (options.existingSecrets && !body.confirmOverwrite) await reply({ error: 'Confirm replacement of existing credentials.' }, 409);
+      if (options.stagingFailure) await reply({ error: 'Credential staging was incomplete. The active deployment was not changed.' }, 403);
       else { connected = true; await reply({ connection }); }
       return true;
     }
+    if (endpoint === 'staging') { await reply({ versions: [{ ...connection, version: 'B'.repeat(32), status: 'failed' }], cursor: null }); return true; }
+    if (endpoint === 'cleanup') { await reply({ removed: true }); return true; }
     if (endpoint === 'plan') { await reply(plan); return true; }
     if (endpoint === 'apply') {
       applied = true;
@@ -65,7 +67,7 @@ async function connectHosting(page) {
   await page.getByLabel('Cloudflare API token').fill(token);
   await page.getByRole('button', { name: 'Check token and accounts' }).click();
   await expect(page.getByRole('combobox', { name: 'Cloudflare account', exact: true })).toHaveValue(account.id);
-  await page.getByRole('button', { name: 'Connect this repository' }).click();
+  await page.getByRole('button', { name: 'Stage hosting credentials' }).click();
 }
 async function reviewPlan(page) {
   await page.getByRole('combobox', { name: 'Pages project', exact: true }).selectOption('customer-docs');
@@ -115,15 +117,37 @@ test('setup pull requests stay reviewable and cannot deploy before merge', async
   await expect(page.getByRole('button', { name: 'Deploy / retry' })).toBeDisabled();
 });
 
-test('existing hosting secrets require a separate overwrite confirmation', async ({ page }) => {
-  const requests = await setupMock(page, { existingSecrets: true });
+test('staging keeps the existing deployment available until reviewed activation', async ({ page }) => {
+  const requests = await setupMock(page, { connected: true, applied: true });
   await chooseRepository(page); await connectHosting(page);
-  await expect(page.getByRole('alert').filter({ hasText: 'Confirm replacement' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Connect this repository' })).toBeDisabled();
-  await page.getByLabel('Replace this repository’s existing Cloudflare credentials', { exact: false }).check();
-  await page.getByRole('button', { name: 'Connect this repository' }).click();
-  await expect(page.getByLabel('Cloudflare API token')).toHaveValue('');
-  expect(requests.filter(request => request.endpoint === 'connect').at(-1).body.confirmOverwrite).toBe(true);
+  await expect(page.getByText('Credentials staged for Customer Cloudflare.', { exact: false })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Open published knowledge base' })).toBeVisible();
+  expect(requests.some(request => request.endpoint === 'apply')).toBe(false);
+  expect(requests.find(request => request.endpoint === 'connect').body.confirmOverwrite).toBeUndefined();
+  await reviewPlan(page);
+  await expect(page.getByText('Credential version:', { exact: false })).toContainText(connection.version);
+});
+
+test('failed staging can be reviewed and explicitly cleaned up', async ({ page }) => {
+  const requests = await setupMock(page, { stagingFailure: true });
+  await chooseRepository(page); await connectHosting(page);
+  await expect(page.getByRole('alert')).toContainText('The active deployment was not changed');
+  await page.getByRole('button', { name: 'Review failed staging attempts' }).click();
+  await expect(page.getByRole('button', { name: 'Remove failed credentials' })).toBeDisabled();
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.getByLabel('Remove failed staging credentials', { exact: false }).check();
+  await page.getByRole('button', { name: 'Remove failed credentials' }).click();
+  await expect(page.getByText('Failed staging credentials removed.', { exact: false })).toBeVisible();
+  expect(requests.find(request => request.endpoint === 'cleanup').body).toEqual({ repo, version: 'B'.repeat(32), confirm: true });
+});
+
+test('legacy credentials retain deployment tracking while requiring staging for new review', async ({ page }) => {
+  await setupMock(page, { connected: true, applied: true, legacy: true });
+  await chooseRepository(page);
+  await expect(page.getByText('Stage a fresh credential version', { exact: false })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Review setup changes' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Deploy / retry' })).toBeEnabled();
 });
 
 test('missing installations and temporary provider failures have actionable recovery', async ({ page }) => {

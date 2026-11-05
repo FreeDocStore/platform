@@ -17,10 +17,11 @@ ownership of the repository or supply its own hosting credentials.
    and project listing checks read access; the deployment confirms write
    permissions. A read-only token cannot be declared deployment-ready solely
    from successful listing.
-4. Connect hosting. The server uses the repository's GitHub Actions public key
-   to seal the token and account ID before writing repository secrets. Existing
-   credentials require an explicit replacement confirmation. A partial write
-   records an incomplete connection and blocks deployment until reconnected.
+4. Stage hosting credentials. The server uses the repository's GitHub Actions public key
+   to seal the token and account ID before writing repository secrets. Each attempt uses
+   a new immutable pair of secret names. Existing workflow credentials are never
+   overwritten. Partial failures leave the active deployment and latest ready
+   candidate intact; stage again with a fresh version.
    Tokens are never put in workspace KV, localStorage or sessionStorage.
 5. Select an existing Pages project or explicitly choose to create a new one.
    Reusing a project can replace its current site and needs acknowledgement.
@@ -29,7 +30,9 @@ ownership of the repository or supply its own hosting credentials.
 6. Review the generated diff. Existing source and Zensical configuration are
    preserved; missing starter files are added. Replacing an existing deploy.yml
    requires acknowledgement. Apply through a setup PR or a reviewed direct
-   commit. Protected branches can use the PR path.
+   commit. The reviewed workflow binds the exact staged credential version, account
+   and project. It activates that pair only when committed to the publishing
+   branch or merged. Protected branches can use the PR path.
 7. Merge a setup PR or deploy/retry after a direct commit. The console reports
    matching Actions runs, failed job steps and recoverable provider errors.
 8. A successful build is checked independently: the public deployment identity
@@ -90,8 +93,22 @@ is embedded in a generated workflow, diff, browser URL or error response.
 - A closed, unmerged setup PR requires another review. A pending PR cannot be
   dispatched as though its workflow were already on the default branch.
 - A changed workflow blocks redispatch until it is reviewed again.
-- Provider secrets are never read back. Reconnection replaces them only with
-  confirmation; failed writes may need to be repeated.
+- Provider secrets are never read back. Restaging creates a new pair. Deployment
+  retry resolves the reviewed version, independently of a newer staged candidate.
+  Existing setups using the original common secret names remain retryable, but
+  must stage a fresh version before reviewing a new workflow.
+- Failed staging attempts can be listed and explicitly removed in the console.
+  Cleanup only accepts failed, never-ready versions. It inspects workflows at
+  every current branch and open PR head (including fork PRs) and rechecks refs
+  before deletion. References to the selected pair, dynamic secret access,
+  inherited secrets, unavailable source or an incomplete inventory stop cleanup.
+  The automatic scan supports fewer than 100 branches/open PRs each, at most
+  eight distinct heads and 20 workflow files across them. Larger repositories
+  require manual review on GitHub. A concurrent manual push after the final ref
+  check cannot be locked by this service; do not manually adopt failed versions.
+- Ready credential versions are retained for active workflows, pending reviews
+  and rollback. Their removal requires manual repository-wide review on GitHub.
+  Cleanup failures retain failed metadata for retry, including partial deletion.
 - Registry failure does not turn a verified public site into a failed build.
   Checking deployment again retries registration without discarding the setup.
 - This setup currently supports Zensical's `[project]` configuration with

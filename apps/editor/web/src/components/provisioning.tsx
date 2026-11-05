@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { ApiError, fds, type User } from '../lib/fds'
+import { fds, type User } from '../lib/fds'
 import { buildLineDiff, messageOf, type RegistryKb } from '../model'
 import { startDeploymentPolling } from '../services/deployment-polling'
 import { provisioning, type OrganizationInstallation, type SetupRepository, type HostingConnection, type HostingProject, type SetupPlan, type DeploymentStatus } from '../services/provisioning'
@@ -72,8 +72,10 @@ function RepositorySetup({ repo, onEdit }: { repo: SetupRepository; onEdit: (ent
   const [project, setProject] = useState('')
   const [newProject, setNewProject] = useState(false)
   const [domain, setDomain] = useState('')
-  const [confirmOverwrite, setConfirmOverwrite] = useState(false)
-  const [needsOverwrite, setNeedsOverwrite] = useState(false)
+  const [failedVersions, setFailedVersions] = useState<HostingConnection[]>([])
+  const [stagingCursor, setStagingCursor] = useState<string | null>(null)
+  const [stagingLoaded, setStagingLoaded] = useState(false)
+  const [cleanupVersion, setCleanupVersion] = useState('')
   const [confirmCreate, setConfirmCreate] = useState(false)
   const [confirmUseProject, setConfirmUseProject] = useState(false)
   const [confirmRepoint, setConfirmRepoint] = useState(false)
@@ -145,30 +147,34 @@ function RepositorySetup({ repo, onEdit }: { repo: SetupRepository; onEdit: (ent
     if (!result.projects?.length) setProject(suggested)
   }
   async function connect() {
-    try {
-      const result = await provisioning.connect(repo.fullName, token, accountId, confirmOverwrite)
-      if (!mounted.current) return
-      setConnection(result.connection); setProjects(result.connection.projects); setNewProject(!result.connection.projects.length); setProject(result.connection.projects.length ? '' : suggested); setDomain(''); setConfirmCreate(false); setToken(''); setAccounts([]); setAccountId(''); setPlan(null); setNeedsOverwrite(false); setConfirmOverwrite(false)
-      setStatus(`Cloudflare credentials were encrypted into ${repo.fullName} for ${result.connection.accountName}.`)
-    } catch (error) { if (error instanceof ApiError && error.status === 409) setNeedsOverwrite(true); throw error }
+    const result = await provisioning.connect(repo.fullName, token, accountId)
+    if (!mounted.current) return
+    setConnection(result.connection); setProjects(result.connection.projects); setNewProject(!result.connection.projects.length); setProject(result.connection.projects.length ? '' : suggested); setDomain(''); setConfirmCreate(false); setToken(''); setAccounts([]); setAccountId(''); setPlan(null)
+    setStatus(`Credentials staged for ${result.connection.accountName}. They activate when the reviewed workflow is committed or its setup pull request is merged.`)
+  }
+  async function loadFailedVersions(cursor = '') {
+    const result = await provisioning.staging(repo.fullName, cursor)
+    if (!mounted.current) return
+    setFailedVersions(current => cursor ? [...current, ...result.versions.filter(item => !current.some(existing => existing.version === item.version))] : result.versions)
+    setStagingCursor(result.cursor); setStagingLoaded(true); setCleanupVersion('')
   }
   function changeTarget() { setPlan(null); setConfirmWorkflow(false); setConfirmCreate(false); setConfirmUseProject(false); setConfirmRepoint(false) }
   const repoints = previousTarget && connection && (previousTarget.project !== project || previousTarget.domain !== domain || previousTarget.accountId !== connection.accountId)
   return <>
     <section className="section-block"><h2>2. Connect your Cloudflare account</h2>
-      <p>Deployments use your account and billing. Credentials are encrypted into this repository’s GitHub Actions secrets; they are never saved in browser storage.</p>
-      {connection?.status === 'ready' && <p>Connected to <strong>{connection.accountName}</strong> · checked {new Date(connection.updatedAt).toLocaleString()}</p>}
+      <p>Deployments use your account and billing. Credentials are encrypted into this repository’s GitHub Actions secrets; they are never saved in browser storage. Staging uses new secret names and leaves existing deployments intact until you approve the workflow change.</p>
+      {connection?.status === 'ready' && <p>{connection.version ? 'Staged credentials for' : 'Connected to'} <strong>{connection.accountName}</strong> · checked {new Date(connection.updatedAt).toLocaleString()}</p>}
+      {connection?.status === 'ready' && !connection.version && <p>Stage a fresh credential version to review a new setup. Your existing deployment can still be checked or retried below.</p>}
       {connection?.status === 'failed' && <p role="alert">The previous connection was incomplete. Reconnect before deploying.</p>}
       <p>Create a token with Account Settings:read and Cloudflare Pages:edit for the chosen account. Custom domains also need Zone:read and DNS:edit scoped to their zone.</p>
       <a href="https://dash.cloudflare.com/profile/api-tokens" target="_blank" rel="noreferrer">Create a Cloudflare API token</a>
-      <label className="field"><span>Cloudflare API token</span><input type="password" autoComplete="off" spellCheck={false} value={token} disabled={Boolean(busy)} onChange={event => { setToken(event.target.value); if (!event.target.value) setProjects(connection?.projects ?? []); setAccounts([]); setAccountId(''); setPlan(null); setNeedsOverwrite(false); setConfirmOverwrite(false) }} /></label>
+      <label className="field"><span>Cloudflare API token</span><input type="password" autoComplete="off" spellCheck={false} value={token} disabled={Boolean(busy)} onChange={event => { setToken(event.target.value); if (!event.target.value) setProjects(connection?.projects ?? []); setAccounts([]); setAccountId(''); setPlan(null) }} /></label>
       <button className="secondary-action" type="button" disabled={Boolean(busy) || !token} onClick={() => void run('Checking Cloudflare accounts…', checkAccounts)}>Check token and accounts</button>
       {checkedAccounts && <><label className="field"><span>Cloudflare account</span><select value={accountId} disabled={Boolean(busy)} onChange={event => void run('Checking Pages access…', () => selectAccount(event.target.value))}><option value="">Choose an account…</option>{accounts.map(account => <option key={account.id} value={account.id}>{account.name} · {account.id.slice(0, 8)}</option>)}</select></label>
-        {(needsOverwrite || connection) && <label className="setup-checkbox"><input type="checkbox" checked={confirmOverwrite} onChange={event => setConfirmOverwrite(event.target.checked)} />Replace this repository’s existing Cloudflare credentials with the selected account and token.</label>}
-        <button className="primary-action" type="button" disabled={Boolean(busy) || !accountId || (needsOverwrite && !confirmOverwrite)} onClick={() => void run('Connecting Cloudflare…', connect)}>Connect this repository</button>
+        <button className="primary-action" type="button" disabled={Boolean(busy) || !accountId} onClick={() => void run('Staging Cloudflare credentials…', connect)}>Stage hosting credentials</button>
       </>}
     </section>
-    {connection?.status === 'ready' && !token && <section className="section-block"><h2>3. Review the publishing setup</h2>
+    {connection?.status === 'ready' && connection.version && !token && <section className="section-block"><h2>3. Review the publishing setup</h2>
       <p>Repository: <strong>{repo.fullName}</strong> · default branch: <strong>{repo.branch}</strong>. Existing source files are preserved.</p><p><a href={`https://github.com/${repo.fullName}/tree/${encodeURIComponent(repo.branch)}/.github/workflows`} target="_blank" rel="noreferrer">View existing workflows on GitHub</a></p>
       <label className="field"><span>Pages project</span><select value={newProject ? '__new' : project} disabled={Boolean(busy)} onChange={event => { const create = event.target.value === '__new'; setNewProject(create); setProject(create ? suggested : event.target.value); changeTarget() }}><option value="">Choose an existing project…</option>{projects.map(item => <option key={item.name} value={item.name}>{item.name} · {item.configured ? 'configured target' : item.production_branch}</option>)}<option value="__new">Create a new Pages project</option></select></label>
       {newProject && <label className="field"><span>New Pages project name</span><input value={project} disabled={Boolean(busy)} onChange={event => { setProject(event.target.value.toLowerCase()); changeTarget() }} /></label>}
@@ -178,7 +184,7 @@ function RepositorySetup({ repo, onEdit }: { repo: SetupRepository; onEdit: (ent
       {!newProject && project && <label className="setup-checkbox"><input type="checkbox" checked={confirmUseProject} disabled={Boolean(busy)} onChange={event => setConfirmUseProject(event.target.checked)} />Publish this repository to the selected {projects.find(item => item.name === project)?.configured ? 'configured' : 'existing'} Pages project. This can replace the site currently hosted there.</label>}
       {repoints && <label className="setup-checkbox"><input type="checkbox" checked={confirmRepoint} disabled={Boolean(busy)} onChange={event => setConfirmRepoint(event.target.checked)} />Change the previous publishing target ({previousTarget.project}) to the account, project and domain shown above.</label>}
       <button className="secondary-action" type="button" disabled={Boolean(busy) || !project || (newProject ? !confirmCreate : !confirmUseProject) || Boolean(repoints && !confirmRepoint)} onClick={() => void run('Preparing setup review…', async () => { const next = await provisioning.plan(repo.fullName, project, domain, confirmCreate, confirmUseProject, confirmRepoint); if (mounted.current) { setPlan(next); setConfirmWorkflow(false) } })}>Review setup changes</button>
-      {plan && <div className="setup-review"><h3>Setup review · {plan.accountName}</h3><p>{plan.repo} → {plan.url}</p>{plan.warning && <p role="status">{plan.warning}</p>}
+      {plan && <div className="setup-review"><h3>Setup review · {plan.accountName}</h3><p>{plan.repo} → {plan.url}</p><p>Credential version: <code>{plan.credentialVersion}</code>. Activation happens through this reviewed workflow commit or pull-request merge.</p>{plan.warning && <p role="status">{plan.warning}</p>}
         {!plan.files.length && <p>The reviewed publishing files are already installed. Apply to resume deployment tracking.</p>}
         {plan.files.map(file => <details key={file.path}><summary>{file.path} · {file.expectedSha ? 'update' : 'new file'}</summary><pre className="setup-diff">{buildLineDiff(file.before, file.content)}</pre></details>)}
         {plan.replacesWorkflow && <label className="setup-checkbox"><input type="checkbox" checked={confirmWorkflow} disabled={Boolean(busy)} onChange={event => setConfirmWorkflow(event.target.checked)} />Replace the existing deploy.yml workflow with the reviewed workflow and selected hosting target.</label>}
@@ -192,6 +198,18 @@ function RepositorySetup({ repo, onEdit }: { repo: SetupRepository; onEdit: (ent
         })}>{mode === 'pr' ? 'Open setup pull request' : 'Commit reviewed setup'}</button>
       </div>}
     </section>}
+    <section className="section-block"><h2>Failed credential staging</h2>
+      <p>Only failed attempts can be removed here, after checking every branch and open pull request. Ready versions stay available for deployment and rollback.</p>
+      <button className="secondary-action" type="button" disabled={Boolean(busy)} onClick={() => void run('Checking failed staging attempts…', () => loadFailedVersions())}>Review failed staging attempts</button>
+      {stagingLoaded && !failedVersions.length && <p>No failed attempts on this page.</p>}
+      {failedVersions.map(item => <div key={item.version}><label className="setup-checkbox"><input type="checkbox" checked={cleanupVersion === item.version} disabled={Boolean(busy)} onChange={event => setCleanupVersion(event.target.checked ? item.version! : '')} />Remove failed staging credentials for {item.accountName} · {item.version} · {new Date(item.updatedAt).toLocaleString()}</label>
+        <button className="secondary-action" type="button" disabled={Boolean(busy) || cleanupVersion !== item.version} onClick={() => void run('Checking workflows and removing failed credentials…', async () => {
+          await provisioning.cleanup(repo.fullName, item.version!)
+          if (mounted.current) { setFailedVersions(current => current.filter(record => record.version !== item.version)); setCleanupVersion(''); setStatus('Failed staging credentials removed. Ready credential versions were retained.') }
+        })}>Remove failed credentials</button></div>)}
+      {stagingCursor && <button className="secondary-action" type="button" disabled={Boolean(busy)} onClick={() => void run('Loading more failed attempts…', () => loadFailedVersions(stagingCursor))}>Load more attempts</button>}
+      <p><a href={`https://github.com/${repo.fullName}/settings/secrets/actions`} target="_blank" rel="noreferrer">Review repository secrets on GitHub</a></p>
+    </section>
     {hasSetup && <section className="section-block"><h2>4. Deploy and verify</h2>
       {deployment && <><p role="status">{deployment.message}</p>{deployment.prUrl && <a href={deployment.prUrl} target="_blank" rel="noreferrer">Review setup pull request</a>}{deployment.runUrl && <p><a href={deployment.runUrl} target="_blank" rel="noreferrer">Open deployment logs</a></p>}{deployment.failedSteps?.map(step => <p key={step}>{step}</p>)}{deployment.pagesReady && deployment.pagesUrl && <p><a href={deployment.pagesUrl} target="_blank" rel="noreferrer">Open verified Pages site</a></p>}{deployment.registrationWarning && <p role="status">{deployment.registrationWarning}</p>}{deployment.registryKbId && <p><button className="secondary-action" type="button" onClick={() => onEdit({ id: deployment.registryKbId!, title: repo.name, source: { repo: repo.fullName, branch: repo.branch }, cloudflare: { production_url: deployment.url } })}>Edit this knowledge base in FreeDocStore</button></p>}{deployment.state === 'live' && deployment.url && <p><a className="primary-action" href={deployment.url} target="_blank" rel="noreferrer">Open published knowledge base</a></p>}</>}
       <div className="action-row"><button className="secondary-action" type="button" disabled={Boolean(busy)} onClick={() => poller.current?.refresh()}>Check deployment</button>

@@ -60,7 +60,7 @@ test('customer workflows use the actual branch and native Pages hosting without 
   const { bundle } = await import('./_bundle.mjs');
   const { parse } = await import('yaml');
   const { deployWorkflow } = await import(await bundle('../templates/publishing/workflow.ts'));
-  const text = deployWorkflow('customer-docs', '', { branch: 'release/$HOME', managed: true });
+  const text = deployWorkflow('customer-docs', '', { branch: 'release/$HOME', managed: true, credentialVersion: 'A'.repeat(32) });
   const workflow = parse(text);
   assert.deepEqual(workflow.on.push.branches, ['release/$HOME']);
   assert.equal(workflow.jobs.deploy.env.PRODUCTION_BRANCH, 'release/$HOME');
@@ -90,4 +90,15 @@ test('changes to shared publishing code trigger tests and rebuild both consumers
     const workflow = parse(readFileSync(new URL(`../../.github/workflows/${file}`, import.meta.url), 'utf8'));
     assert.ok(workflow.on.push.paths.includes('templates/publishing/**'), `${file} must watch the shared publishing dependency`);
   }
+});
+
+test('managed workflows bind the reviewed immutable credential pair', async () => {
+  const { bundle } = await import('./_bundle.mjs');
+  const { deployWorkflow } = await import(await bundle('../templates/publishing/workflow.ts'));
+  const text = deployWorkflow('customer-docs', '', { branch: 'release', managed: true, credentialVersion: 'B'.repeat(32) });
+  assert.ok(text.includes('secrets.FDS_CF_TOKEN_' + 'B'.repeat(32)));
+  assert.ok(text.includes('secrets.FDS_CF_ACCOUNT_' + 'B'.repeat(32)));
+  assert.ok(!text.includes('secrets.CLOUDFLARE_'));
+  assert.throws(() => deployWorkflow('customer-docs', '', { managed: true }), /Stage hosting/);
+  assert.throws(() => deployWorkflow('customer-docs', '', { managed: true, credentialVersion: 'invalid' }), /Invalid hosting credential/);
 });

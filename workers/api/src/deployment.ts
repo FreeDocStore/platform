@@ -5,7 +5,7 @@ import { managedRepository, publishingTarget, readSource, SETUP_WORKFLOW } from 
 export interface DeploymentSetup {
   repo: string; branch: string; project: string; domain: string; accountId: string;
   workflow: string; updatedAt: string; expectedSha?: string; prNumber?: number; prUrl?: string;
-  dispatchedAt?: string; revision?: string;
+  dispatchedAt?: string; revision?: string; credentialVersion?: string;
 }
 export const deploymentKey = (repo: string) => `deployment:${repo.toLowerCase()}`;
 export const dispatchKey = (setup: DeploymentSetup) => `deployment-dispatch:${setup.repo.toLowerCase()}:${setup.revision ?? setup.updatedAt}`;

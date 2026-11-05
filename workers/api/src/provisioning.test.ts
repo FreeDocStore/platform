@@ -5,7 +5,8 @@ import app from './index';
 import type { Env, Session } from './types';
 import { sealRepositorySecret } from './lib/repository-secrets';
 import { deploymentKey, dispatchKey, deploymentStatus, dispatchDeployment, type DeploymentSetup } from './deployment';
-import { hostingKey } from './hosting';
+import { credentialNames } from '../../../templates/publishing/workflow';
+import { hostingKey, hostingVersionKey, hostingVersionPrefix, setupConnection } from './hosting';
 
 const REPO = 'ExampleOrg/knowledge';
 const ACCOUNT = 'a'.repeat(32);
@@ -15,8 +16,11 @@ const TOKEN = 'test-cloudflare-credential-value';
 const session: Session = { id: 'session-a', user: { id: 'user-a', login: 'owner', provider: 'github', name: 'Owner', avatarUrl: '', githubUrl: '' }, githubAccessToken: 'test-user-github-token', createdAt: '', updatedAt: '' };
 const base64 = (value: string) => btoa(String.fromCharCode(...new TextEncoder().encode(value)));
 
-function fixture(options: { private?: boolean; admin?: boolean; branch?: string; existingSecrets?: boolean; writeFailure?: boolean; sourceFailure?: number; cloudflareFailure?: number; projectBranch?: string; sourceFiles?: Record<string, string>; permissionsFailure?: boolean; privateApp?: boolean; publishedCommit?: string; publishedRepo?: string; head?: string; runConclusion?: string } = {}) {
+function fixture(options: { private?: boolean; admin?: boolean; branch?: string; existingSecrets?: boolean; writeFailure?: boolean | number; deleteFailure?: boolean | number; workflowAtRef?: (ref: string) => string | null; branchHeads?: () => string[]; openPrHead?: string; account?: string; onSecretWrite?: (name: string, secrets: Map<string, string>) => void; sourceFailure?: number; cloudflareFailure?: number; projectBranch?: string; sourceFiles?: Record<string, string>; permissionsFailure?: boolean; privateApp?: boolean; publishedCommit?: string; publishedRepo?: string; head?: string; runConclusion?: string } = {}) {
   const values = new Map<string, string>();
+  const secrets = new Map<string, string>(options.existingSecrets ? [['CLOUDFLARE_API_TOKEN', 'active-token'], ['CLOUDFLARE_ACCOUNT_ID', 'active-account']] : []);
+  let secretWrites = 0;
+  let secretDeletes = 0;
   const recipient = nacl.box.keyPair();
   const calls: Array<{ url: URL; method: string; body: any; auth: string | null }> = [];
   const files = new Map<string, { content: string; sha: string }>(Object.entries(options.sourceFiles ?? {
@@ -31,6 +35,10 @@ function fixture(options: { private?: boolean; admin?: boolean; branch?: string;
         const value = values.get(key); return value === undefined ? null : format === 'json' ? JSON.parse(value) : value;
       }),
       put: vi.fn(async (key: string, value: string) => { values.set(key, value); }),
+      list: vi.fn(async ({ prefix, cursor = '' }: { prefix: string; cursor?: string }) => {
+        const keys = [...values.keys()].filter(key => key.startsWith(prefix)).sort(); const offset = Number(cursor);
+        return { keys: keys.slice(offset, offset + 100).map(name => ({ name })), list_complete: offset + 100 >= keys.length, cursor: String(offset + 100) };
+      }),
       delete: vi.fn(async (key: string) => { values.delete(key); }),
     },
   } as unknown as Env;
@@ -42,7 +50,7 @@ function fixture(options: { private?: boolean; admin?: boolean; branch?: string;
     const path = url.pathname;
     if (url.hostname === 'api.cloudflare.com') {
       if (options.cloudflareFailure) return json({ success: false }, options.cloudflareFailure);
-      if (path.endsWith('/accounts')) return json({ success: true, result: [{ id: ACCOUNT, name: 'Customer hosting' }] });
+      if (path.endsWith('/accounts')) return json({ success: true, result: [{ id: options.account ?? ACCOUNT, name: 'Customer hosting' }] });
       if (path.includes('/pages/projects')) return json({ success: true, result: [{ name: 'customer-docs', production_branch: options.projectBranch ?? 'release', domains: [] }] });
     }
     if (url.hostname.endsWith('.pages.dev')) {
@@ -55,13 +63,25 @@ function fixture(options: { private?: boolean; admin?: boolean; branch?: string;
     if (path === '/user/installations/7/repositories') return json({ repositories: [{ full_name: REPO, name: 'knowledge', private: false, default_branch: 'release', permissions: { admin: true, push: true } }] });
     if (path === `/repos/${REPO}`) return json({ full_name: REPO, name: 'knowledge', private: options.private ?? false, default_branch: options.branch ?? 'release', permissions: { admin: options.admin ?? true, push: true } });
     if (path.endsWith('/actions/secrets/public-key')) return json({ key: btoa(String.fromCharCode(...recipient.publicKey)), key_id: 'key-id' });
-    if (path.endsWith('/actions/secrets')) return options.permissionsFailure ? json({}, 403) : json({ secrets: options.existingSecrets ? [{ name: 'CLOUDFLARE_API_TOKEN' }] : [] });
-    if (path.includes('/actions/secrets/')) return options.writeFailure ? json({}, 403) : new Response(null, { status: 201 });
+    if (path.endsWith('/actions/secrets')) return options.permissionsFailure ? json({}, 403) : json({ secrets: [...secrets.keys()].map(name => ({ name })) });
+    if (path.includes('/actions/secrets/')) {
+      const name = path.split('/').at(-1)!;
+      if (method === 'DELETE') { secretDeletes++; if (options.deleteFailure === true || options.deleteFailure === secretDeletes) return json({}, 503); secrets.delete(name); return new Response(null, { status: 204 }); }
+      secretWrites++;
+      options.onSecretWrite?.(name, secrets);
+      if (options.writeFailure === true || options.writeFailure === secretWrites) return json({}, 403);
+      secrets.set(name, body.encrypted_value); return new Response(null, { status: 201 });
+    }
+    if (path.endsWith('/branches')) return json((options.branchHeads?.() ?? [HEAD]).map((sha, index) => ({ name: `branch-${index}`, commit: { sha } })));
+    if (path.endsWith('/pulls') && method === 'GET') return json(options.openPrHead ? [{ number: 9, head: { sha: options.openPrHead } }] : []);
     if (path.includes('/git/ref/heads/')) return json({ object: { sha: options.head ?? HEAD } });
     if (path.includes('/git/commits/')) return json({ tree: { sha: 'base-tree' } });
     if (path.includes('/contents/')) {
       if (options.sourceFailure) return json({}, options.sourceFailure);
-      const name = path.split('/contents/')[1]; const file = files.get(name);
+      const name = path.split('/contents/')[1];
+      const workflow = options.workflowAtRef?.(url.searchParams.get('ref') ?? '');
+      if (name === '.github/workflows') return json([...files.keys(), ...(workflow != null ? ['.github/workflows/check.yml'] : [])].filter(path => path.startsWith('.github/workflows/')).map(path => ({ type: 'file', path })));
+      const file = name === '.github/workflows/check.yml' && workflow != null ? { content: workflow, sha: SOURCE_SHA } : files.get(name);
       return file ? json({ encoding: 'base64', content: base64(file.content), sha: file.sha, size: file.content.length }) : json({}, 404);
     }
     if (path.endsWith('/git/blobs')) return json({ sha: 'blob-sha' }, 201);
@@ -77,7 +97,7 @@ function fixture(options: { private?: boolean; admin?: boolean; branch?: string;
   }));
   const request = (path: string, value?: unknown, cookie = 'session-a') => app.request(`https://api.freedocstore.online/api/provisioning/${path}`, { method: value === undefined ? 'GET' : 'POST', headers: { Origin: 'https://console.freedocstore.online', Cookie: `fds_session=${cookie}`, 'Content-Type': 'application/json' }, ...(value === undefined ? {} : { body: JSON.stringify(value) }) }, env);
   const connect = (confirmOverwrite = false) => request('connect', { repo: REPO, token: TOKEN, accountId: ACCOUNT, confirmOverwrite });
-  return { values, files, env, calls, recipient, request, connect };
+  return { values, files, env, calls, recipient, request, connect, secrets };
 }
 
 afterEach(() => vi.unstubAllGlobals());
@@ -109,21 +129,25 @@ describe('organization-owned setup', () => {
       const ephemeral = sealed.subarray(0, 32); const nonceInput = new Uint8Array(64);
       nonceInput.set(ephemeral); nonceInput.set(f.recipient.publicKey, 32);
       const opened = nacl.box.open(sealed.subarray(32), blake2b(nonceInput, undefined, 24), ephemeral, f.recipient.secretKey);
-      expect(new TextDecoder().decode(opened!)).toBe(write.url.pathname.endsWith('CLOUDFLARE_API_TOKEN') ? TOKEN : ACCOUNT);
+      expect(new TextDecoder().decode(opened!)).toBe( /FDS_CF_TOKEN_[A-F0-9]{32}$/.test(write.url.pathname) ? TOKEN : ACCOUNT);
     }
     expect([...f.values.values()].join('')).not.toContain(TOKEN);
     expect(JSON.parse(f.values.get(hostingKey(REPO))!).status).toBe('ready');
+    const versionWrites = (f.env.FDS_API_KV.put as any).mock.calls.filter(([key]: [string]) => key.startsWith(hostingVersionPrefix(REPO)));
+    expect(versionWrites).toHaveLength(1);
   });
-  it('requires explicit confirmation before replacing existing credentials', async () => {
+  it('stages credentials without overwriting the active legacy pair', async () => {
     const f = fixture({ existingSecrets: true });
-    expect((await f.connect()).status).toBe(409);
-    expect(f.calls.some(call => call.method === 'PUT')).toBe(false);
-    expect((await f.connect(true)).status).toBe(200);
+    expect((await f.connect()).status).toBe(200);
+    expect(f.secrets.get('CLOUDFLARE_API_TOKEN')).toBe('active-token');
+    expect(f.secrets.get('CLOUDFLARE_ACCOUNT_ID')).toBe('active-account');
+    expect(f.calls.filter(call => call.method === 'PUT').every(call => /FDS_CF_(TOKEN|ACCOUNT)_[A-F0-9]{32}$/.test(call.url.pathname))).toBe(true);
   });
   it('records incomplete secret writes as failed and blocks setup', async () => {
     const f = fixture({ writeFailure: true });
     expect((await f.connect()).status).toBe(403);
-    expect(JSON.parse(f.values.get(hostingKey(REPO))!).status).toBe('failed');
+    expect(f.values.has(hostingKey(REPO))).toBe(false);
+    expect([...f.values].filter(([key]) => key.startsWith(hostingVersionPrefix(REPO))).map(([, value]) => JSON.parse(value).status)).toEqual(['failed']);
     expect((await f.request('plan', { repo: REPO, project: 'customer-docs', confirmUseProject: true })).status).toBe(409);
   });
   it('distinguishes a Cloudflare outage from invalid credentials', async () => {
@@ -336,4 +360,163 @@ it('preserves a Cloudflare cooldown without writing credentials', async () => {
   expect(response.status).toBe(503);
   expect((await response.json() as any).retryAfterSeconds).toBe(60);
   expect(f.calls.some(call => call.method === 'PUT')).toBe(false);
+});
+
+describe('reviewed credential activation', () => {
+  it.each([1, 2])('keeps active credentials and metadata intact when write %i fails, including a concurrent source push', async failedWrite => {
+    const active = { repo: REPO, accountId: ACCOUNT, accountName: 'Active hosting', status: 'ready', projects: [], updatedAt: 'previous' };
+    const options = { existingSecrets: true, writeFailure: failedWrite, onSecretWrite: (_name: string, secrets: Map<string, string>) => {
+      // A push-triggered legacy workflow resolves its existing names between writes.
+      expect(secrets.get('CLOUDFLARE_API_TOKEN')).toBe('active-token');
+      expect(secrets.get('CLOUDFLARE_ACCOUNT_ID')).toBe('active-account');
+    } };
+    const f = fixture(options); f.values.set(hostingKey(REPO), JSON.stringify(active));
+    expect((await f.connect()).status).toBe(403);
+    expect(JSON.parse(f.values.get(hostingKey(REPO))!)).toEqual(active);
+    expect(await setupConnection(f.env, setup())).toEqual(active);
+    const result = await (await f.request(`staging?repo=${REPO}`)).json() as any;
+    expect(result.versions).toHaveLength(1); expect(result.versions[0].status).toBe('failed');
+    expect(JSON.stringify(result)).not.toContain(TOKEN);
+  });
+
+  it('binds an immutable pair to review, rejects a superseded plan and preserves the old account for retry', async () => {
+    const options = { account: ACCOUNT }; const f = fixture(options);
+    await f.connect();
+    const first = JSON.parse(f.values.get(hostingKey(REPO))!);
+    const plan = await (await f.request('plan', { repo: REPO, project: 'customer-docs', confirmUseProject: true })).json() as any;
+    expect(plan.credentialVersion).toBe(first.version);
+    expect(plan.workflow).toContain(`secrets.${credentialNames(first.version).token}`);
+    expect(plan.workflow).not.toContain('secrets.CLOUDFLARE_');
+    const priorSecrets = new Map(f.secrets);
+    const target = { ...setup(), workflow: plan.workflow, credentialVersion: first.version };
+    f.values.set(deploymentKey(REPO), JSON.stringify(target));
+    f.files.set('.github/workflows/deploy.yml', { content: plan.workflow, sha: SOURCE_SHA });
+    options.account = 'c'.repeat(32);
+    expect((await f.request('connect', { repo: REPO, token: TOKEN, accountId: options.account })).status).toBe(200);
+    const second = JSON.parse(f.values.get(hostingKey(REPO))!);
+    expect(second.version).not.toBe(first.version);
+    for (const [name, encrypted] of priorSecrets) expect(f.secrets.get(name)).toBe(encrypted);
+    expect(await setupConnection(f.env, target)).toEqual(first);
+    expect((await f.request('deploy', { repo: REPO })).status).toBe(200);
+    expect((await f.request('apply', { planId: plan.planId, mode: 'direct', confirmReplaceWorkflow: true })).status).toBe(409);
+    const moved = await (await f.request('plan', { repo: REPO, project: 'customer-docs', confirmUseProject: true, confirmRepoint: true })).json() as any;
+    expect(moved.credentialVersion).toBe(second.version);
+    expect((await f.request('apply', { planId: moved.planId, mode: 'direct', confirmReplaceWorkflow: true })).status).toBe(200);
+    expect(JSON.parse(f.values.get(deploymentKey(REPO))!).credentialVersion).toBe(second.version);
+  });
+
+  it('keeps legacy deployment retry available after staging another account, but requires staging for new reviews', async () => {
+    const f = fixture({ account: 'c'.repeat(32), existingSecrets: true });
+    const legacy = { repo: REPO, accountId: ACCOUNT, accountName: 'Original account', status: 'ready', projects: [], updatedAt: 'previous' };
+    f.values.set(hostingKey(REPO), JSON.stringify(legacy));
+    f.values.set(deploymentKey(REPO), JSON.stringify(setup()));
+    expect((await f.request('plan', { repo: REPO, project: 'customer-docs', confirmUseProject: true })).status).toBe(409);
+    await f.request('connect', { repo: REPO, token: TOKEN, accountId: 'c'.repeat(32) });
+    expect(await setupConnection(f.env, setup())).toEqual(legacy);
+    f.files.set('.github/workflows/deploy.yml', { content: setup().workflow, sha: SOURCE_SHA });
+    expect((await f.request('deploy', { repo: REPO })).status).toBe(200);
+  });
+});
+
+describe('failed staging cleanup', () => {
+  const version = 'D'.repeat(32);
+  function failed(f: ReturnType<typeof fixture>) {
+    f.values.set(hostingVersionKey(REPO, version), JSON.stringify({ repo: REPO, version, accountId: ACCOUNT, accountName: 'Failed account', status: 'failed', projects: [], updatedAt: new Date().toISOString() }));
+    const names = credentialNames(version);
+    f.secrets.set(names.account, 'encrypted-account'); f.secrets.set(names.token, 'encrypted-token');
+    return names;
+  }
+  const cleanup = (f: ReturnType<typeof fixture>) => f.request('cleanup', { repo: REPO, version, confirm: true });
+
+  it('requires confirmation and removes only the selected failed pair; repeated removal is blocked', async () => {
+    const f = fixture({ existingSecrets: true }); const names = failed(f);
+    expect((await f.request('cleanup', { repo: REPO, version })).status).toBe(409);
+    expect((await cleanup(f)).status).toBe(200);
+    expect(f.calls.filter(call => call.method === 'DELETE').map(call => call.url.pathname.split('/').at(-1))).toEqual([names.token, names.account]);
+    expect(f.secrets.get('CLOUDFLARE_API_TOKEN')).toBe('active-token');
+    expect(f.values.has(`hosting-removed:${REPO.toLowerCase()}:${version}`)).toBe(true);
+    expect((await (await f.request(`staging?repo=${REPO}`)).json() as any).versions).toEqual([]);
+    expect((await cleanup(f)).status).toBe(409);
+  });
+
+  it.each(['ready', 'connecting', 'removed'])('never deletes a %s version', async status => {
+    const f = fixture(); failed(f);
+    const key = hostingVersionKey(REPO, version); f.values.set(key, JSON.stringify({ ...JSON.parse(f.values.get(key)!), status }));
+    expect((await cleanup(f)).status).toBe(409);
+    expect(f.calls.some(call => call.method === 'DELETE')).toBe(false);
+  });
+
+  it.each(['branch', 'fork PR', 'dynamic access', 'inherited secrets', 'lowercase names', 'escaped names', 'invalid YAML'])('refuses cleanup when %s may need credentials', async scenario => {
+    const fork = 'f'.repeat(40);
+    const workflow = scenario === 'dynamic access' ? 'env: ${{ secrets[inputs.key] }}' : scenario === 'inherited secrets' ? 'secrets: inherit' : 'env: ${{ secrets.' + credentialNames(version).token + ' }}';
+    const content = scenario === 'lowercase names' ? workflow.toLowerCase() : scenario === 'escaped names' ? 'env: "' + credentialNames(version).token.replace('FDS', '\\x46DS') + '"' : scenario === 'invalid YAML' ? 'jobs: [invalid' : workflow;
+    const f = fixture({ openPrHead: scenario === 'fork PR' ? fork : undefined, workflowAtRef: ref => scenario !== 'fork PR' || ref === fork ? content : null }); failed(f);
+    expect((await cleanup(f)).status).toBe(409);
+    expect(f.calls.some(call => call.method === 'DELETE')).toBe(false);
+  });
+
+  it('stops if refs change or the branch inventory is too large', async () => {
+    let checks = 0;
+    const f = fixture({ branchHeads: () => [++checks === 1 ? HEAD : 'c'.repeat(40)] }); failed(f);
+    expect((await cleanup(f)).status).toBe(409);
+    expect(f.calls.some(call => call.method === 'DELETE')).toBe(false);
+    const large = fixture({ branchHeads: () => Array(100).fill(HEAD) }); failed(large);
+    expect((await cleanup(large)).status).toBe(409);
+    expect(large.calls.some(call => call.method === 'DELETE')).toBe(false);
+  });
+
+  it('supports retry after deletion fails without marking the version removed', async () => {
+    const options: { deleteFailure: boolean | number } = { deleteFailure: 2 }; const f = fixture(options); const names = failed(f);
+    expect((await cleanup(f)).status).toBe(503);
+    expect(JSON.parse(f.values.get(hostingVersionKey(REPO, version))!).status).toBe('failed');
+    expect(f.secrets.has(names.token)).toBe(false); expect(f.secrets.has(names.account)).toBe(true);
+    options.deleteFailure = false;
+    expect((await cleanup(f)).status).toBe(200);
+  });
+
+  it('requires current repository administrator access and a session before inspecting or deleting', async () => {
+    const f = fixture({ admin: false }); failed(f);
+    expect((await cleanup(f)).status).toBe(403);
+    expect((await f.request(`staging?repo=${REPO}`)).status).toBe(403);
+    expect((await f.request('cleanup', { repo: REPO, version, confirm: true }, 'missing')).status).toBe(401);
+    expect(f.calls.some(call => call.method === 'DELETE')).toBe(false);
+  });
+});
+
+it('isolates two administrators staging concurrently and rejects the superseded review', async () => {
+  const f = fixture({ existingSecrets: true }); const original = globalThis.fetch;
+  let release!: () => void; let blocked!: () => void; let paused = false;
+  const barrier = new Promise<void>(resolve => { release = resolve; });
+  const entered = new Promise<void>(resolve => { blocked = resolve; });
+  vi.stubGlobal('fetch', async (input: string | URL | Request, init?: RequestInit) => {
+    const response = await original(input, init);
+    if (init?.method === 'PUT' && !paused) { paused = true; blocked(); await barrier; }
+    return response;
+  });
+  const earlier = f.connect(); await entered;
+  try {
+    expect((await f.connect()).status).toBe(200);
+    const reviewed = await (await f.request('plan', { repo: REPO, project: 'customer-docs', confirmUseProject: true })).json() as any;
+    release(); expect((await earlier).status).toBe(200);
+    expect((await f.request('apply', { planId: reviewed.planId, mode: 'pr' })).status).toBe(409);
+    const writes = f.calls.filter(call => call.method === 'PUT');
+    expect(new Set(writes.map(call => call.url.pathname)).size).toBe(4);
+    expect(f.secrets.get('CLOUDFLARE_API_TOKEN')).toBe('active-token');
+    const versions = [...f.values].filter(([key]) => key.startsWith(hostingVersionPrefix(REPO))).map(([, value]) => JSON.parse(value));
+    expect(versions).toHaveLength(2); expect(versions.every(version => version.status === 'ready')).toBe(true);
+    expect(versions.some(version => version.version === reviewed.credentialVersion)).toBe(true);
+  } finally { release(); await earlier; }
+});
+
+it('paginates failed attempts without offering ready or removed versions', async () => {
+  const f = fixture();
+  for (let index = 0; index < 102; index++) {
+    const version = index.toString(16).toUpperCase().padStart(32, '0');
+    f.values.set(hostingVersionKey(REPO, version), JSON.stringify({ repo: REPO, version, status: index === 0 ? 'ready' : 'failed', updatedAt: '2026-11-05T00:00:00Z' }));
+    if (index === 1) f.values.set(`hosting-removed:${REPO.toLowerCase()}:${version}`, 'removed');
+  }
+  const first = await (await f.request(`staging?repo=${REPO}`)).json() as any;
+  expect(first.versions).toHaveLength(98); expect(first.cursor).toBe('100');
+  const next = await (await f.request(`staging?repo=${REPO}&cursor=${first.cursor}`)).json() as any;
+  expect(next.versions).toHaveLength(2); expect(next.cursor).toBeNull();
 });

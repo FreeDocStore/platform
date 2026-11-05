@@ -1,4 +1,11 @@
-export function deployWorkflow(project: string, customDomain: string, options: { branch?: string; managed?: boolean } = {}) {
+export function credentialNames(version: string) {
+  if (!/^[A-F0-9]{32}$/.test(version)) throw new Error('Invalid hosting credential version.')
+  return { token: `FDS_CF_TOKEN_${version}`, account: `FDS_CF_ACCOUNT_${version}` }
+}
+
+export function deployWorkflow(project: string, customDomain: string, options: { branch?: string; managed?: boolean; credentialVersion?: string } = {}) {
+  if (options.managed && !options.credentialVersion) throw new Error('Stage hosting credentials before generating a managed workflow.')
+  const credentials = options.credentialVersion ? credentialNames(options.credentialVersion) : { token: 'CLOUDFLARE_API_TOKEN', account: 'CLOUDFLARE_ACCOUNT_ID' }
   const branch = options.branch ?? 'main'
   if (branch.includes('${{')) throw new Error('Choose a branch name without workflow expressions.')
   const domains = [...(options.managed ? [] : [`${project}.freedocstore.online`]), ...(customDomain ? [customDomain] : [])].join(' ')
@@ -53,17 +60,17 @@ jobs:
         env:
           PROJECT: ${project}
           PRODUCTION_BRANCH: ${JSON.stringify(branch)}
-          CLOUDFLARE_API_TOKEN: \${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: \${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: \${{ secrets.${credentials.token} }}
+          CLOUDFLARE_ACCOUNT_ID: \${{ secrets.${credentials.account} }}
       - name: Deploy to Cloudflare Pages
         run: npx --yes wrangler@4.107.0 pages deploy site --project-name="${project}" --branch="$PRODUCTION_BRANCH"
         env:
-          CLOUDFLARE_API_TOKEN: \${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: \${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: \${{ secrets.${credentials.token} }}
+          CLOUDFLARE_ACCOUNT_ID: \${{ secrets.${credentials.account} }}
       - name: Attach domains
         env:
-          CLOUDFLARE_API_TOKEN: \${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: \${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: \${{ secrets.${credentials.token} }}
+          CLOUDFLARE_ACCOUNT_ID: \${{ secrets.${credentials.account} }}
           PROJECT: ${project}
           PRODUCTION_BRANCH: ${JSON.stringify(branch)}
           DOMAINS: ${domains}

@@ -5,14 +5,15 @@ import { requireSession } from '../lib/session';
 import { ProvisioningError } from '../lib/provisioning-http';
 import { objectBody, stringField } from '../lib/validation';
 import { installations, repositories, managedRepository, setupPlan, SETUP_WORKFLOW } from '../provisioning';
-import { connectHosting, hostingAccounts, hostingProjects, hostingKey, type HostingConnection } from '../hosting';
+import { connectHosting, hostingAccounts, hostingProjects, hostingKey, hostingVersionKey, setupConnection, type HostingConnection } from '../hosting';
+import { failedHostingVersions, removeFailedHostingVersion } from '../hosting-cleanup';
 import { commitFiles } from '../github';
 import { registerManagedKnowledgeBase } from '../publish';
 import { deploymentKey, deploymentStatus, dispatchDeployment, requireSetup, type DeploymentSetup } from '../deployment';
 
 type Bindings = { Bindings: Env; Variables: Variables };
 type App = Hono<Bindings>;
-type Plan = Awaited<ReturnType<typeof setupPlan>> & { accountId: string; connectedAt: string };
+type Plan = Awaited<ReturnType<typeof setupPlan>> & { accountId: string; connectedAt: string; credentialVersion: string };
 const planKey = (session: string, id: string) => `setup-plan:${session}:${id}`;
 
 async function body(c: Context<Bindings>) {
@@ -64,7 +65,7 @@ export function registerProvisioningRoutes(app: App) {
     const repo = await managedRepository(githubToken(c), c.req.query('repo') ?? '');
     const connection = await c.env.FDS_API_KV.get<HostingConnection>(hostingKey(repo.full_name), 'json');
     const setup = await c.env.FDS_API_KV.get<DeploymentSetup>(deploymentKey(repo.full_name), 'json');
-    return c.json({ connection, setup: setup ? { project: setup.project, domain: setup.domain, branch: setup.branch, accountId: setup.accountId } : null });
+    return c.json({ connection, setup: setup ? { project: setup.project, domain: setup.domain, branch: setup.branch, accountId: setup.accountId, credentialVersion: setup.credentialVersion } : null });
   });
   app.post('/api/provisioning/accounts', async c => {
     const input = await body(c);
@@ -77,14 +78,22 @@ export function registerProvisioningRoutes(app: App) {
   });
   app.post('/api/provisioning/connect', async c => {
     const input = await body(c);
-    const connection = await connectHosting(c.env, githubToken(c), { repo: field(input, 'repo'), token: field(input, 'token'), accountId: field(input, 'accountId'), confirmOverwrite: input.confirmOverwrite === true });
+    const connection = await connectHosting(c.env, githubToken(c), { repo: field(input, 'repo'), token: field(input, 'token'), accountId: field(input, 'accountId') });
     return c.json({ connection });
+  });
+  app.get('/api/provisioning/staging', async c => c.json(await failedHostingVersions(c.env, githubToken(c), c.req.query('repo') ?? '', c.req.query('cursor'))));
+  app.post('/api/provisioning/cleanup', async c => {
+    const input = await body(c);
+    if (input.confirm !== true) throw new ProvisioningError(409, 'Confirm removal of the selected failed staging credentials.');
+    return c.json(await removeFailedHostingVersion(c.env, githubToken(c), field(input, 'repo'), field(input, 'version')));
   });
   app.post('/api/provisioning/plan', async c => {
     const input = await body(c);
-    const plan = await setupPlan(githubToken(c), field(input, 'repo'), field(input, 'project'), field(input, 'domain').toLowerCase());
-    const connection = await c.env.FDS_API_KV.get<HostingConnection>(hostingKey(plan.repo), 'json');
-    if (connection?.status !== 'ready') throw new ProvisioningError(409, 'Connect this repository to your Cloudflare account before reviewing its deployment setup.');
+    const token = githubToken(c);
+    const repo = await managedRepository(token, field(input, 'repo'));
+    const connection = await c.env.FDS_API_KV.get<HostingConnection>(hostingKey(repo.full_name), 'json');
+    if (connection?.status !== 'ready' || !connection.version) throw new ProvisioningError(409, 'Stage a hosting credential version before reviewing this deployment setup.');
+    const plan = await setupPlan(token, repo.full_name, field(input, 'project'), field(input, 'domain').toLowerCase(), connection.version);
     const previous = await c.env.FDS_API_KV.get<DeploymentSetup>(deploymentKey(plan.repo), 'json');
     const configuredProject = previous?.accountId === connection.accountId && previous.project === plan.project ? { name: previous.project, production_branch: previous.branch } : undefined;
     const existingProject = connection.projects?.find(project => project.name === plan.project) ?? configuredProject;
@@ -93,8 +102,8 @@ export function registerProvisioningRoutes(app: App) {
     if (previous && (previous.project !== plan.project || previous.domain !== plan.domain || previous.accountId !== connection.accountId) && input.confirmRepoint !== true) throw new ProvisioningError(409, 'This changes the previously configured hosting target. Confirm the move after checking the account, project and domain.');
     if (!existingProject && input.confirmCreateProject !== true) throw new ProvisioningError(409, 'Confirm creation of a new Pages project, or select an existing one.');
     const id = crypto.randomUUID();
-    await c.env.FDS_API_KV.put(planKey(requireSession(c).id, id), JSON.stringify({ ...plan, accountId: connection.accountId, connectedAt: connection.updatedAt }), { expirationTtl: 900 });
-    return c.json({ ...plan, planId: id, accountName: connection.accountName });
+    await c.env.FDS_API_KV.put(planKey(requireSession(c).id, id), JSON.stringify({ ...plan, accountId: connection.accountId, connectedAt: connection.updatedAt, credentialVersion: connection.version }), { expirationTtl: 900 });
+    return c.json({ ...plan, planId: id, accountName: connection.accountName, credentialVersion: connection.version });
   });
   app.post('/api/provisioning/apply', async c => {
     const input = await body(c); const id = field(input, 'planId');
@@ -108,10 +117,12 @@ export function registerProvisioningRoutes(app: App) {
     if (plan.replacesWorkflow && input.confirmReplaceWorkflow !== true) throw new ProvisioningError(409, 'Confirm replacement of the existing deployment workflow after reviewing its diff.');
     if (input.mode !== 'pr' && input.mode !== 'direct') throw new ProvisioningError(400, 'Choose a setup pull request or a reviewed direct commit.');
     const connection = await c.env.FDS_API_KV.get<HostingConnection>(hostingKey(plan.repo), 'json');
-    if (connection?.status !== 'ready' || connection.accountId !== plan.accountId || connection.updatedAt !== plan.connectedAt) throw new ProvisioningError(409, 'The Cloudflare connection changed. Review setup again.');
+    if (!plan.credentialVersion || connection?.status !== 'ready' || connection.version !== plan.credentialVersion || connection.accountId !== plan.accountId || connection.updatedAt !== plan.connectedAt) throw new ProvisioningError(409, 'The Cloudflare connection changed. Review setup again.');
+    const staged = await c.env.FDS_API_KV.get<HostingConnection>(hostingVersionKey(plan.repo, plan.credentialVersion), 'json');
+    if (staged?.status !== 'ready' || staged.version !== plan.credentialVersion || staged.accountId !== plan.accountId) throw new ProvisioningError(409, 'The staged credentials are no longer available. Stage and review setup again.');
     const result = plan.files.length ? await commitFiles({ token, repoFullName: plan.repo, baseBranch: plan.branch, message: 'Configure FreeDocStore public publishing', files: plan.files.map(file => ({ path: file.path, content: file.content })), expectedFiles: Object.fromEntries(plan.files.map(file => [file.path, file.expectedSha])), mode: input.mode, prBody: `Reviewed public publishing setup for ${plan.url}. Existing source and unrelated repository files are preserved.` }) : { ok: true, unchanged: true };
     if (!result.ok) return c.json(result, result.errorCode === 'source_conflict' ? 409 : 502);
-    const setup: DeploymentSetup = { repo: plan.repo, branch: plan.branch, project: plan.project, domain: plan.domain, accountId: plan.accountId, workflow: plan.workflow,
+    const setup: DeploymentSetup = { repo: plan.repo, branch: plan.branch, project: plan.project, domain: plan.domain, accountId: plan.accountId, credentialVersion: plan.credentialVersion, workflow: plan.workflow,
       updatedAt: new Date().toISOString(), revision: crypto.randomUUID(), expectedSha: result.commitSha, prNumber: result.prNumber, prUrl: result.prUrl };
 
     await c.env.FDS_API_KV.put(deploymentKey(plan.repo), JSON.stringify(setup));
@@ -121,8 +132,8 @@ export function registerProvisioningRoutes(app: App) {
   app.post('/api/provisioning/deploy', async c => {
     const input = await body(c); const token = githubToken(c);
     const setup = await requireSetup(c.env, token, field(input, 'repo'));
-    const connection = await c.env.FDS_API_KV.get<HostingConnection>(hostingKey(setup.repo), 'json');
-    if (connection?.status !== 'ready' || connection.accountId !== setup.accountId) throw new ProvisioningError(409, 'Reconnect the reviewed Cloudflare account before deploying.');
+    const connection = await setupConnection(c.env, setup);
+    if (!connection) throw new ProvisioningError(409, 'Reconnect the reviewed Cloudflare account before deploying.');
     await dispatchDeployment(c.env, token, setup);
     return c.json({ ok: true });
   });

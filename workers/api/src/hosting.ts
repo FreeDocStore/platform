@@ -1,11 +1,23 @@
 import { ProvisioningError, retryDelay } from './lib/provisioning-http';
 import { managedRepository } from './provisioning';
 import { writeRepositorySecrets, repositorySecretNames } from './lib/repository-secrets';
+import { credentialNames } from '../../../templates/publishing/workflow';
+import type { DeploymentSetup } from './deployment';
 import type { Env } from './types';
 
 interface Account { id: string; name: string }
-export interface HostingConnection { repo: string; accountId: string; accountName: string; status: 'connecting' | 'ready' | 'failed'; updatedAt: string; projects: Array<{ name: string; production_branch: string; domains: string[] }> }
+export interface HostingConnection { repo: string; accountId: string; accountName: string; status: 'connecting' | 'ready' | 'failed' | 'removed'; updatedAt: string; version?: string; projects: Array<{ name: string; production_branch: string; domains: string[] }> }
 export const hostingKey = (repo: string) => `hosting:${repo.toLowerCase()}`;
+export const hostingVersionPrefix = (repo: string) => `hosting-version:${repo.toLowerCase()}:`;
+export const hostingVersionKey = (repo: string, version: string) => `${hostingVersionPrefix(repo)}${version}`;
+const legacyKey = (repo: string, account: string) => `hosting-legacy:${repo.toLowerCase()}:${account}`;
+
+export async function setupConnection(env: Env, setup: DeploymentSetup): Promise<HostingConnection | null> {
+  const connection = setup.credentialVersion
+    ? await env.FDS_API_KV.get<HostingConnection>(hostingVersionKey(setup.repo, setup.credentialVersion), 'json')
+    : await env.FDS_API_KV.get<HostingConnection>(legacyKey(setup.repo, setup.accountId), 'json') ?? await env.FDS_API_KV.get<HostingConnection>(hostingKey(setup.repo), 'json');
+  return connection?.status === 'ready' && connection.repo.toLowerCase() === setup.repo.toLowerCase() && connection.accountId === setup.accountId && connection.version === setup.credentialVersion ? connection : null;
+}
 
 export async function cloudflareRequest<T>(token: string, path: string): Promise<T> {
   let response: Response;
@@ -47,23 +59,32 @@ export async function hostingProjects(token: string, accountId: string) {
   throw new ProvisioningError(422, 'This account has too many Pages projects to list safely. Narrow the account or retry with a dedicated publishing account.');
 }
 
-export async function connectHosting(env: Env, githubToken: string, input: { repo: string; token: string; accountId: string; confirmOverwrite: boolean }) {
+export async function connectHosting(env: Env, githubToken: string, input: { repo: string; token: string; accountId: string }) {
   const repo = await managedRepository(githubToken, input.repo);
   const accounts = await hostingAccounts(input.token);
   const account = accounts.find(account => account.id === input.accountId);
   if (!account) throw new ProvisioningError(403, 'The token cannot access the selected Cloudflare account.');
   const projects = await hostingProjects(input.token, account.id);
   const secrets = await repositorySecretNames(githubToken, repo.full_name);
-  if (['CLOUDFLARE_API_TOKEN', 'CLOUDFLARE_ACCOUNT_ID'].some(name => secrets.has(name)) && !input.confirmOverwrite) throw new ProvisioningError(409, 'This repository already has Cloudflare credentials. Confirm replacement after checking the selected account.');
-  const connection: HostingConnection = { repo: repo.full_name, accountId: account.id, accountName: account.name, status: 'connecting', updatedAt: new Date().toISOString(), projects };
-  await env.FDS_API_KV.put(hostingKey(repo.full_name), JSON.stringify(connection));
+  const version = crypto.randomUUID().replace(/-/g, '').toUpperCase();
+  const names = credentialNames(version);
+  if (secrets.has(names.account) || secrets.has(names.token)) throw new ProvisioningError(409, 'This credential version already exists. Retry staging to generate another version.');
+  const previous = await env.FDS_API_KV.get<HostingConnection>(hostingKey(repo.full_name), 'json');
+  if (previous?.status === 'ready' && !previous.version) {
+    await env.FDS_API_KV.put(legacyKey(repo.full_name, previous.accountId), JSON.stringify(previous));
+  }
+  const connection: HostingConnection = { repo: repo.full_name, accountId: account.id, accountName: account.name, status: 'connecting', updatedAt: new Date().toISOString(), projects, version };
+  const key = hostingVersionKey(repo.full_name, version);
+  // Persist only the terminal outcome: version records are immutable, avoiding
+  // rapid connecting/ready writes to the same Workers KV key.
   try {
-    await writeRepositorySecrets(githubToken, repo.full_name, { CLOUDFLARE_ACCOUNT_ID: account.id, CLOUDFLARE_API_TOKEN: input.token });
+    await writeRepositorySecrets(githubToken, repo.full_name, { [names.account]: account.id, [names.token]: input.token });
   } catch (error) {
-    await env.FDS_API_KV.put(hostingKey(repo.full_name), JSON.stringify({ ...connection, status: 'failed' }));
-    throw new ProvisioningError(error instanceof ProvisioningError ? error.status : 502, 'Cloudflare connection was not completed. Some repository secrets may have been written. Check the app Secrets:write permission, then reconnect before deploying.');
+    await env.FDS_API_KV.put(key, JSON.stringify({ ...connection, status: 'failed' }));
+    throw new ProvisioningError(error instanceof ProvisioningError ? error.status : 502, 'Credential staging was incomplete. The active deployment was not changed. Check the app Secrets:write permission, then stage again. Failed attempts can be cleaned up separately.', error instanceof ProvisioningError ? error.retryAfterSeconds : undefined);
   }
   connection.status = 'ready';
+  await env.FDS_API_KV.put(key, JSON.stringify(connection));
   await env.FDS_API_KV.put(hostingKey(repo.full_name), JSON.stringify(connection));
   return connection;
 }

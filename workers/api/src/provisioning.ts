@@ -61,7 +61,7 @@ export function publishingTarget(project: string, domain: string) {
   return { project, domain, url: `https://${domain || `${project}.pages.dev`}/` };
 }
 
-export async function setupPlan(token: string, repoName: string, project: string, domain: string) {
+export async function setupPlan(token: string, repoName: string, project: string, domain: string, credentialVersion: string) {
   const target = publishingTarget(project, domain);
   const repo = await managedRepository(token, repoName);
   const branch = repo.default_branch;
@@ -85,7 +85,7 @@ export async function setupPlan(token: string, repoName: string, project: string
     if ((projectConfig.docs_dir ?? 'docs') !== 'docs' || (projectConfig.site_dir ?? 'site') !== 'site') throw new ProvisioningError(422, 'This setup supports docs/ source and site/ output. Review the existing folder configuration on GitHub first.');
   }
   const generated: Record<string, string> = {
-    [SETUP_WORKFLOW]: deployWorkflow(project, domain, { branch, managed: true }),
+    [SETUP_WORKFLOW]: deployWorkflow(project, domain, { branch, managed: true, credentialVersion }),
     'zensical.toml': `[project]\nsite_name = ${JSON.stringify(repo.name)}\nsite_url = ${JSON.stringify(target.url)}\nrepo_url = ${JSON.stringify(`https://github.com/${repo.full_name}`)}\ndocs_dir = "docs"\nsite_dir = "site"\n`,
     'docs/index.md': `# ${repo.name}\n\nWelcome to your public knowledge base. Propose content changes through FreeDocStore or edit this page on GitHub.\n`,
   };
