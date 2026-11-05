@@ -19,10 +19,21 @@ app.use("*", async (c, next) => {
     c.header("Access-Control-Allow-Credentials", "true");
     c.header("Vary", "Origin");
   }
-  c.header("Access-Control-Allow-Headers", "Content-Type, Accept, X-GitHub-Api-Version");
+  c.header("Access-Control-Allow-Headers", "Content-Type, Accept, X-GitHub-Api-Version, X-FDS-Account");
   c.header("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS");
   if (c.req.method === "OPTIONS") return c.body(null, 204);
-  c.set("session", await readSession(c.env, getCookie(c, SESSION_COOKIE)));
+  const session = await readSession(c.env, getCookie(c, SESSION_COOKIE));
+  c.set("session", session);
+  if (session) {
+    const account = c.req.header('X-FDS-Account');
+    if (account && account !== session.user.id) return c.json({ error: 'The signed-in account changed. Reload the console before continuing.' }, 409);
+    if (!['GET', 'HEAD'].includes(c.req.method)) {
+      // CORS controls response access; cookie-authenticated mutations also
+      // need an origin check before any route or upstream request executes.
+      const sameOrigin = origin === new URL(c.req.url).origin;
+      if (!allowed && !sameOrigin) return c.json({ error: 'A trusted origin is required for account changes.' }, 403);
+    }
+  }
   await next();
 });
 

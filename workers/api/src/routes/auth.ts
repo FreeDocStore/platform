@@ -24,6 +24,13 @@ import {
 
 type App = Hono<{ Bindings: Env; Variables: Variables }>;
 
+function parseState(raw: string, provider: string): { next?: string } | null {
+  try {
+    const state = JSON.parse(raw);
+    return state && state.provider === provider && (state.next === undefined || typeof state.next === 'string') ? state : null;
+  } catch { return null; }
+}
+
 export function registerAuthRoutes(app: App) {
   app.get("/api/me", (c) => {
     const session = c.get("session");
@@ -57,7 +64,9 @@ export function registerAuthRoutes(app: App) {
     const stateRaw = await c.env.FDS_API_KV.get(`${STATE_PREFIX}${state}`);
     if (!stateRaw) return c.text("OAuth state expired", 400);
     await c.env.FDS_API_KV.delete(`${STATE_PREFIX}${state}`);
-    const { next } = JSON.parse(stateRaw) as { next?: string };
+    const parsedState = parseState(stateRaw, 'github');
+    if (!parsedState) return c.text('OAuth state does not match this sign-in provider', 400);
+    const { next } = parsedState;
     const tokenRes = await fetch("https://github.com/login/oauth/access_token", {
       method: "POST",
       headers: { Accept: "application/json", "Content-Type": "application/json" },
@@ -124,7 +133,9 @@ export function registerAuthRoutes(app: App) {
     const stateRaw = await c.env.FDS_API_KV.get(`${STATE_PREFIX}${state}`);
     if (!stateRaw) return c.text("OAuth state expired", 400);
     await c.env.FDS_API_KV.delete(`${STATE_PREFIX}${state}`);
-    const { next } = JSON.parse(stateRaw) as { next?: string };
+    const parsedState = parseState(stateRaw, 'google');
+    if (!parsedState) return c.text('OAuth state does not match this sign-in provider', 400);
+    const { next } = parsedState;
     const callback = new URL("/auth/google/callback", c.req.url);
     const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
       method: "POST",

@@ -70,6 +70,7 @@ function b64ToText(b64: string): string {
 
 async function ensureRepo(input: PublishInput): Promise<{ fullName: string; htmlUrl: string; created: boolean }> {
   const viewer = await gh("https://api.github.com/user", input.userToken);
+  if (!viewer.__ok || typeof viewer.login !== 'string') throw new Error(`GitHub identity lookup failed (${viewer.__status})`);
   const isUser = typeof viewer.login === "string" && viewer.login.toLowerCase() === input.owner.toLowerCase();
   const createUrl = isUser
     ? "https://api.github.com/user/repos"
@@ -84,10 +85,19 @@ async function ensureRepo(input: PublishInput): Promise<{ fullName: string; html
       homepage: input.customDomain ? `https://${input.customDomain}/` : `https://${input.slug}.pages.dev/`,
     },
   });
-  if (created.__ok) return { fullName: created.full_name, htmlUrl: created.html_url, created: true };
+  if (created.__ok && typeof created.full_name === 'string' && typeof created.html_url === 'string' && created.private === false) {
+    if (created.default_branch !== 'main') throw new Error('The new repository must use main as its default branch before publishing.');
+    return { fullName: created.full_name, htmlUrl: created.html_url, created: true };
+  }
   if (created.__status === 422) {
     const existing = await gh(`https://api.github.com/repos/${encodeURIComponent(input.owner)}/${encodeURIComponent(input.slug)}`, input.userToken);
-    if (existing.__ok) return { fullName: existing.full_name, htmlUrl: existing.html_url, created: false };
+    if (existing.__ok) {
+      if (typeof existing.full_name !== 'string' || existing.full_name.toLowerCase() !== `${input.owner}/${input.slug}`.toLowerCase() || typeof existing.html_url !== 'string') throw new Error('Could not verify the existing repository identity.');
+      if (existing.private !== false) throw new Error('An existing repository must be verified public before publishing. Use ProDocStore for private knowledge bases.');
+      if (existing.permissions?.push !== true || existing.archived === true || existing.disabled === true) throw new Error('The repository must be writable and active before publishing.');
+      if (existing.default_branch !== 'main') throw new Error('This publisher requires a main default branch. Set up other branches through the existing-repository workflow.');
+      return { fullName: existing.full_name, htmlUrl: existing.html_url, created: false };
+    }
   }
   throw new Error(`Repo create failed (${created.__status}): ${created.message ?? "unknown"}`);
 }
@@ -97,8 +107,9 @@ async function commitFiles(repoFullName: string, files: PublishFile[], token: st
   let headSha: string | undefined;
   for (let attempt = 0; attempt < 5 && !headSha; attempt += 1) {
     const ref = await gh(`${base}/git/ref/heads/main`, token);
-    headSha = ref?.object?.sha;
-    if (!headSha) await new Promise((resolve) => setTimeout(resolve, 700));
+    if (ref.__status !== 404 && !ref.__ok) throw new Error(`Could not read main branch (${ref.__status}): ${ref.message ?? 'GitHub request failed'}`);
+    headSha = ref.__ok ? ref?.object?.sha : undefined;
+    if (!headSha && attempt < 4) await new Promise((resolve) => setTimeout(resolve, 700));
   }
   if (!headSha) throw new Error("main branch did not appear after repo creation");
 
@@ -128,52 +139,82 @@ async function commitFiles(repoFullName: string, files: PublishFile[], token: st
   return commit.sha;
 }
 
-async function upsertRegistry(input: PublishInput, liveUrl: string): Promise<string> {
+interface RegistryEntry {
+  id: string;
+  source: { repo: string };
+  cloudflare?: { custom_domains?: string[]; production_url?: string };
+  [key: string]: unknown;
+}
+interface Registry { knowledge_bases: RegistryEntry[]; [key: string]: unknown }
+
+async function readRegistry(input: PublishInput) {
   const token = input.platformToken || input.userToken;
-  const registryRepo = `${input.org}/platform`;
-  const url = `https://api.github.com/repos/${registryRepo}/contents/site/registry.json`;
+  const url = `https://api.github.com/repos/${input.org}/platform/contents/site/registry.json`;
   const current = await gh(url, token);
-  if (!current.__ok || typeof current.content !== "string") {
-    throw new Error(`Could not read registry (${current.__status}): ${current.message ?? "unknown"}`);
+  if (!current.__ok || typeof current.content !== 'string' || typeof current.sha !== 'string') throw new Error(`Could not read registry (${current.__status}): ${current.message ?? 'invalid response'}`);
+  const registry: Registry = JSON.parse(b64ToText(current.content));
+  if (!registry || !Array.isArray(registry.knowledge_bases) || registry.knowledge_bases.some(entry => !entry || typeof entry.id !== 'string' || typeof entry.source?.repo !== 'string')) throw new Error('Registry data is invalid; publishing stopped without replacing it.');
+  return { token, url, current, registry };
+}
+
+function assertRegistryOwnership(input: PublishInput, registry: Registry) {
+  const repo = `${input.owner}/${input.slug}`.toLowerCase();
+  const domains = new Set([`${input.slug}.freedocstore.online`, ...(input.customDomain ? [input.customDomain] : [])].map(domain => domain.toLowerCase()));
+  const sameSlug = registry.knowledge_bases.filter(entry => entry.id.toLowerCase() === input.slug.toLowerCase());
+  if (sameSlug.length > 1) throw new Error('Registry contains an ambiguous knowledge-base id. Resolve it before publishing.');
+  for (const entry of registry.knowledge_bases) {
+    if (entry.source.repo.toLowerCase() === repo) continue;
+    if (entry.id.toLowerCase() === input.slug.toLowerCase()) throw new Error('This knowledge-base slug already belongs to another repository. Choose a different slug.');
+    const registeredDomains = Array.isArray(entry.cloudflare?.custom_domains) ? entry.cloudflare.custom_domains : [];
+    let host = '';
+    try { host = new URL(entry.cloudflare?.production_url ?? '').hostname; } catch { /* no production URL */ }
+    if ([host, ...registeredDomains].some(domain => typeof domain === 'string' && domains.has(domain.toLowerCase()))) throw new Error('This publishing domain already belongs to another knowledge base.');
   }
-  const registry = JSON.parse(b64ToText(current.content)) as { knowledge_bases?: any[] };
-  const entries = registry.knowledge_bases ?? [];
-  const defaultDomain = `${input.slug}.freedocstore.online`;
-  const domains = [defaultDomain, ...(input.customDomain ? [input.customDomain] : [])];
-  const entry = {
-    id: input.slug,
-    title: input.title,
-    description: (input.description ?? input.title).slice(0, 300),
-    engine: "zensical",
-    source: { repo: `${input.owner}/${input.slug}`, branch: "main", docs_dir: "docs", config: "zensical.toml" },
-    cloudflare: {
-      pages_project: input.slug,
-      production_url: liveUrl,
-      custom_domains: domains,
-    },
-    status: "published",
-  };
-  const index = entries.findIndex((kb) => kb?.id === input.slug);
-  if (index >= 0 && JSON.stringify(entries[index]) === JSON.stringify(entry)) return "already registered";
-  if (index >= 0) entries[index] = entry;
-  else entries.unshift(entry);
-  const body = `${JSON.stringify({ knowledge_bases: entries }, null, 2)}\n`;
-  const put = await gh(url, token, {
-    method: "PUT",
-    body: {
-      message: `registry: ${index >= 0 ? "update" : "add"} ${input.slug}`,
-      content: textToB64(body),
+}
+
+async function upsertRegistry(input: PublishInput, liveUrl: string, status: 'submitted' | 'failed' = 'submitted'): Promise<string> {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const { token, url, current, registry } = await readRegistry(input);
+    assertRegistryOwnership(input, registry);
+    const entries = [...registry.knowledge_bases];
+    const entry = {
+      id: input.slug,
+      title: input.title,
+      description: (input.description ?? input.title).slice(0, 300),
+      engine: 'zensical',
+      source: { repo: `${input.owner}/${input.slug}`, branch: 'main', docs_dir: 'docs', config: 'zensical.toml' },
+      cloudflare: { pages_project: input.slug, production_url: liveUrl, custom_domains: [`${input.slug}.freedocstore.online`, ...(input.customDomain ? [input.customDomain] : [])] },
+      status,
+    };
+    const index = entries.findIndex(kb => kb.id.toLowerCase() === input.slug.toLowerCase());
+    if (index >= 0 && JSON.stringify(entries[index]) === JSON.stringify(entry)) return 'already registered';
+    if (index >= 0) entries[index] = entry;
+    else entries.unshift(entry);
+    const put = await gh(url, token, { method: 'PUT', body: {
+      message: `registry: ${index >= 0 ? 'update' : 'add'} ${input.slug}`,
+      content: textToB64(`${JSON.stringify({ ...registry, knowledge_bases: entries }, null, 2)}\n`),
       sha: current.sha,
-    },
-  });
-  if (!put.__ok) throw new Error(`Registry commit failed (${put.__status}): ${put.message ?? "unknown"}`);
-  return index >= 0 ? "registry entry updated" : "registered in the public library";
+    } });
+    if (put.__ok) return index >= 0 ? 'registry entry updated' : 'registered in the public library';
+    if (put.__status !== 409 || attempt === 2) throw new Error(`Registry commit failed (${put.__status}): ${put.message ?? 'unknown'}`);
+    // Re-read after a conflict; preserve concurrent additions and re-check the
+    // namespace owner before spending the platform credential on another write.
+  }
+  throw new Error('Could not update registry');
 }
 
 export async function publishKb(input: PublishInput): Promise<PublishResult> {
   const liveUrl = input.customDomain ? `https://${input.customDomain}/` : `https://${input.slug}.freedocstore.online/`;
   const steps: PublishStepResult[] = [];
   let repo = { fullName: `${input.owner}/${input.slug}`, htmlUrl: `https://github.com/${input.owner}/${input.slug}`, created: false };
+
+  try {
+    const { registry } = await readRegistry(input);
+    assertRegistryOwnership(input, registry);
+  } catch (error) {
+    steps.push({ id: 'registry', ok: false, detail: error instanceof Error ? error.message : String(error) });
+    return { ok: false, repo: repo.fullName, repoUrl: repo.htmlUrl, liveUrl, steps };
+  }
 
   try {
     repo = await ensureRepo(input);
@@ -184,18 +225,24 @@ export async function publishKb(input: PublishInput): Promise<PublishResult> {
   }
 
   try {
-    const sha = await commitFiles(repo.fullName, input.files, input.userToken);
-    steps.push({ id: "files", ok: true, detail: `${input.files.length} files at ${sha.slice(0, 7)}` });
-  } catch (error) {
-    steps.push({ id: "files", ok: false, detail: error instanceof Error ? error.message : String(error) });
-    return { ok: false, repo: repo.fullName, repoUrl: repo.htmlUrl, liveUrl, steps };
-  }
-
-  try {
+    // Claim the public namespace with GitHub's SHA compare-and-swap before
+    // committing a workflow that could deploy to that shared project name.
     const detail = await upsertRegistry(input, liveUrl);
     steps.push({ id: "registry", ok: true, detail });
   } catch (error) {
     steps.push({ id: "registry", ok: false, detail: error instanceof Error ? error.message : String(error) });
+    return { ok: false, repo: repo.fullName, repoUrl: repo.htmlUrl, liveUrl, steps };
+  }
+
+  try {
+    const sha = await commitFiles(repo.fullName, input.files, input.userToken);
+    steps.push({ id: "files", ok: true, detail: `${input.files.length} files at ${sha.slice(0, 7)}` });
+  } catch (error) {
+    steps.push({ id: "files", ok: false, detail: error instanceof Error ? error.message : String(error) });
+    // Retain the verified repository's namespace for a safe retry, while
+    // making the failed source submission visible in the public registry.
+    try { await upsertRegistry(input, liveUrl, 'failed'); }
+    catch { steps.push({ id: 'registry', ok: false, detail: 'Could not record the failed publication. Check repository status before retrying.' }); }
     return { ok: false, repo: repo.fullName, repoUrl: repo.htmlUrl, liveUrl, steps };
   }
 

@@ -1,14 +1,15 @@
 export const MAX_AUDIO_BYTES = 12 * 1024 * 1024;
+import { validRepo, validBranch } from './lib/validation';
 const REVISION = '1939ad2a8e416c0acfeecc08a694d14ef25f2231';
 
 /** Accept only the fixed PCM format produced by the local audio worker. */
 export async function validateAudio(body: unknown) {
   const b = body as Record<string, unknown> | null;
-  if (!b || typeof b.repo !== 'string' || !/^[\w.-]+\/[\w.-]+$/.test(b.repo)) throw new Error('repo must be owner/name');
+  if (!b || typeof b.repo !== 'string' || !validRepo(b.repo)) throw new Error('repo must be owner/name');
   if (typeof b.path !== 'string' || !/^docs\/(?:[\w.-]+\/)*[\w.-]+\.md$/.test(b.path) || b.path.split('/').some(p => p === '..' || p === '.')) throw new Error('path must be a Markdown page inside docs/');
   if (typeof b.sourceSha !== 'string' || !/^[0-9a-f]{40}$/.test(b.sourceSha)) throw new Error('Invalid source version');
   if (b.modelRevision !== REVISION) throw new Error('Unsupported audio model revision');
-  if (typeof b.branch !== 'string' || !b.branch.trim() || b.branch.length > 200 || /[\x00-\x20]/.test(b.branch)) throw new Error('Invalid source branch');
+  if (typeof b.branch !== 'string' || !validBranch(b.branch)) throw new Error('Invalid source branch');
   if (typeof b.audio !== 'string' || b.audio.length > Math.ceil(MAX_AUDIO_BYTES / 3) * 4 || !/^[A-Za-z0-9+/]+={0,2}$/.test(b.audio) || b.audio.length % 4 !== 0) throw new Error('Invalid audio encoding or audio exceeds 12 MiB');
   const raw = atob(b.audio);
   if (raw.length < 46 || raw.length > MAX_AUDIO_BYTES || raw.slice(0, 4) !== 'RIFF' || raw.slice(8, 16) !== 'WAVEfmt ' || raw.slice(36, 40) !== 'data') throw new Error('Expected a PCM WAV recording');

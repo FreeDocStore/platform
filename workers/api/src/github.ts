@@ -18,6 +18,7 @@ export interface FileChange {
 export interface CommitResult {
   ok: boolean;
   error?: string;
+  errorCode?: 'source_conflict' | 'upstream_error';
   branch?: string;
   commitSha?: string;
   commitUrl?: string;
@@ -85,7 +86,8 @@ export async function commitFiles(input: {
   for (const [path, sha] of Object.entries(input.expectedFiles ?? {})) {
     const encodedPath = path.split('/').map(encodeURIComponent).join('/');
     const file = await gh(`${base}/contents/${encodedPath}?ref=${headSha}`, { token });
-    if (file.__status || file.sha !== sha) return { ok: false, error: `Source changed or is unavailable: ${path}. Reload the page and regenerate narration.` };
+    if (file.__status || typeof file.sha !== 'string') return { ok: false, errorCode: 'upstream_error', error: `Could not read source ${path} (${file.__status ?? 'invalid response'}). Check repository access and retry.` };
+    if (file.sha !== sha) return { ok: false, errorCode: 'source_conflict', error: `Source changed: ${path}. Reload the page and regenerate the proposal or narration.` };
   }
 
   const treeItems: any[] = [];

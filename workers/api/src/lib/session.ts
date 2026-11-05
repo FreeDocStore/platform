@@ -19,7 +19,7 @@ type AppContext = Context<{ Bindings: Env; Variables: Variables }>;
 export function allowedOrigin(env: Env, origin: string | undefined): string | null {
   if (!origin) return null;
   const originUrl = safeUrl(origin);
-  if (originUrl?.hostname === "freedocstore-editor.pages.dev" || originUrl?.hostname.endsWith(".freedocstore-editor.pages.dev")) return origin;
+  if (originUrl?.protocol === 'https:' && !originUrl.port && (originUrl.hostname === "freedocstore-editor.pages.dev" || originUrl.hostname.endsWith(".freedocstore-editor.pages.dev"))) return origin;
   const allowed = new Set([
     env.EDITOR_BASE_URL,
     env.PUBLIC_BASE_URL,
