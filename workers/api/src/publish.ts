@@ -270,3 +270,18 @@ export async function registerManagedKnowledgeBase(input: { repo: string; branch
   await upsertRegistry(draft, input.url, 'published', { repo: input.repo, branch: input.branch, project: input.project, domains: input.domain ? [input.domain] : [] });
   return draft.slug;
 }
+
+/** Mark the existing library entry unpublished while retaining its site and source. */
+export async function unpublishManagedKnowledgeBase(input: { repo: string; userToken: string; platformToken?: string; org: string }) {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const { token, url, current, registry } = await readRegistry({ title: '', slug: '', owner: '', files: [], userToken: input.userToken, platformToken: input.platformToken, org: input.org });
+    const index = registry.knowledge_bases.findIndex(entry => entry.source.repo.toLowerCase() === input.repo.toLowerCase());
+    if (index < 0 || registry.knowledge_bases[index].status === 'unpublished') return { updated: false };
+    const entries = [...registry.knowledge_bases];
+    entries[index] = { ...entries[index], status: 'unpublished' };
+    const put = await gh(url, token, { method: 'PUT', body: { message: `registry: unpublish ${entries[index].id}`, content: textToB64(`${JSON.stringify({ ...registry, knowledge_bases: entries }, null, 2)}\n`), sha: current.sha } });
+    if (put.__ok) return { updated: true };
+    if (put.__status !== 409 || attempt === 2) throw new Error(`Registry update failed (${put.__status}): ${put.message ?? 'unknown'}`);
+  }
+  throw new Error('Could not update registry');
+}

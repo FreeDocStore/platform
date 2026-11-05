@@ -6,7 +6,7 @@ import type { DeploymentSetup } from './deployment';
 import type { Env } from './types';
 
 interface Account { id: string; name: string }
-export interface HostingConnection { repo: string; accountId: string; accountName: string; status: 'connecting' | 'ready' | 'failed' | 'removed'; updatedAt: string; version?: string; projects: Array<{ name: string; production_branch: string; domains: string[] }> }
+export interface HostingConnection { repo: string; repoId?: number; accountId: string; accountName: string; status: 'connecting' | 'ready' | 'failed' | 'removed'; updatedAt: string; version?: string; projects: Array<{ name: string; production_branch: string; domains: string[] }> }
 export const hostingKey = (repo: string) => `hosting:${repo.toLowerCase()}`;
 export const hostingVersionPrefix = (repo: string) => `hosting-version:${repo.toLowerCase()}:`;
 export const hostingVersionKey = (repo: string, version: string) => `${hostingVersionPrefix(repo)}${version}`;
@@ -14,9 +14,9 @@ const legacyKey = (repo: string, account: string) => `hosting-legacy:${repo.toLo
 
 export async function setupConnection(env: Env, setup: DeploymentSetup): Promise<HostingConnection | null> {
   const connection = setup.credentialVersion
-    ? await env.FDS_API_KV.get<HostingConnection>(hostingVersionKey(setup.repo, setup.credentialVersion), 'json')
+    ? await env.FDS_API_KV.get<HostingConnection>(hostingVersionKey(setup.repo, setup.credentialVersion), 'json') ?? (setup.credentialRepo ? await env.FDS_API_KV.get<HostingConnection>(hostingVersionKey(setup.credentialRepo, setup.credentialVersion), 'json') : null)
     : await env.FDS_API_KV.get<HostingConnection>(legacyKey(setup.repo, setup.accountId), 'json') ?? await env.FDS_API_KV.get<HostingConnection>(hostingKey(setup.repo), 'json');
-  return connection?.status === 'ready' && connection.repo.toLowerCase() === setup.repo.toLowerCase() && connection.accountId === setup.accountId && connection.version === setup.credentialVersion ? connection : null;
+  return connection?.status === 'ready' && setup.repoId !== undefined && connection.repoId === setup.repoId && [setup.repo, setup.credentialRepo].filter(Boolean).some(repo => connection.repo.toLowerCase() === repo!.toLowerCase()) && connection.accountId === setup.accountId && connection.version === setup.credentialVersion ? connection : null;
 }
 
 export async function cloudflareRequest<T>(token: string, path: string): Promise<T> {
@@ -70,10 +70,10 @@ export async function connectHosting(env: Env, githubToken: string, input: { rep
   const names = credentialNames(version);
   if (secrets.has(names.account) || secrets.has(names.token)) throw new ProvisioningError(409, 'This credential version already exists. Retry staging to generate another version.');
   const previous = await env.FDS_API_KV.get<HostingConnection>(hostingKey(repo.full_name), 'json');
-  if (previous?.status === 'ready' && !previous.version) {
+  if (previous?.status === 'ready' && previous.repoId === repo.id && !previous.version) {
     await env.FDS_API_KV.put(legacyKey(repo.full_name, previous.accountId), JSON.stringify(previous));
   }
-  const connection: HostingConnection = { repo: repo.full_name, accountId: account.id, accountName: account.name, status: 'connecting', updatedAt: new Date().toISOString(), projects, version };
+  const connection: HostingConnection = { repo: repo.full_name, repoId: repo.id, accountId: account.id, accountName: account.name, status: 'connecting', updatedAt: new Date().toISOString(), projects, version };
   const key = hostingVersionKey(repo.full_name, version);
   // Persist only the terminal outcome: version records are immutable, avoiding
   // rapid connecting/ready writes to the same Workers KV key.

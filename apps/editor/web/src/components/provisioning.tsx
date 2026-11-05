@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { fds, type User } from '../lib/fds'
 import { buildLineDiff, messageOf, type RegistryKb } from '../model'
 import { startDeploymentPolling } from '../services/deployment-polling'
-import { provisioning, type OrganizationInstallation, type SetupRepository, type HostingConnection, type HostingProject, type SetupPlan, type DeploymentStatus } from '../services/provisioning'
+import { provisioning, type OrganizationInstallation, type SetupRepository, type HostingConnection, type HostingProject, type SetupPlan, type DeploymentStatus, type PublishingRecord } from '../services/provisioning'
 import type { KnowledgeBaseDraft } from '../model/types'
 
 export function ProvisioningPage({ user, draft, onEdit, onInstallationSelected }: { user: User; draft: KnowledgeBaseDraft; onEdit: (entry: RegistryKb) => void; onInstallationSelected: (owner: string) => void }) {
@@ -71,6 +71,11 @@ export function ProvisioningPage({ user, draft, onEdit, onInstallationSelected }
 
 function RepositorySetup({ repo, draft, onEdit }: { repo: SetupRepository; draft: KnowledgeBaseDraft; onEdit: (entry: RegistryKb) => void }) {
   const [connection, setConnection] = useState<HostingConnection | null>(null)
+  const [publishingRecord, setPublishingRecord] = useState<PublishingRecord | null>(null)
+  const [reconciliation, setReconciliation] = useState<{ status: string; message: string } | null>(null)
+  const [lifecycleDialog, setLifecycleDialog] = useState<{ action: 'unpublish' | 'disconnect'; effects: string[] } | null>(null)
+  const [removeManagedSecrets, setRemoveManagedSecrets] = useState(false)
+  const [showHistory, setShowHistory] = useState(false)
   const [token, setToken] = useState('')
   const [accounts, setAccounts] = useState<Array<{ id: string; name: string }>>([])
   const [accountId, setAccountId] = useState('')
@@ -106,6 +111,7 @@ function RepositorySetup({ repo, draft, onEdit }: { repo: SetupRepository; draft
       if (!mounted.current) return
       setConnection(result.connection); setProjects(result.connection?.projects ?? [])
       if (result.setup) {
+        setPublishingRecord(result.setup)
         setPreviousTarget(result.setup)
         setProject(result.setup.project); setDomain(result.setup.domain); setHasSetup(true)
         if (!result.connection?.projects?.some(project => project.name === result.setup!.project)) setProjects(current => [...current, { name: result.setup!.project, production_branch: result.setup!.branch, domains: [], configured: true }])
@@ -128,7 +134,7 @@ function RepositorySetup({ repo, draft, onEdit }: { repo: SetupRepository; draft
     catch (error) { if (signal.aborted) throw error; return { ...result, registrationWarning: 'Your site is verified live, but library registration could not be completed. Check deployment again to retry.' } }
   }
   useEffect(() => {
-    if (!hasSetup) return
+    if (!hasSetup || publishingRecord?.status === 'unpublished' || publishingRecord?.status === 'disconnected') return
     const current = startDeploymentPolling({
       load: checkDeployment,
       onValue: value => { setDeployment(value); setPollingError('') },
@@ -136,7 +142,7 @@ function RepositorySetup({ repo, draft, onEdit }: { repo: SetupRepository; draft
     })
     poller.current = current
     return () => { current.stop(); if (poller.current === current) poller.current = null }
-  }, [hasSetup, repo.fullName])
+  }, [hasSetup, repo.fullName, publishingRecord?.status])
   const checkedAccounts = accounts.length > 0
   async function checkAccounts() {
     const result = await provisioning.accounts(token)
@@ -182,6 +188,18 @@ function RepositorySetup({ repo, draft, onEdit }: { repo: SetupRepository; draft
         <button className="primary-action" type="button" disabled={Boolean(busy) || !accountId} onClick={() => void run('Staging Cloudflare credentials…', connect)}>Stage hosting credentials</button>
       </>}
     </section>
+    {hasSetup && publishingRecord && <section className="section-block" aria-labelledby="publishing-lifecycle-title">
+      <h2 id="publishing-lifecycle-title">Publishing lifecycle</h2>
+      <p>State: <strong>{publishingRecord.status ?? 'active'}</strong>{reconciliation && <> · Reconciliation: <strong>{reconciliation.status.replaceAll('_', ' ')}</strong> — {reconciliation.message}</>}</p>
+      {reconciliation && ['access_lost', 'suspended', 'not_found', 'provider_outage'].includes(reconciliation.status) && <p role="status">Last-known configuration is retained. {reconciliation.status === 'provider_outage' ? 'Retry reconciliation when GitHub is available.' : reconciliation.status === 'suspended' ? 'Ask an organization owner to restore the GitHub App installation.' : 'Restore repository access or review the GitHub App installation, then reconcile again.'}</p>}
+      {reconciliation?.status === 'renamed' && <p role="status">Repository was renamed to {publishingRecord.repoFullName ?? repo.fullName}. Re-run setup to review the current target.</p>}
+      {reconciliation?.status === 'branch_changed' && <p role="status">Default branch changed to {repo.branch}. Review setup before deploying.</p>}
+      <div className="action-row"><button className="secondary-action" type="button" disabled={Boolean(busy)} onClick={() => void run('Reconciling GitHub repository…', async () => { const result = await provisioning.reconcile(publishingRecord.repoId ?? repo.id, publishingRecord.repoFullName ?? repo.fullName); setReconciliation({ status: result.status, message: result.record.message }); setPublishingRecord(result.setup) })}>Reconcile now</button>
+        <button className="secondary-action" type="button" disabled={Boolean(busy) || publishingRecord.status === 'disconnected'} onClick={() => void run('Reviewing unpublish effects…', async () => { const result = await provisioning.unpublish(publishingRecord.repoId ?? repo.id, publishingRecord.repoFullName ?? repo.fullName, false); setLifecycleDialog({ action: 'unpublish', effects: result.effects }) })}>Unpublish</button>
+        <button className="secondary-action" type="button" disabled={Boolean(busy) || publishingRecord.status === 'disconnected'} onClick={() => void run('Reviewing disconnect effects…', async () => { const result = await provisioning.disconnect(publishingRecord.repoId ?? repo.id, publishingRecord.repoFullName ?? repo.fullName, false); setLifecycleDialog({ action: 'disconnect', effects: result.effects }); setRemoveManagedSecrets(false) })}>Disconnect</button></div>
+      <details open={showHistory} onToggle={event => setShowHistory(event.currentTarget.open)}><summary>Publishing history ({publishingRecord.history?.length ?? 0})</summary>{publishingRecord.history?.length ? <ol>{publishingRecord.history.map((item, index) => <li key={`${item.at}-${index}`}><strong>{item.event}</strong> · {item.actor} · {new Date(item.at).toLocaleString()}</li>)}</ol> : <p>No lifecycle events recorded.</p>}</details>
+      {lifecycleDialog && <div role="dialog" aria-modal="true" aria-labelledby="lifecycle-confirm-title" className="setup-review"><h3 id="lifecycle-confirm-title">Review {lifecycleDialog.action} effects</h3><ul>{lifecycleDialog.effects.map(effect => <li key={effect}>{effect}</li>)}</ul>{lifecycleDialog.action === 'disconnect' && <label className="setup-checkbox"><input type="checkbox" checked={removeManagedSecrets} disabled={Boolean(busy)} onChange={event => setRemoveManagedSecrets(event.target.checked)} />Also remove the recorded repository credential secrets as a separate explicit action.</label>}<div className="action-row"><button className="secondary-action" type="button" disabled={Boolean(busy)} onClick={() => setLifecycleDialog(null)}>Cancel</button><button className="primary-action" type="button" disabled={Boolean(busy)} onClick={() => void run(`${lifecycleDialog.action === 'unpublish' ? 'Unpublishing' : 'Disconnecting'} repository…`, async () => { const result = lifecycleDialog.action === 'unpublish' ? await provisioning.unpublish(publishingRecord.repoId ?? repo.id, publishingRecord.repoFullName ?? repo.fullName, true) : await provisioning.disconnect(publishingRecord.repoId ?? repo.id, publishingRecord.repoFullName ?? repo.fullName, true, removeManagedSecrets); const refreshed = await provisioning.connection(publishingRecord.repoFullName ?? repo.fullName); if (refreshed.setup) setPublishingRecord(refreshed.setup); setLifecycleDialog(null); setStatus('registryWarning' in result ? result.registryWarning ?? 'Publishing disabled.' : lifecycleDialog.action === 'unpublish' ? 'Publishing disabled. The hosted site and repository content were preserved.' : 'Repository disconnected. The hosted site and repository content were preserved.') })}>{lifecycleDialog.action === 'unpublish' ? 'Confirm unpublish' : 'Confirm disconnect'}</button></div></div>}
+    </section>}
     {connection?.status === 'ready' && connection.version && !token && <section className="section-block"><h2>3. Review the publishing setup</h2>
       <p>Draft: <strong>{draft.title}</strong> · {draft.files.length} AI generated files remain in workspace draft storage until you review and apply setup. Target repository: <strong>{repo.fullName}</strong> · default branch: <strong>{repo.branch}</strong>.</p><p><a href={`https://github.com/${repo.fullName}/tree/${encodeURIComponent(repo.branch)}/.github/workflows`} target="_blank" rel="noreferrer">View existing workflows on GitHub</a></p>
       <label className="field"><span>Pages project</span><select value={newProject ? '__new' : project} disabled={Boolean(busy)} onChange={event => { const create = event.target.value === '__new'; setNewProject(create); setProject(create ? suggested : event.target.value); changeTarget() }}><option value="">Choose an existing project…</option>{projects.map(item => <option key={item.name} value={item.name}>{item.name} · {item.configured ? 'configured target' : item.production_branch}</option>)}<option value="__new">Create a new Pages project</option></select></label>

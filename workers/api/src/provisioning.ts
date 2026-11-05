@@ -9,7 +9,7 @@ export interface Installation {
   id: number; app_id: number; app_slug: string; repository_selection?: string; suspended_at?: string | null;
   account: { login: string; type: string }; permissions: Record<string, string>;
 }
-export interface Repository { full_name: string; name: string; private: boolean; archived?: boolean; disabled?: boolean; default_branch: string; permissions?: { admin?: boolean; push?: boolean } }
+export interface Repository { id: number; full_name: string; name: string; private: boolean; archived?: boolean; disabled?: boolean; default_branch: string; permissions?: { admin?: boolean; push?: boolean } }
 
 export async function installations(token: string, env: Env) {
   if (!env.GH_APP_ID) throw new ProvisioningError(503, 'The FreeDocStore GitHub App is not configured for organization setup.');
@@ -44,6 +44,12 @@ export async function managedRepository(token: string, name: string) {
   if (repo.archived || repo.disabled || repo.permissions?.push !== true) throw new ProvisioningError(403, 'The selected GitHub account needs write access to this active repository.');
   if (!validBranch(repo.default_branch) || repo.default_branch.includes('${{')) throw new ProvisioningError(422, 'The repository needs a valid default branch before setup.');
   return repo;
+}
+
+/** Read a repository through its stable GitHub numeric identity. */
+export async function repositoryById(token: string, id: number) {
+  if (!Number.isSafeInteger(id) || id <= 0) throw new ProvisioningError(400, 'Select a valid repository identity.');
+  return gh<Repository>(token, `/repositories/${id}`, { missing: true });
 }
 
 export async function readSource(token: string, repo: string, path: string, ref: string) {

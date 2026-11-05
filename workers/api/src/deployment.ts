@@ -6,9 +6,17 @@ export interface DeploymentSetup {
   repo: string; branch: string; project: string; domain: string; accountId: string;
   workflow: string; updatedAt: string; expectedSha?: string; prNumber?: number; prUrl?: string;
   dispatchedAt?: string; revision?: string; credentialVersion?: string;
+  repoId?: number; repoFullName?: string; installationId?: number;
+  credentialRepo?: string;
+  status?: 'active' | 'unpublished' | 'disconnected'; history?: HistoryEntry[];
+  workflowDisabled?: boolean;
+}
+export interface HistoryEntry { event: 'setup' | 'deploy' | 'unpublish' | 'disconnect' | 'reconnect' | 'reconcile' | 'secret_removed'; actor: string; at: string; details: Record<string, string | number | boolean | null> }
+export function appendHistory(setup: DeploymentSetup, entry: HistoryEntry): DeploymentSetup {
+  return { ...setup, history: [entry, ...(setup.history ?? [])].slice(0, 50) };
 }
 export const deploymentKey = (repo: string) => `deployment:${repo.toLowerCase()}`;
-export const dispatchKey = (setup: DeploymentSetup) => `deployment-dispatch:${setup.repo.toLowerCase()}:${setup.revision ?? setup.updatedAt}`;
+export const dispatchKey = (setup: DeploymentSetup) => `deployment-dispatch:${setup.repoId ?? setup.repo.toLowerCase()}:${setup.revision ?? setup.updatedAt}`;
 interface DispatchIntent { expectedSha: string; requestedAt: string; refused?: string }
 
 async function setupPull(token: string, setup: DeploymentSetup) {
@@ -46,6 +54,8 @@ export async function requireSetup(env: Env, token: string, name: string) {
   const repo = await managedRepository(token, name);
   const setup = await env.FDS_API_KV.get<DeploymentSetup>(deploymentKey(repo.full_name), 'json');
   if (!setup) throw new ProvisioningError(404, 'Review and apply the repository setup before deploying.');
+  if (!setup.repoId || setup.repoId !== repo.id) throw new ProvisioningError(409, 'This publishing record is not linked to the current repository identity. Review setup again before deploying.');
+  if (setup.status === 'unpublished' || setup.status === 'disconnected') throw new ProvisioningError(409, 'Publishing is disabled for this repository. Review setup to reconnect publishing.');
   if (setup.branch !== repo.default_branch) throw new ProvisioningError(409, 'The default branch changed. Review setup again before deploying.');
   return setup;
 }
@@ -55,6 +65,7 @@ export async function dispatchDeployment(env: Env, token: string, setup: Deploym
   if (pr && !pr.merged) throw new ProvisioningError(409, pr.state === 'closed' ? 'The setup pull request was closed without merging. Review setup again.' : 'Merge the setup pull request before deploying.');
   const workflow = await readSource(token, setup.repo, SETUP_WORKFLOW, setup.branch);
   if (workflow?.content !== setup.workflow) throw new ProvisioningError(409, 'The reviewed workflow is not on the default branch. Merge its setup pull request, or review setup again if the workflow changed.');
+  if (setup.workflowDisabled) await gh(token, `/repos/${setup.repo}/actions/workflows/${encodeURIComponent(SETUP_WORKFLOW)}/enable`, { method: 'PUT' });
   const ref = await gh<{ object: { sha: string } }>(token, `/repos/${setup.repo}/git/ref/heads/${encodeURIComponent(setup.branch)}`);
   if (!ref?.object?.sha) throw new ProvisioningError(502, 'Could not resolve the deployment source version.');
   const intent: DispatchIntent = { expectedSha: ref.object.sha, requestedAt: new Date().toISOString() };

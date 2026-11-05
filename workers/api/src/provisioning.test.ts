@@ -61,8 +61,8 @@ function fixture(options: { private?: boolean; admin?: boolean; branch?: string;
     if (path === '/repos/FreeDocStore/platform/contents/site/registry.json') return method === 'PUT' ? json({ content: { sha: 'registry-sha' } }) : json({ content: base64('{"knowledge_bases":[]}'), sha: 'registry-old' });
     if (path === '/apps/freedocstore') return options.privateApp ? json({}, 404) : json({ id: 4278932 });
     if (path === '/user/installations') return json({ installations: [{ id: 7, app_id: 4278932, app_slug: 'freedocstore', account: { login: 'ExampleOrg', type: 'Organization' }, permissions: { contents: 'write', actions: 'write', secrets: 'write', workflows: 'write' } }] });
-    if (path === '/user/installations/7/repositories') return json({ repositories: [{ full_name: REPO, name: 'knowledge', private: false, default_branch: 'release', permissions: { admin: true, push: true } }] });
-    if (path === `/repos/${REPO}`) return json({ full_name: REPO, name: 'knowledge', private: options.private ?? false, default_branch: options.branch ?? 'release', permissions: { admin: options.admin ?? true, push: true } });
+    if (path === '/user/installations/7/repositories') return json({ repositories: [{ id: 100, full_name: REPO, name: 'knowledge', private: false, default_branch: 'release', permissions: { admin: true, push: true } }] });
+    if (path === `/repos/${REPO}`) return json({ id: 100, full_name: REPO, name: 'knowledge', private: options.private ?? false, default_branch: options.branch ?? 'release', permissions: { admin: options.admin ?? true, push: true } });
     if (path.endsWith('/actions/secrets/public-key')) return json({ key: btoa(String.fromCharCode(...recipient.publicKey)), key_id: 'key-id' });
     if (path.endsWith('/actions/secrets')) return options.permissionsFailure ? json({}, 403) : json({ secrets: [...secrets.keys()].map(name => ({ name })) });
     if (path.includes('/actions/secrets/')) {
@@ -76,6 +76,7 @@ function fixture(options: { private?: boolean; admin?: boolean; branch?: string;
     if (path.endsWith('/branches')) return json((options.branchHeads?.() ?? [HEAD]).map((sha, index) => ({ name: `branch-${index}`, commit: { sha } })));
     if (path.endsWith('/pulls') && method === 'GET') return json(options.openPrHead ? [{ number: 9, head: { sha: options.openPrHead } }] : []);
     if (path.includes('/git/ref/heads/')) return json({ object: { sha: options.head ?? HEAD } });
+    if (path.endsWith('/actions/workflows/deploy.yml/enable')) return new Response(null, { status: 204 });
     if (path.includes('/git/commits/')) return json({ tree: { sha: 'base-tree' } });
     if (path.includes('/contents/')) {
       if (options.sourceFailure) return json({}, options.sourceFailure);
@@ -267,7 +268,7 @@ it('verifies the exact public source version after a merged setup PR', async () 
 });
 
 
-const setup = (): DeploymentSetup => ({ repo: REPO, branch: 'release', project: 'customer-docs', domain: '', accountId: ACCOUNT, workflow: 'name: Reviewed deployment', updatedAt: new Date().toISOString(), expectedSha: HEAD });
+const setup = (): DeploymentSetup => ({ repo: REPO, repoFullName: REPO, repoId: 100, installationId: 7, branch: 'release', project: 'customer-docs', domain: '', accountId: ACCOUNT, workflow: 'name: Reviewed deployment', updatedAt: new Date().toISOString(), expectedSha: HEAD, status: 'active' });
 
 it('explains unavailable public app installations while keeping existing configuration links', async () => {
   const f = fixture({ privateApp: true });
@@ -414,7 +415,7 @@ describe('reviewed credential activation', () => {
     const f = fixture(options); f.values.set(hostingKey(REPO), JSON.stringify(active));
     expect((await f.connect()).status).toBe(403);
     expect(JSON.parse(f.values.get(hostingKey(REPO))!)).toEqual(active);
-    expect(await setupConnection(f.env, setup())).toEqual(active);
+    expect(await setupConnection(f.env, setup())).toBeNull();
     const result = await (await f.request(`staging?repo=${REPO}`)).json() as any;
     expect(result.versions).toHaveLength(1); expect(result.versions[0].status).toBe('failed');
     expect(JSON.stringify(result)).not.toContain(TOKEN);
@@ -446,16 +447,16 @@ describe('reviewed credential activation', () => {
     expect(JSON.parse(f.values.get(deploymentKey(REPO))!).credentialVersion).toBe(second.version);
   });
 
-  it('keeps legacy deployment retry available after staging another account, but requires staging for new reviews', async () => {
+  it('does not reuse name-only legacy credentials for a stable repository identity', async () => {
     const f = fixture({ account: 'c'.repeat(32), existingSecrets: true });
     const legacy = { repo: REPO, accountId: ACCOUNT, accountName: 'Original account', status: 'ready', projects: [], updatedAt: 'previous' };
     f.values.set(hostingKey(REPO), JSON.stringify(legacy));
     f.values.set(deploymentKey(REPO), JSON.stringify(setup()));
     expect((await f.request('plan', { repo: REPO, project: 'customer-docs', confirmUseProject: true })).status).toBe(409);
     await f.request('connect', { repo: REPO, token: TOKEN, accountId: 'c'.repeat(32) });
-    expect(await setupConnection(f.env, setup())).toEqual(legacy);
+    expect(await setupConnection(f.env, setup())).toBeNull();
     f.files.set('.github/workflows/deploy.yml', { content: setup().workflow, sha: SOURCE_SHA });
-    expect((await f.request('deploy', { repo: REPO })).status).toBe(200);
+    expect((await f.request('deploy', { repo: REPO })).status).toBe(409);
   });
 });
 
