@@ -37,16 +37,16 @@ describe("findKnowledgeBase", () => {
 
 describe("readRepoFile", () => {
   it("decodes base64 file contents", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => json({ content: b64("# Hello\n"), encoding: "base64" })));
-    expect(await readRepoFile(REPO, "docs/index.md", "main")).toBe("# Hello\n");
+    vi.stubGlobal("fetch", vi.fn(async () => json({ type: "file", sha: "c".repeat(40), content: b64("# Hello\n"), encoding: "base64" })));
+    expect(await readRepoFile(REPO, "docs/index.md", "main")).toEqual({ content: "# Hello\n", sha: "c".repeat(40) });
   });
   it("returns null for a non-base64 or missing file", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => json({ message: "Not Found" }, 404)));
-    expect(await readRepoFile(REPO, "nope.md")).toBeNull();
+    expect(await readRepoFile(REPO, "nope.md", "main")).toBeNull();
   });
   it.each([401, 403, 429, 500])("throws GitHubError on %i instead of returning null", async (status) => {
     vi.stubGlobal("fetch", vi.fn(async () => json({ message: "upstream failure" }, status)));
-    const err = await readRepoFile(REPO, "docs/index.md").catch((e) => e);
+    const err = await readRepoFile(REPO, "docs/index.md", "main").catch((e) => e);
     expect(err).toBeInstanceOf(GitHubError);
     expect(err).toMatchObject({ status, message: `GitHub API ${status}: upstream failure` });
   });
@@ -56,7 +56,7 @@ describe("listRepoFiles", () => {
   it("returns blobs and trees from the recursive tree", async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const path = new URL(String(input)).pathname;
-      if (path.endsWith("/git/ref/heads/main")) return json({ object: { sha: "head" } });
+      if (path.endsWith("/git/ref/heads/main")) return json({ object: { sha: 'a'.repeat(40) } });
       if (path.includes("/git/trees/")) {
         return json({ tree: [
           { path: "docs", type: "tree" },
@@ -66,16 +66,16 @@ describe("listRepoFiles", () => {
       return json({}, 404);
     });
     vi.stubGlobal("fetch", fetchMock);
-    const files = await listRepoFiles(REPO);
+    const files = await listRepoFiles(REPO, "main");
     expect(files.map((f) => f.path)).toEqual(["docs", "docs/index.md"]);
   });
   it("returns [] when the branch ref is missing", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => json({ message: "no ref" }, 404)));
-    expect(await listRepoFiles(REPO)).toEqual([]);
+    await expect(listRepoFiles(REPO, "main")).rejects.toThrow(/Cannot resolve branch/);
   });
   it.each([401, 403, 429, 500])("throws GitHubError when the ref lookup fails with %i", async (status) => {
     vi.stubGlobal("fetch", vi.fn(async () => json({ message: "upstream failure" }, status)));
-    const err = await listRepoFiles(REPO).catch((e) => e);
+    const err = await listRepoFiles(REPO, "main").catch((e) => e);
     expect(err).toBeInstanceOf(GitHubError);
     expect(err.status).toBe(status);
   });
@@ -83,10 +83,10 @@ describe("listRepoFiles", () => {
     vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) =>
       new URL(String(input)).pathname.includes("/git/trees/")
         ? json({ message: "tree failure" }, status)
-        : json({ object: { sha: "head" } })));
-    const err = await listRepoFiles(REPO).catch((e) => e);
+        : json({ object: { sha: 'a'.repeat(40) } })));
+    const err = await listRepoFiles(REPO, "main").catch((e) => e);
     expect(err).toBeInstanceOf(GitHubError);
-    expect(err).toMatchObject({ status, message: `GitHub API ${status}: tree failure` });
+    expect(err).toMatchObject({ status, message: `GitHub API ${status}: Could not read the source tree.` });
   });
 });
 
@@ -118,17 +118,19 @@ function mockGitHub(opts: MockOpts = {}) {
     const path = url.pathname;
     const body = init?.body ? JSON.parse(String(init.body)) : undefined;
     calls.push({ method, path, body });
+    if (path === `/repos/${REPO}`) return json({ full_name: REPO, private: false, default_branch: 'main' });
+    if (path.includes('/contents/')) return json({ type: 'file', sha: 'c'.repeat(40) });
     if (path.endsWith("/git/ref/heads/main") && method === "GET") {
-      return opts.failAt === "ref" ? json({ message: "no ref" }, 404) : json({ object: { sha: "head-sha" } });
+      return opts.failAt === "ref" ? json({ message: "no ref" }, 404) : json({ object: { sha: 'a'.repeat(40) } });
     }
-    if (path.includes("/git/commits/") && method === "GET") return json({ tree: { sha: "base-tree" } });
-    if (path.endsWith("/git/blobs") && method === "POST") return json({ sha: "blob-1" }, 201);
+    if (path.includes("/git/commits/") && method === "GET") return json({ tree: { sha: 'b'.repeat(40) } });
+    if (path.endsWith("/git/blobs") && method === "POST") return json({ sha: 'c'.repeat(40) }, 201);
     if (path.endsWith("/git/trees") && method === "POST") {
-      return opts.failAt === "tree" ? json({ message: "boom" }, 500) : json({ sha: "new-tree" }, 201);
+      return opts.failAt === "tree" ? json({ message: "boom" }, 500) : json({ sha: 'e'.repeat(40) }, 201);
     }
-    if (path.endsWith("/git/commits") && method === "POST") return json({ sha: "commit-1", html_url: "https://github.com/c" }, 201);
-    if (path.endsWith("/git/refs/heads/main") && method === "PATCH") return json({ object: { sha: "commit-1" } });
-    if (path.endsWith("/git/refs") && method === "POST") return json({ object: { sha: "commit-1" } }, 201);
+    if (path.endsWith("/git/commits") && method === "POST") return json({ sha: 'd'.repeat(40), html_url: "https://github.com/c" }, 201);
+    if (path.endsWith("/git/refs/heads/main") && method === "PATCH") return json({ object: { sha: 'd'.repeat(40) } });
+    if (path.endsWith("/git/refs") && method === "POST") return json({ object: { sha: 'd'.repeat(40) } }, 201);
     if (path.endsWith("/pulls") && method === "POST") {
       return opts.failAt === "pr" ? json({ message: "pr boom" }, 422) : json({ number: 3, html_url: "https://github.com/pr/3" }, 201);
     }
@@ -138,7 +140,7 @@ function mockGitHub(opts: MockOpts = {}) {
   return { calls };
 }
 
-const editInput = { token: "gho_user", repoFullName: REPO, message: "Edit", files: [{ path: "docs/index.md", content: "# New\n" }] };
+const editInput = { token: "gho_user", repoFullName: REPO, message: "Edit", files: [{ path: "docs/index.md", content: "# New\n" }], expectedFiles: { "docs/index.md": "c".repeat(40) } };
 
 describe("updateRepoFiles", () => {
   it("opens a PR in pr mode", async () => {
@@ -159,13 +161,13 @@ describe("updateRepoFiles", () => {
   });
   it("stages deletions as null-sha tree entries", async () => {
     const gh = mockGitHub();
-    await updateRepoFiles({ ...editInput, deletePaths: ["docs/old.md"], mode: "direct" });
+    await updateRepoFiles({ ...editInput, deletePaths: ["docs/old.md"], expectedFiles: { ...editInput.expectedFiles, "docs/old.md": "c".repeat(40) }, mode: "direct" });
     const tree = gh.calls.find((c) => c.path.endsWith("/git/trees"))!;
     expect(tree.body.tree).toContainEqual({ path: "docs/old.md", mode: "100644", type: "blob", sha: null });
   });
   it("reports a missing base branch, a failed tree, and a failed PR", async () => {
     mockGitHub({ failAt: "ref" });
-    expect((await updateRepoFiles({ ...editInput, mode: "pr" })).error).toMatch(/Could not resolve main/);
+    await expect(updateRepoFiles({ ...editInput, mode: "pr" })).rejects.toThrow(/Cannot resolve branch main/);
     mockGitHub({ failAt: "tree" });
     expect((await updateRepoFiles({ ...editInput, mode: "direct" })).error).toMatch(/Tree create failed/);
     mockGitHub({ failAt: "pr" });

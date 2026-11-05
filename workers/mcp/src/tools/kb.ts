@@ -1,7 +1,6 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import {
-  GitHubError,
   findKnowledgeBase,
   getDeployStatus,
   listRepoFiles,
@@ -12,10 +11,12 @@ import {
   type Env,
   type McpProps,
   txt,
-  repoFromInput,
+  toolError,
   renderKb,
   slugify,
 } from "./helpers.js";
+
+import { resolveTarget, renderTarget } from "./target.js";
 
 interface Agent {
   server: McpServer;
@@ -28,8 +29,7 @@ async function withGitHub<T>(action: string, run: () => Promise<T>): Promise<T |
   try {
     return await run();
   } catch (err) {
-    if (err instanceof GitHubError) return txt(`Error ${action}: ${err.message}`);
-    throw err;
+    return toolError(`Error ${action}: ${err instanceof Error ? err.message : "Could not resolve the public source. Retry."}`);
   }
 }
 
@@ -59,8 +59,8 @@ Invite readiness:
 
 Editing flow (update_files):
 1. read_file / list_files to load current content.
-2. update_files with the changed Markdown. Default mode "pr" opens a reviewable pull request.
-3. Merge the PR (or use mode "direct" to commit straight to main).
+2. update_files with the changed Markdown. Default mode "pr" opens a reviewable pull request. Supply expected_files with reviewed blob versions (null for a confirmed missing file).
+3. Merge the PR (or use mode "direct" to commit straight to the resolved publishing branch).
 4. GitHub Actions rebuilds with Zensical and redeploys Cloudflare Pages automatically.
 
 Recommended first flow:
@@ -101,26 +101,28 @@ Recommended first flow:
     "check_zensical_repo",
     "Validate that a public GitHub repo matches the FreeDocStore Zensical contract.",
     {
-      repo: z.string().describe("Repo as owner/name, or just name under the FreeDocStore org"),
-      branch: z.string().optional().describe("Branch to inspect, default main"),
+      repo: z.string().describe("Registered KB id, owner/name, or an unambiguous repository short name"),
+      branch: z.string().optional().describe("Override the registered source branch or actual repository default"),
     },
     async ({ repo, branch }) => {
-      const fullRepo = repoFromInput(agent.env, repo);
-      return withGitHub(`checking ${fullRepo}`, async () => {
-        const files = await listRepoFiles(fullRepo, branch ?? "main");
-        if (files.length === 0) return txt(`Could not read ${fullRepo}, or it has no files on ${branch ?? "main"}.`);
+      return withGitHub(`checking ${repo}`, async () => {
+        const target = await resolveTarget(agent.env, repo, branch, agent.props?.githubAccessToken);
+        const fullRepo = target.repo;
+        const files = await listRepoFiles(fullRepo, target.branch, target.commitSha, agent.props?.githubAccessToken);
+        const docs = target.source.docs_dir;
         const paths = new Set(files.map((f) => f.path));
-        const markdown = files.filter((f) => f.path.startsWith("docs/") && f.path.endsWith(".md")).map((f) => f.path);
+        const markdown = files.filter((f) => f.path.startsWith(`${docs}/`) && f.path.endsWith(".md")).map((f) => f.path);
         const checks = [
-          ["zensical.toml at repo root", paths.has("zensical.toml")],
-          ["docs/index.md exists", paths.has("docs/index.md")],
-          ["docs/ contains Markdown", markdown.length > 0],
+          [`${target.source.config} exists`, paths.has(target.source.config)],
+          [`${docs}/index.md exists`, paths.has(`${docs}/index.md`)],
+          [`${docs}/ contains Markdown`, markdown.length > 0],
           ["generated site/ is not committed", !files.some((f) => f.path === "site" || f.path.startsWith("site/"))],
-          ["no embedded static HTML docs", !files.some((f) => f.path.startsWith("docs/") && f.path.endsWith(".html"))],
+          ["no embedded static HTML docs", !files.some((f) => f.path.startsWith(`${docs}/`) && f.path.endsWith(".html"))],
         ] as const;
         const passed = checks.filter(([, ok]) => ok).length;
         const lines = checks.map(([label, ok]) => `- ${ok ? "OK" : "FAIL"} ${label}`);
         return txt([
+          renderTarget(target),
           `Zensical contract check for ${fullRepo}: ${passed}/${checks.length}`,
           "",
           lines.join("\n"),
@@ -135,15 +137,16 @@ Recommended first flow:
     "list_files",
     "List files in a public KB repo.",
     {
-      repo: z.string().describe("Repo as owner/name, or just name under the FreeDocStore org"),
-      branch: z.string().optional().describe("Branch to inspect, default main"),
+      repo: z.string().describe("Registered KB id, owner/name, or an unambiguous repository short name"),
+      branch: z.string().optional().describe("Override the registered source branch or actual repository default"),
     },
     async ({ repo, branch }) => {
-      const fullRepo = repoFromInput(agent.env, repo);
-      return withGitHub(`listing files in ${fullRepo}`, async () => {
-        const files = await listRepoFiles(fullRepo, branch ?? "main");
-        if (files.length === 0) return txt(`No files found for ${fullRepo}.`);
-        return txt(`Files in ${fullRepo}:\n\n${files.map((f) => `- ${f.path}`).join("\n")}`);
+      return withGitHub(`listing files in ${repo}`, async () => {
+        const target = await resolveTarget(agent.env, repo, branch, agent.props?.githubAccessToken);
+        const files = await listRepoFiles(target.repo, target.branch, target.commitSha, agent.props?.githubAccessToken);
+        return txt(`${renderTarget(target)}
+
+${files.length ? files.map(file => `- ${file.path} (${file.type}, blob/tree SHA: ${file.sha ?? 'unavailable'})`).join('\n') : 'No files at this source commit.'}`);
       });
     },
   );
@@ -152,16 +155,21 @@ Recommended first flow:
     "read_file",
     "Read one source file from a public KB repo.",
     {
-      repo: z.string().describe("Repo as owner/name, or just name under the FreeDocStore org"),
+      repo: z.string().describe("Registered KB id, owner/name, or an unambiguous repository short name"),
       path: z.string().describe("File path, e.g. docs/index.md"),
-      branch: z.string().optional().describe("Branch to inspect, default main"),
+      branch: z.string().optional().describe("Override the registered source branch or actual repository default"),
     },
     async ({ repo, path, branch }) => {
-      const fullRepo = repoFromInput(agent.env, repo);
-      return withGitHub(`reading ${path} from ${fullRepo}`, async () => {
-        const content = await readRepoFile(fullRepo, path, branch ?? "main");
-        if (content === null) return txt(`Could not read ${path} from ${fullRepo}.`);
-        return txt(`File: ${fullRepo}/${path}\n\n\`\`\`\n${content}\n\`\`\``);
+      return withGitHub(`reading ${path} from ${repo}`, async () => {
+        const target = await resolveTarget(agent.env, repo, branch, agent.props?.githubAccessToken);
+        const file = await readRepoFile(target.repo, path, target.commitSha, agent.props?.githubAccessToken);
+        const baseline = JSON.stringify({ [path]: file?.sha ?? null });
+        return txt(`${renderTarget(target)}
+File: ${path}
+Blob SHA: ${file?.sha ?? 'null (missing)'}
+expected_files: ${baseline}
+
+${file ? file.content : 'File is absent at this source commit. Use null only when creating it.'}`);
       });
     },
   );
@@ -169,21 +177,18 @@ Recommended first flow:
   agent.server.tool(
     "deploy_status",
     "Check the last five GitHub Actions runs for a KB repo.",
-    { repo: z.string().describe("Repo as owner/name, registered KB id, or repo name under FreeDocStore") },
-    async ({ repo }) => {
-      let fullRepo = repoFromInput(agent.env, repo);
-      try {
-        const registry = await readRegistry(agent.env.REGISTRY_URL);
-        const kb = findKnowledgeBase(registry, repo);
-        if (kb) fullRepo = kb.source.repo;
-      } catch {
-        // registry unavailable; fall back to repo input as-is
-      }
-      const runs = await getDeployStatus(fullRepo);
-      if (!Array.isArray(runs)) return txt(`Error: ${runs.error}`);
-      if (runs.length === 0) return txt(`No workflow runs found for ${fullRepo}.`);
-      const lines = runs.map((run) => `- ${run.status} ${run.name} (${run.sha}) - ${run.updatedAt}\n  ${run.url}`);
-      return txt(`Deploy history for ${fullRepo}:\n\n${lines.join("\n")}`);
+    { repo: z.string().describe("Registered KB id, owner/name, or unambiguous repository short name"), branch: z.string().optional().describe("Override the registered source branch or repository default") },
+    async ({ repo, branch }) => {
+      return withGitHub(`checking deployments for ${repo}`, async () => {
+        const target = await resolveTarget(agent.env, repo, branch, agent.props?.githubAccessToken);
+        const runs = await getDeployStatus(target.repo, target.branch, agent.props?.githubAccessToken);
+        if (!Array.isArray(runs)) return toolError(`Error: ${runs.error}`);
+        const lines = runs.map(run => `- ${run.status} ${run.name} (${run.sha}) - ${run.updatedAt}\n  ${run.url}`);
+        return txt(`${renderTarget(target)}
+
+Deploy history:
+${lines.length ? lines.join('\n') : 'No workflow runs found.'}`);
+      });
     },
   );
 

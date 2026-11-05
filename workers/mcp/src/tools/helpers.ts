@@ -15,6 +15,8 @@ export interface Env {
 
 export const txt = (text: string) => ({ content: [{ type: "text" as const, text }] });
 
+export const toolError = (message: string) => ({ ...txt(message), isError: true });
+
 export interface McpProps extends Record<string, unknown> {
   userId?: string;
   provider?: string;
@@ -51,10 +53,6 @@ export function slugify(input: string): string {
     .slice(0, 64);
 }
 
-export function repoFromInput(env: Env, kbOrRepo: string): string {
-  return kbOrRepo.includes("/") ? kbOrRepo : `${env.GITHUB_ORG}/${kbOrRepo}`;
-}
-
 export function renderKb(kb: KnowledgeBase): string {
   const domains = kb.cloudflare?.custom_domains?.length ? kb.cloudflare.custom_domains.join(", ") : "(none)";
   return [
@@ -62,7 +60,7 @@ export function renderKb(kb: KnowledgeBase): string {
     `Status: ${kb.status ?? "unknown"}`,
     `Engine: ${kb.engine}`,
     `Repo: https://github.com/${kb.source.repo}`,
-    `Branch: ${kb.source.branch ?? "main"}`,
+    `Branch: ${kb.source.branch ?? "(repository default)"}`,
     `Docs dir: ${kb.source.docs_dir ?? "docs"}`,
     `Config: ${kb.source.config ?? "zensical.toml"}`,
     `Cloudflare project: ${kb.cloudflare?.pages_project ?? kb.id}`,

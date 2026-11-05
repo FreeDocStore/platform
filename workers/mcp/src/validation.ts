@@ -1,0 +1,4 @@
+export const validRepo = (repo: string) => /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?\/[\w.-]{1,100}$/.test(repo) && !['.', '..'].includes(repo.split('/')[1]);
+export const validPath = (path: string) => path.length > 0 && path.length <= 512 && !/[\\\x00-\x1f\x7f]/.test(path) && !path.startsWith('/') && path.split('/').every(part => part !== '' && part !== '.' && part !== '..' && part.toLowerCase() !== '.git');
+export const validBranch = (branch: string) => branch !== '@' && branch.length > 0 && branch.length <= 200 && !/[\x00-\x20\x7f~^:?*\[\\]/.test(branch) && !branch.includes('..') && !branch.includes('@{') && !branch.includes('//') && !/^[\/-]|[\/.]$/.test(branch) && !branch.split('/').some(part => part.startsWith('.') || part.endsWith('.lock'));
+export const validSha = (sha: unknown): sha is string => typeof sha === 'string' && /^[a-f0-9]{40}$/.test(sha);

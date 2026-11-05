@@ -51,13 +51,15 @@ function stubNetwork(opts: { registry?: unknown } = {}) {
     urls.push(`${method} ${url}`);
     if (url === REGISTRY_URL) return json(opts.registry ?? { knowledge_bases: [] });
     const path = new URL(url).pathname;
-    if (path.endsWith("/git/ref/heads/main") && method === "GET") return json({ object: { sha: "head-sha" } });
-    if (path.includes("/git/commits/") && method === "GET") return json({ tree: { sha: "base-tree" } });
-    if (path.endsWith("/git/blobs") && method === "POST") return json({ sha: "blob-1" }, 201);
-    if (path.endsWith("/git/trees") && method === "POST") return json({ sha: "new-tree" }, 201);
-    if (path.endsWith("/git/commits") && method === "POST") return json({ sha: "commit-1", html_url: "https://github.com/c" }, 201);
-    if (path.endsWith("/git/refs/heads/main") && method === "PATCH") return json({ object: { sha: "commit-1" } });
-    if (path.endsWith("/git/refs") && method === "POST") return json({ object: { sha: "commit-1" } }, 201);
+    if (/^\/repos\/[^/]+\/[^/]+$/.test(path)) return json({ full_name: path.slice('/repos/'.length), private: false, default_branch: 'main' });
+    if (path.includes('/contents/')) return json({ type: 'file', sha: 'c'.repeat(40) });
+    if (path.endsWith("/git/ref/heads/main") && method === "GET") return json({ object: { sha: 'a'.repeat(40) } });
+    if (path.includes("/git/commits/") && method === "GET") return json({ tree: { sha: 'b'.repeat(40) } });
+    if (path.endsWith("/git/blobs") && method === "POST") return json({ sha: 'c'.repeat(40) }, 201);
+    if (path.endsWith("/git/trees") && method === "POST") return json({ sha: 'e'.repeat(40) }, 201);
+    if (path.endsWith("/git/commits") && method === "POST") return json({ sha: 'd'.repeat(40), html_url: "https://github.com/c" }, 201);
+    if (path.endsWith("/git/refs/heads/main") && method === "PATCH") return json({ object: { sha: 'd'.repeat(40) } });
+    if (path.endsWith("/git/refs") && method === "POST") return json({ object: { sha: 'd'.repeat(40) } }, 201);
     if (path.endsWith("/pulls") && method === "POST") return json({ number: 3, html_url: "https://github.com/pr/3" }, 201);
     return json({ message: `unexpected ${method} ${path}` }, 404);
   });
@@ -81,9 +83,9 @@ afterEach(() => vi.unstubAllGlobals());
 // --- update_files -----------------------------------------------------------
 
 describe("update_files", () => {
-  const args = { repo: "my-kb", message: "Edit docs", files: [{ path: "docs/index.md", content: "# Hi\n" }] };
+  const args = { repo: "my-kb", message: "Edit docs", files: [{ path: "docs/index.md", content: "# Hi\n" }], expected_files: { "docs/index.md": "c".repeat(40) } };
 
-  it("dry_run returns a plan and never calls GitHub", async () => {
+  it("dry_run resolves and validates source without mutating GitHub", async () => {
     const net = stubNetwork();
     const kv = memKV();
     const tools = captureTools(registerWriteTools, baseEnv(kv), writeProps);
@@ -91,7 +93,7 @@ describe("update_files", () => {
     const text = textOf(res);
     expect(text).toMatch(/Dry run/);
     expect(text).toContain("docs/index.md");
-    expect(net.hitGitHub()).toBe(false);
+    expect(net.urls.every(url => url.startsWith("GET "))).toBe(true);
     expect(auditKeys(kv)).toHaveLength(0);
   });
 
@@ -126,6 +128,15 @@ describe("update_files", () => {
     const keys = auditKeys(kv);
     expect(keys).toHaveLength(1);
     expect(JSON.parse(kv._store.get(keys[0])!)).toMatchObject({ tool: "update_files", action: "open_pr" });
+  });
+
+  it("reports a successful proposal even when audit persistence fails", async () => {
+    stubNetwork(); const kv = memKV();
+    vi.spyOn(kv, 'put').mockRejectedValue(new Error('KV unavailable'));
+    const tools = captureTools(registerWriteTools, baseEnv(kv), writeProps);
+    const result = await tools.update_files(args);
+    expect(textOf(result)).toContain('Opened proposal PR #3');
+    expect(textOf(result)).toContain('audit history could not be saved');
   });
 
   it("rejects a session without the write scope", async () => {
@@ -182,15 +193,15 @@ describe("kb read tools surface GitHub failures", () => {
   ])("list_files reports %i instead of 'No files found'", async (status, message) => {
     failWith(status, message);
     const tools = captureTools(registerKbTools, baseEnv(memKV()), writeProps);
-    const text = textOf(await tools.list_files({ repo: "kb" }));
-    expect(text).toContain(`GitHub API ${status}: ${message}`);
+    const text = textOf(await tools.list_files({ repo: "FreeDocStore/kb", branch: "main" }));
+    expect(text).toContain(`GitHub API ${status}:`);
     expect(text).not.toMatch(/No files found/);
   });
 
-  it("list_files still reports a genuinely missing repo as empty", async () => {
+  it("list_files reports inaccessible repositories instead of inventing an empty source", async () => {
     failWith(404, "Not Found");
     const tools = captureTools(registerKbTools, baseEnv(memKV()), writeProps);
-    expect(textOf(await tools.list_files({ repo: "kb" }))).toBe("No files found for FreeDocStore/kb.");
+    expect(textOf(await tools.list_files({ repo: "FreeDocStore/kb", branch: "main" }))).toContain("Cannot access this public repository");
   });
 
   it.each([
@@ -199,16 +210,16 @@ describe("kb read tools surface GitHub failures", () => {
   ])("read_file reports %i instead of 'Could not read'", async (status, message) => {
     failWith(status, message);
     const tools = captureTools(registerKbTools, baseEnv(memKV()), writeProps);
-    const text = textOf(await tools.read_file({ repo: "kb", path: "docs/index.md" }));
-    expect(text).toContain(`GitHub API ${status}: ${message}`);
+    const text = textOf(await tools.read_file({ repo: "FreeDocStore/kb", branch: "main", path: "docs/index.md" }));
+    expect(text).toContain(`GitHub API ${status}:`);
     expect(text).not.toMatch(/^Could not read/);
   });
 
   it("check_zensical_repo reports a 5xx instead of an empty-repo verdict", async () => {
     failWith(502, "Bad Gateway");
     const tools = captureTools(registerKbTools, baseEnv(memKV()), writeProps);
-    const text = textOf(await tools.check_zensical_repo({ repo: "kb" }));
-    expect(text).toContain("GitHub API 502: Bad Gateway");
+    const text = textOf(await tools.check_zensical_repo({ repo: "FreeDocStore/kb", branch: "main" }));
+    expect(text).toContain("GitHub API 502:");
     expect(text).not.toMatch(/no files/);
   });
 });

@@ -11,7 +11,7 @@ import { registerWriteTools } from "./tools/write.js";
 export class FreeDocStoreMcp extends McpAgent<Env, unknown, McpProps> {
   server = new McpServer({
     name: "FreeDocStore",
-    version: "0.2.0",
+    version: "0.3.0",
   });
 
   declare props: McpProps;
@@ -37,7 +37,7 @@ export default {
       if (isProtocolClient(request)) return wrongEndpoint();
       return new Response(
         [
-          "FreeDocStore MCP Server",
+          "FreeDocStore MCP Server (0.3.0)",
           "",
           "Connect: npx mcp-remote https://mcp.freedocstore.online/mcp",
           "",
@@ -49,6 +49,8 @@ export default {
           "- custom domains per KB",
           "",
           "Tools: whoami, workspace_summary, list_workspace_drafts, create_workspace_draft, create_sample_knowledge_base, platform_guide, list_knowledge_bases, knowledge_base_info, check_zensical_repo, list_files, read_file, deploy_status, publish_plan, update_files",
+          "",
+          "Source reads include blob SHAs. update_files requires expected_files for every changed path.",
           "",
           "Auth: OAuth 2.1 via GitHub sign-in when connected through mcp-remote or Claude.",
         ].join("\n"),

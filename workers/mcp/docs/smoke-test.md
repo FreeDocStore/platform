@@ -142,8 +142,16 @@ With a connected session, confirm the read path and the write safety gates from
 issue #2 AC #3:
 
 - `whoami` → shows your GitHub login and `scopes: ["read","write"]`.
-- `update_files` with `dry_run: true` → returns a change plan and **writes
-  nothing** to GitHub.
+- `read_file` with a registered customer KB on a non-default publishing branch →
+  reports the customer repository, registered branch, source commit and blob SHA.
+- `list_files`, `check_zensical_repo` and `deploy_status` → resolve the same source;
+  deployment history is restricted to the selected branch.
+- `update_files` with the reviewed `expected_files` and `dry_run: true` → validates
+  the target and source versions with read-only GitHub requests; writes nothing.
+- A changed blob SHA, absent expected version, conflicting short name or failed
+  registry request → returns a tool error without opening a PR or committing.
+- Creating a confirmed missing file → uses `null` in `expected_files`. Deleting
+  an existing file → uses its reviewed SHA and can supply `files: []`.
 - `update_files` with `mode: "direct"` and no `confirm` → refuses, asking for
   `confirm: true`.
 - `update_files` in the default `pr` mode → opens a proposal PR on the target KB

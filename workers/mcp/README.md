@@ -87,3 +87,64 @@ npm run typecheck
 npm run dev
 npm run deploy
 ```
+
+## Repository targets and reviewed source versions
+
+`read_file`, `list_files`, `check_zensical_repo`, `deploy_status` and
+`update_files` share one target resolver. A registered KB id or an unambiguous
+repository short name resolves to its registered `source.repo`, branch, docs
+folder and configuration. An unregistered short name selects a repository under
+FreeDocStore. An explicit `owner/name` is also supported. When the registry does
+not specify a branch, the resolver reads the repository's actual default branch.
+A validated `branch` parameter overrides that selection.
+
+Ambiguous names, invalid registry data and failed registry requests stop target
+resolution. During a registry outage, an explicit `owner/name` **and** `branch`
+can still select a public source; the response explains that its docs/config
+metadata uses platform defaults. When the registry is available, matching source
+metadata is preserved even with an explicit branch override. Private repositories
+are rejected, including when the signed-in account could otherwise access them. Connected reads
+use the user’s GitHub token after this public-repository check; anonymous reads
+remain supported.
+
+Reads report the canonical repository, selected branch and exact source commit.
+`read_file` returns the file's blob SHA and a ready-to-use `expected_files` entry.
+A missing file returns a `null` baseline only after the source branch and commit
+are resolved. `list_files` includes blob/tree SHAs; only a file's blob SHA is a
+valid replacement/deletion baseline. Truncated trees are reported as errors.
+
+Clients upgrading to MCP server 0.3.0 should refresh tool discovery or reconnect.
+Every path in `files` or `delete_paths` requires an entry in `expected_files`:
+
+```json
+{
+  "repo": "CustomerOrg/handbook",
+  "branch": "release",
+  "message": "Add the reviewed installation guide",
+  "files": [{ "path": "docs/install.md", "content": "# Install\n\nReviewed instructions.\n" }],
+  "expected_files": { "docs/install.md": null },
+  "dry_run": true
+}
+```
+
+Use `null` only for a file confirmed absent. Replacements and deletions use the
+40-character blob SHA returned by a source read. A deletion-only proposal uses
+`files: []` with `delete_paths` and the corresponding blob SHAs. Each request
+supports up to 50 distinct paths; duplicate paths, update/delete overlaps and
+unsafe paths are refused.
+
+Both dry runs and actual writes inspect every baseline against one immutable
+parent commit before writing Git objects. A stale replacement, deletion or
+creation fails with instructions to reread the source and review a fresh
+proposal. A dry run makes read-only requests to validate the target and versions;
+it does not reserve the source or authorize a later direct commit. Actual direct
+commits still require `confirm: true`. PRs remain the default.
+
+The worker rechecks the base branch before creating a commit and again before
+opening a proposal. Direct ref updates explicitly use `force: false` so GitHub
+requires a fast-forward update; see the [GitHub reference API](https://docs.github.com/en/rest/git/refs#update-a-reference).
+GitHub can still change after the final check and before a PR request is accepted;
+the proposal remains based on the inspected commit and normal GitHub review,
+merge checks and branch protections apply. An aborted proposal can leave an
+unpublished branch; when its creation is confirmed, the tool reports its name
+for inspection. No-op changes create no commit/PR or mutation audit entry.
