@@ -2,6 +2,14 @@
 
 Read `CLAUDE.md` for product and architecture rules.
 
+## Product identity
+
+Use FreeDocStore and ProDocStore product language. Do not name unrelated source
+products or describe cross-product provenance in source, documentation, tests,
+fixtures, paths, issues, commit messages or release notes. Run
+`npm run check:identity` before committing. Keep test fixtures and the naming
+check itself free of prohibited literals.
+
 ## Delivery mode
 
 **Straight to `main`. No branches, no pull requests.** Declared 2026-08-16.

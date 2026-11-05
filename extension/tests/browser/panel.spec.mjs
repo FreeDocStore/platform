@@ -55,3 +55,45 @@ test('installed extension narrates the page and yields when page playback starts
     await expect(panel.locator('[data-play]')).toHaveText('Listen');
   } finally { await context.close(); }
 });
+
+test('options preserve a rotated credential on Save and explicitly clear it on Sign out', async () => {
+  const extension = resolve('dist');
+  const context = await chromium.launchPersistentContext('', { channel: 'chromium', headless: true, args: [`--disable-extensions-except=${extension}`, `--load-extension=${extension}`] });
+  try {
+    const bg = context.serviceWorkers()[0] ?? await context.waitForEvent('serviceworker');
+    const id = new URL(bg.url()).host;
+    await bg.evaluate(async () => {
+      const settings = { adapter: 'openai', claude: { apiKey: 'test-provider-key', model: 'claude-sonnet-4-6', githubApp: { clientId: 'test-client', accessToken: 'old-access', refreshToken: 'old-refresh', username: 'reader', expiresAt: Date.now() + 3600000 } } };
+      await chrome.storage.sync.set({ 'freedocstore.settings': settings });
+      await chrome.storage.local.set({ 'freedocstore.settings': settings });
+    });
+    const options = await context.newPage();
+    await options.goto(`chrome-extension://${id}/options.html`);
+    await options.getByRole('tab', { name: 'AI & GitHub' }).click();
+    await expect(options.locator('#gh-signout')).toBeVisible();
+    await options.evaluate(() => chrome.runtime.sendMessage({ type: 'SET_SETTINGS', payload: { claude: { apiKey: 'test-provider-key', model: 'claude-sonnet-4-6', githubApp: { clientId: 'test-client', accessToken: 'rotated-access', refreshToken: 'rotated-refresh', username: 'reader' } } } }));
+    await options.getByRole('tab', { name: 'General', exact: true }).click();
+    await options.locator('#font-size').fill('18');
+    await options.getByRole('button', { name: 'Save', exact: true }).click();
+    await expect.poll(() => bg.evaluate(async () => (await chrome.storage.sync.get('freedocstore.settings'))['freedocstore.settings'].fontSize)).toBe(18);
+    expect(await bg.evaluate(async () => (await chrome.storage.sync.get('freedocstore.settings'))['freedocstore.settings'].claude.githubApp.accessToken)).toBe('rotated-access');
+    // A settings lock held by the Options page must also block the real
+    // background writer, proving coordination across extension contexts.
+    await options.evaluate(() => {
+      void navigator.locks.request('freedocstore.settings.write', () => new Promise(resolve => { window.releaseSettingsLock = resolve; }));
+    });
+    await expect.poll(() => options.evaluate(() => typeof window.releaseSettingsLock)).toBe('function');
+    const pendingSave = options.evaluate(() => chrome.runtime.sendMessage({ type: 'SET_SETTINGS', payload: { fontSize: 19 } }));
+    await expect.poll(() => bg.evaluate(async () => (await navigator.locks.query()).pending.some(lock => lock.name === 'freedocstore.settings.write'))).toBe(true);
+    expect(await bg.evaluate(async () => (await chrome.storage.sync.get('freedocstore.settings'))['freedocstore.settings'].fontSize)).toBe(18);
+    await options.evaluate(() => window.releaseSettingsLock());
+    await pendingSave;
+    expect(await bg.evaluate(async () => (await chrome.storage.sync.get('freedocstore.settings'))['freedocstore.settings'].fontSize)).toBe(19);
+    await options.getByRole('tab', { name: 'AI & GitHub' }).click();
+    await options.locator('#gh-signout').click();
+    await options.locator('#gh-signout').click();
+    await expect(options.locator('#gh-signout')).toBeHidden();
+    const app = await bg.evaluate(async () => (await chrome.storage.sync.get('freedocstore.settings'))['freedocstore.settings'].claude.githubApp);
+    expect(app.accessToken).toBe(''); expect(app.refreshToken).toBe('');
+  } finally { await context.close(); }
+});

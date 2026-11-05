@@ -190,7 +190,7 @@ function normaliseTokenResponse(body: Record<string, string | number | undefined
   // no hint that the cause is a bogus token.
   if (typeof body.access_token !== "string" || !body.access_token) {
     throw new Error(
-      `GitHub OAuth response missing access_token (got: ${JSON.stringify(body).slice(0, 200)})`,
+      'GitHub OAuth response missing access_token.',
     );
   }
   const expiresInSec = typeof body.expires_in === "number" ? body.expires_in : 28800;

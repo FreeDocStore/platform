@@ -5,6 +5,7 @@
 
 import { DEFAULT_SETTINGS } from "./types";
 import type { Settings } from "./types";
+import { withExtensionLock } from './lib/locks';
 
 /**
  * Single key all chrome.storage.sync writes touch. Exported so callers
@@ -16,10 +17,9 @@ export const SETTINGS_KEY = "freedocstore.settings";
 /**
  * Deep-merge a patch into existing settings.
  *
- * One level deep is enough for our shape - `Settings` has top-level
- * scalars (`adapter`) and one level of per-adapter objects (`claude`,
- * `openai`, ...). A shallow spread would wipe sibling fields within
- * an adapter block when the user only updates one of them.
+ * Merge adapter objects and the nested GitHub App credential fields. Options
+ * saves send only the fields they edit; they must never replay an old token
+ * snapshot over a refresh that completed in the meantime.
  */
 export function mergeSettings(current: Settings, patch: Partial<Settings>): Settings {
   const out: Settings = { ...current };
@@ -36,6 +36,9 @@ export function mergeSettings(current: Settings, patch: Partial<Settings>): Sett
         ...(currentValue as Record<string, unknown>),
         ...(patchValue as Record<string, unknown>),
       };
+      if (key === 'claude' && isPlainObject(current.claude?.githubApp) && isPlainObject(patch.claude?.githubApp)) {
+        out.claude!.githubApp = { ...current.claude!.githubApp!, ...patch.claude!.githubApp! };
+      }
     } else {
       sink[key] = patchValue;
     }
@@ -106,21 +109,46 @@ export async function loadStoredSettings(): Promise<Settings> {
 }
 
 /**
- * Deep-merge a partial settings patch into whatever's currently in
- * chrome.storage.sync, then persist. Returns the post-merge result.
+ * Deep-merge a partial settings patch into the freshest stored settings, then
+ * persist. Functional patches inspect that same snapshot while holding the
+ * writer queue, so credential identity checks cannot race another save.
  *
  * This is the ONLY safe way to update settings from anywhere in the
  * extension - direct chrome.storage.sync.set calls would do a shallow
  * write and clobber sibling fields (e.g. wiping the GitHub App tokens
  * when only the OpenAI key was meant to change).
  */
-export async function patchStoredSettings(patch: Partial<Settings>): Promise<Settings> {
+type SettingsPatch = Partial<Settings> | ((current: Settings) => Partial<Settings>);
+let pendingWrite: Promise<unknown> = Promise.resolve();
+
+/** Serialize local writes and coordinate with other extension contexts. */
+export function patchStoredSettings(patch: SettingsPatch): Promise<Settings> {
+  const write = pendingWrite.then(() => withExtensionLock('freedocstore.settings.write', () => savePatch(patch)));
+  pendingWrite = write.catch(() => {});
+  return write;
+}
+
+export function resetStoredSettings(): Promise<void> {
+  const reset = pendingWrite.then(() => withExtensionLock('freedocstore.settings.write', async () => {
+    const results = await Promise.allSettled([
+      chrome.storage.sync.remove(SETTINGS_KEY),
+      chrome.storage.local.remove(SETTINGS_KEY),
+    ]);
+    if (results.some(result => result.status === 'rejected')) throw new Error('Could not clear settings from all browser stores. Retry the reset.');
+  }));
+  pendingWrite = reset.catch(() => {});
+  return reset;
+}
+
+async function savePatch(patch: SettingsPatch): Promise<Settings> {
   const [syncRaw, localRaw] = await Promise.all([
     readRaw(chrome.storage.sync),
     readRaw(chrome.storage.local),
   ]);
   const current = hydrate(fresher(syncRaw, localRaw));
-  const next = mergeSettings(current, patch);
+  const update = typeof patch === 'function' ? patch(current) : patch;
+  if (!Object.keys(update).length) return current;
+  const next = mergeSettings(current, update);
   // Stamp the persisted copy so loadStoredSettings can tell which store is
   // freshest (see STAMP_KEY). Derive the stamp as strictly greater than any
   // prior one, so two saves within the same clock millisecond (Date.now()

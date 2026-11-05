@@ -34,6 +34,8 @@ export interface EditProposal {
 
 export interface NavProposal {
   items: NavItem[];
+  /** Existing links the user explicitly asked to remove. */
+  remove?: string[];
   navSkip?: string[];
   summary: string;
   rationale?: string;
@@ -306,7 +308,7 @@ export const UPDATE_NAV_CONFIG_TOOL = {
   function: {
     name: "update_nav_config",
     description:
-      "Change the site menu/navigation. Provide the COMPLETE new top-level items array (and optionally navSkip). The extension targets the right file automatically: docs/nav.json on hand-authored HTML sites, or mkdocs.yml on MkDocs/Material sites. On a MkDocs site the nav isn't in your page context, so call read_repo_file('mkdocs.yml') FIRST to see the current nav, then pass the full item list including your addition/change (paths are docs_dir-relative, e.g. 'credits.md'). This is the ONLY way to edit the menu - edit_file cannot touch mkdocs.yml.",
+      "Change the site menu/navigation. Provide the COMPLETE new top-level items array (and optionally navSkip). Preserve every existing link unless the user explicitly requested its removal; list those old hrefs in remove. Omitted links are rejected. The extension targets docs/nav.json on HTML sites or mkdocs.yml on MkDocs/Material sites. Read the current nav first, then pass the full list including your change (MkDocs paths are docs_dir-relative). This is the ONLY way to edit the menu - edit_file cannot touch mkdocs.yml.",
     parameters: {
       type: "object",
       properties: {
@@ -320,6 +322,11 @@ export const UPDATE_NAV_CONFIG_TOOL = {
           type: "array",
           description:
             "Pages that intentionally don't appear in the topbar (e.g. 404.html, index.html).",
+          items: { type: "string" },
+        },
+        remove: {
+          type: "array",
+          description: "Existing hrefs explicitly requested for removal. Never use this to bypass keeping unrelated entries. Renaming a destination requires listing its old href here.",
           items: { type: "string" },
         },
         summary: {

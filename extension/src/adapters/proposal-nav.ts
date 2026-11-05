@@ -8,6 +8,7 @@ import { parseNavConfig } from "../resolver";
 import { applyMkdocsNav } from "../lib/mkdocs-nav";
 import { loadPendingProposal, savePendingProposal } from "../lib/proposals";
 import { NAV_PATH } from "./proposal-shared";
+import { collectNavHrefs, droppedNavHrefs, mkdocsNavHrefs } from '../lib/nav-guard';
 
 /**
  * Pick the nav config file for this site. Hand-authored HTML sites use
@@ -45,6 +46,28 @@ export async function buildNavProposalPreview(
 ): Promise<ChatMessage> {
   const target = await resolveNavTarget(gh, owner, repo);
 
+  const parsed = parseNavConfig(JSON.stringify({ items: proposal.items }));
+  if (!parsed || (proposal.remove !== undefined && (!Array.isArray(proposal.remove) || proposal.remove.some(href => typeof href !== 'string')))) {
+    return { role: 'assistant', content: 'Model returned an invalid nav shape or removal list. Provide labels, valid links and a complete items array.' };
+  }
+  let currentConfig = null;
+  try {
+    let currentHrefs: string[] = [];
+    if (target.file && target.format === 'mkdocs') currentHrefs = mkdocsNavHrefs(target.file.content);
+    if (target.file && target.format === 'navjson') {
+      currentConfig = parseNavConfig(target.file.content);
+      if (!currentConfig) throw new Error('The current nav.json is invalid. Fix it in GitHub before proposing a replacement.');
+      currentHrefs = collectNavHrefs(currentConfig.items);
+    }
+    const missing = droppedNavHrefs(currentHrefs, collectNavHrefs(parsed.items), proposal.remove);
+    if (missing.length) return {
+      role: 'assistant',
+      content: `Navigation proposal refused because it would remove existing links without an explicit removal request:\n${missing.map(href => `- ${href}`).join('\n')}\n\nRead the current navigation and retry with the complete menu. Use remove only for links the user asked to remove.`,
+    };
+  } catch (error) {
+    return { role: 'assistant', content: error instanceof Error ? error.message : 'Could not safely inspect the current navigation.' };
+  }
+
   let currentContent: string;
   let newContent: string;
   let fileSha: string | null;
@@ -71,7 +94,8 @@ export async function buildNavProposalPreview(
   } else {
     // HTML site: deterministic nav.json so diffs show only the real change.
     const newConfig: Record<string, unknown> = { items: proposal.items };
-    if (proposal.navSkip?.length) newConfig.navSkip = proposal.navSkip;
+    const navSkip = proposal.navSkip ?? currentConfig?.navSkip;
+    if (navSkip?.length) newConfig.navSkip = navSkip;
     newContent = JSON.stringify(newConfig, null, 2) + "\n";
     if (!parseNavConfig(newContent)) {
       return {

@@ -28,8 +28,9 @@ function installFetchMock(mapping) {
   return { calls, restore: () => (globalThis.fetch = original) };
 }
 
-function installChromeStorage() {
+function installChromeStorage(initial) {
   const store = new Map();
+  if (initial) store.set("freedocstore.settings", initial);
   const original = globalThis.chrome;
   globalThis.chrome = {
     storage: {
@@ -401,7 +402,7 @@ test("request failure surfaces status + body", async () => {
 });
 
 test("fromSettings: refreshes App token when it's within 60s of expiry", async () => {
-  const { restore: restoreStorage } = installChromeStorage();
+  const { restore: restoreStorage } = installChromeStorage({ adapter: "openai", claude: { apiKey: "", model: "", githubApp: { clientId: "Iv23li", accessToken: "gho_old", refreshToken: "ghr_old", expiresAt: Date.now() + 10_000 } } });
   const { calls, restore: restoreFetch } = installFetchMock({
     "POST /login/oauth/access_token": () => {
       throw new Error("wrong host - refresh should go to github.com");
@@ -499,7 +500,7 @@ test("concurrent fromSettings near expiry issue ONE refresh, not N (single-fligh
   // once near expiry each refresh with the same token and all but one get
   // invalid_grant. The single-flight guard must collapse them to one network
   // refresh whose rotated token every caller shares.
-  const { restore: restoreStorage } = installChromeStorage();
+  const { restore: restoreStorage } = installChromeStorage({ adapter: "openai", claude: { apiKey: "", model: "", githubApp: { clientId: "Iv23li", accessToken: "gho_old", refreshToken: "ghr_old", expiresAt: Date.now() + 10_000 } } });
   const { calls, restore: restoreFetch } = installFetchMock({});
   const origFetch = globalThis.fetch;
   let refreshHits = 0;
@@ -536,4 +537,28 @@ test("concurrent fromSettings near expiry issue ONE refresh, not N (single-fligh
     restoreStorage();
     void calls;
   }
+});
+
+test('permission checks surface revoked sign-in rather than reporting unknown permissions', async () => {
+  const settings = { adapter: 'openai', claude: { apiKey: '', model: '', githubApp: { clientId: 'client', accessToken: 'expired-access', refreshToken: 'revoked-refresh', expiresAt: Date.now() + ONE_HOUR } } };
+  const { store, restore } = installChromeStorage(settings);
+  const original = globalThis.fetch;
+  globalThis.fetch = async url => String(url).startsWith('https://github.com/login/') ? Response.json({ error: 'invalid_grant' }) : Response.json({ message: 'Bad credentials' }, { status: 401 });
+  try {
+    const client = await GitHubClient.fromSettings(settings);
+    await assert.rejects(client.getRepoPermissions('owner', 'repo'), /Sign in with GitHub again/);
+    assert.equal(store.get('freedocstore.settings').claude.githubApp.accessToken, '');
+  } finally { globalThis.fetch = original; restore(); }
+});
+
+test('an explicitly cleared App token falls back to the individual PAT', async () => {
+  const { restore } = installFetchMock({ 'GET /repos/owner/repo': ({ headers }) => {
+    assert.equal(headers.Authorization, 'Bearer personal-pat');
+    return { body: { permissions: { push: true } } };
+  } });
+  try {
+    const client = await GitHubClient.fromSettings({ adapter: 'openai', claude: { apiKey: '', model: '', githubToken: 'personal-pat', githubApp: { clientId: 'client', accessToken: '', refreshToken: '', username: '' } } });
+    assert.equal((await client.getRepoPermissions('owner', 'repo')).push, true);
+    assert.equal(client.login, null);
+  } finally { restore(); }
 });

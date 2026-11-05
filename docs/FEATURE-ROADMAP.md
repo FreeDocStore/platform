@@ -20,6 +20,14 @@ This is a development roadmap, not a claim that every feature is deployed.
 | Repo files, PRs and build-run console | FreeDocStore | Implemented with explicit partial-failure reporting |
 | Search, navigation, TOC, code blocks and references | Both | Available publishing foundation; validate complete user flows |
 | Printable proposal templates | Both | FreeDocStore printable review with rationale and current/proposed source implemented and browser-tested; ProDocStore pending |
+| Branded standalone proposal documents | Both | FreeDocStore templates and A4 HTML/PDF rendering pending in [#18](https://github.com/FreeDocStore/platform/issues/18) |
+| Guided setup of existing public repositories | FreeDocStore | Pending in [#12](https://github.com/FreeDocStore/platform/issues/12) |
+| Recording inventory, batch generation and resumable checkpoints | Both | FreeDocStore pending in [#13](https://github.com/FreeDocStore/platform/issues/13) |
+| Compact Opus recording publication | Both | FreeDocStore pending in [#14](https://github.com/FreeDocStore/platform/issues/14) |
+| Reply-to-edit drafts and per-message copy/listening | Both | FreeDocStore pending in [#15](https://github.com/FreeDocStore/platform/issues/15) |
+| GitHub Models in the extension | Both | Console support exists; extension pending in [#16](https://github.com/FreeDocStore/platform/issues/16) |
+| Navigation preservation and GitHub session recovery | Both | FreeDocStore implemented and regression-tested under [#11](https://github.com/FreeDocStore/platform/issues/11); distribution in the next extension release |
+| MCP search, PR inspection and document moves | FreeDocStore | Pending in [#17](https://github.com/FreeDocStore/platform/issues/17) |
 | Agent-readable metadata and MCP read/propose workflows | Both | Available foundation; expand tools and org scoping |
 | Shared organisation provider keys | ProDocStore | Pending |
 | Organisation usage dashboard | ProDocStore | Pending |
@@ -57,3 +65,7 @@ See [Reading, narration and proposal reviews](READER-AND-PUBLISHING.md) for the
 workflow, recording limits, metadata contract and validation commands.
 Existing KBs need the current reader installer in their build workflow.
 Physical-phone and non-Chromium validation remain separate follow-up work.
+
+The next public workflow delivery is tracked in
+[#9](https://github.com/FreeDocStore/platform/issues/9). Product identity checks
+are tracked in [#10](https://github.com/FreeDocStore/platform/issues/10).

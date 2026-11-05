@@ -14,6 +14,7 @@ import { ADDONS } from "../lib/addons";
 import { isLoopbackSinkUrl } from "../lib/debug-safety";
 import { $, $$ } from "../lib/dom";
 import { sendToBg } from "../lib/messaging";
+import { resetStoredSettings } from '../settings';
 
 const form = $<HTMLFormElement>("#options-form");
 const saveStatus = $("#save-status");
@@ -143,12 +144,7 @@ form.addEventListener("submit", async (e) => {
   e.preventDefault();
   setStatus("Saving\u2026");
 
-  // Preserve the existing githubApp block so we don't wipe stored tokens
-  // just because the user saved other settings.
-  const current = ((await sendToBg({ type: "GET_SETTINGS" })) as {
-    type: string;
-    payload: Settings;
-  }).payload;
+  // Send only edited fields; the background merges credentials atomically.
 
   const theme: Theme = themeLight.checked ? "light" : "dark";
   // Parse freely, then clamp/fallback so an empty or bogus value becomes
@@ -187,7 +183,6 @@ form.addEventListener("submit", async (e) => {
       model: model.value,
       githubToken: ghToken.value.trim() || undefined,
       githubApp: {
-        ...(current.claude?.githubApp ?? {}),
         clientId: ghClientId.value.trim(),
       },
     },
@@ -244,13 +239,12 @@ resetBtn.addEventListener("click", async () => {
   // local copy behind - loadStoredSettings would read it straight back and the
   // "reset" would silently un-happen. allSettled so a disabled sync area
   // doesn't abort the local wipe (or vice versa).
-  await Promise.allSettled([
-    chrome.storage.sync.remove("freedocstore.settings"),
-    chrome.storage.local.remove("freedocstore.settings"),
-  ]);
-  await loadIntoForm();
-  setStatus("Cleared.", "ok");
-  setTimeout(() => setStatus(""), 3000);
+  try {
+    await resetStoredSettings();
+    await loadIntoForm();
+    setStatus("Cleared.", "ok");
+    setTimeout(() => setStatus(""), 3000);
+  } catch (error) { setStatus(error instanceof Error ? error.message : String(error), 'err'); }
 });
 
 // One-click jump to Chrome's microphone toggle for THIS extension.
@@ -375,7 +369,7 @@ ghSignout.addEventListener("click", async () => {
   const claude = await currentClaudeBlock();
   const next = {
     ...claude,
-    githubApp: claude.githubApp ? { clientId: claude.githubApp.clientId } : undefined,
+    githubApp: claude.githubApp ? { clientId: claude.githubApp.clientId, accessToken: '', refreshToken: '', expiresAt: 0, username: '' } : undefined,
   };
   await sendToBg({
     type: "SET_SETTINGS",

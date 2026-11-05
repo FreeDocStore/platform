@@ -175,3 +175,31 @@ test("DEFAULT_SETTINGS: autoContinue defaults ON", async () => {
   const { DEFAULT_SETTINGS } = await import(await bundle("src/types.ts"));
   assert.equal(DEFAULT_SETTINGS.autoContinue, true);
 });
+
+test('concurrent patches retain both changes and functional patches see the latest state', async () => {
+  installStorageMock();
+  await Promise.all([patchStoredSettings({ fontSize: 17 }), patchStoredSettings({ theme: 'light' })]);
+  await patchStoredSettings(current => ({ fontSize: current.fontSize + 1 }));
+  const current = await loadStoredSettings();
+  assert.equal(current.fontSize, 18);
+  assert.equal(current.theme, 'light');
+});
+
+test('updating the App client id preserves tokens while explicit blank fields sign out', async () => {
+  installStorageMock();
+  await patchStoredSettings({ claude: { apiKey: 'key', model: 'model', githubApp: { clientId: 'client', accessToken: 'access', refreshToken: 'refresh', username: 'reader' } } });
+  await patchStoredSettings({ claude: { apiKey: 'new-key', model: 'model', githubApp: { clientId: 'client' } } });
+  assert.equal((await loadStoredSettings()).claude.githubApp.accessToken, 'access');
+  await patchStoredSettings({ claude: { apiKey: 'new-key', model: 'model', githubApp: { clientId: 'client', accessToken: '', refreshToken: '', username: '' } } });
+  assert.equal((await loadStoredSettings()).claude.githubApp.accessToken, '');
+});
+
+test('a failed storage write does not poison subsequent saves', async () => {
+  installStorageMock();
+  chrome.storage.sync.set = async () => { throw new Error('unavailable'); };
+  chrome.storage.local.set = async () => { throw new Error('unavailable'); };
+  await assert.rejects(patchStoredSettings({ fontSize: 17 }), /Couldn't save settings/);
+  installStorageMock();
+  await patchStoredSettings({ fontSize: 19 });
+  assert.equal((await loadStoredSettings()).fontSize, 19);
+});

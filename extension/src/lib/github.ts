@@ -7,31 +7,11 @@
 // so commits are attributed correctly.
 
 import type { Settings, RepoPermissions } from "../types";
-import { refreshAccessToken, type GitHubToken } from "../auth/github-device";
+import { refreshGithubSession, GithubSessionExpired, type AppContext } from "./github-session";
 import { DEFAULT_GITHUB_APP_CLIENT_ID } from "../config";
-import { loadStoredSettings, patchStoredSettings } from "../settings";
+
 
 const API = "https://api.github.com";
-
-// Single-flight guard for GitHub App token refresh. Refresh tokens are
-// single-use (rotating): the first refresh consumes the token and returns a
-// new one, so two concurrent refreshes with the SAME token race and the loser
-// gets `invalid_grant`. In the service worker (one JS context shared by every
-// GitHubClient instance) a panel open fires CHECK_PERMISSIONS + memory +
-// activity fetches at once, each building its own client near token expiry -
-// exactly the burst that races. Dedupe by refresh token so all concurrent
-// callers await ONE network refresh and receive the same rotated token.
-const inFlightRefresh = new Map<string, Promise<GitHubToken>>();
-
-function coordinatedRefresh(clientId: string, refreshToken: string): Promise<GitHubToken> {
-  const existing = inFlightRefresh.get(refreshToken);
-  if (existing) return existing;
-  const p = refreshAccessToken(clientId, refreshToken).finally(() => {
-    inFlightRefresh.delete(refreshToken);
-  });
-  inFlightRefresh.set(refreshToken, p);
-  return p;
-}
 
 export interface GitHubFile {
   content: string;
@@ -65,47 +45,10 @@ export interface RecentCommit {
   message: string;
 }
 
-/**
- * Persist a refreshed GitHub App token through the centralised settings
- * helper. mergeSettings only deep-merges one level, so we hand-merge the
- * githubApp block here (preserving username + clientId) before sending
- * the whole claude block as the patch. Goes through patchStoredSettings
- * so sibling top-level fields (commitMode, openai) survive a
- * concurrent options-page save.
- */
-async function persistAppToken(appCtx: AppCtx, expiresAt: number): Promise<void> {
-  const current = await loadStoredSettings();
-  // The caller only invokes this when an App token exists, so the claude
-  // block is present. Type-check guard for completeness.
-  if (!current.claude) return;
-  await patchStoredSettings({
-    claude: {
-      ...current.claude,
-      githubApp: {
-        ...(current.claude.githubApp ?? { clientId: appCtx.clientId }),
-        accessToken: appCtx.accessToken,
-        refreshToken: appCtx.refreshToken,
-        expiresAt,
-      },
-    },
-  });
-}
-
-/**
- * App-token context kept in the client closure so we can refresh on 401
- * without going back to chrome.storage. PAT users have appCtx === null.
- */
-interface AppCtx {
-  clientId: string;
-  refreshToken: string;
-  /** Mutable: updated in place when we refresh. */
-  accessToken: string;
-}
-
 export class GitHubClient {
   private constructor(
     private cachedToken: string,
-    private appCtx: AppCtx | null,
+    private appCtx: AppContext | null,
     // The signed-in user's GitHub login (from the cached GET /user), or null
     // for a bare PAT with no cached login. Used to attribute tasks to the
     // teammate who created them (requestedBy).
@@ -119,27 +62,27 @@ export class GitHubClient {
       throw new Error("GitHub not connected - sign in with GitHub or paste a PAT");
     }
 
-    const appCtx: AppCtx | null = app?.accessToken && app.refreshToken
+    const appCtx: AppContext | null = app?.accessToken && app.refreshToken
       ? {
           clientId: app.clientId || DEFAULT_GITHUB_APP_CLIENT_ID,
           refreshToken: app.refreshToken,
+          username: app.username,
           accessToken: app.accessToken,
         }
       : null;
 
-    let token = app?.accessToken ?? pat ?? "";
+    let token = app?.accessToken || pat || "";
 
     // Proactive refresh: if the App token is within a minute of expiry,
     // swap it now to avoid burning a request just to discover the 401.
     if (appCtx && app?.expiresAt && app.expiresAt < Date.now() + 60_000) {
-      const fresh = await coordinatedRefresh(appCtx.clientId, appCtx.refreshToken);
+      const fresh = await refreshGithubSession(appCtx);
       token = fresh.accessToken;
       appCtx.accessToken = fresh.accessToken;
       appCtx.refreshToken = fresh.refreshToken ?? appCtx.refreshToken;
-      await persistAppToken(appCtx, fresh.expiresAt);
     }
 
-    return new GitHubClient(token, appCtx, app?.username ?? null);
+    return new GitHubClient(token, appCtx, app?.accessToken ? app.username ?? null : null);
   }
 
   /**
@@ -158,25 +101,10 @@ export class GitHubClient {
 
   private async refreshAndCache(): Promise<string> {
     if (!this.appCtx) throw new Error("Cannot refresh: not authenticated via GitHub App");
-    // Close the sequential stale-token window: another client (or an earlier
-    // burst) may have already rotated + persisted a newer token while this
-    // long-lived instance kept using its old one. Refresh tokens are
-    // single-use, so refreshing with our now-dead token would `invalid_grant`.
-    // If storage already holds a DIFFERENT access token, adopt it and skip the
-    // network refresh entirely - the single-flight guard only covers concurrent
-    // bursts, not this later 401.
-    const stored = (await loadStoredSettings()).claude?.githubApp;
-    if (stored?.accessToken && stored.accessToken !== this.appCtx.accessToken) {
-      this.cachedToken = stored.accessToken;
-      this.appCtx.accessToken = stored.accessToken;
-      if (stored.refreshToken) this.appCtx.refreshToken = stored.refreshToken;
-      return stored.accessToken;
-    }
-    const fresh = await coordinatedRefresh(this.appCtx.clientId, this.appCtx.refreshToken);
+    const fresh = await refreshGithubSession(this.appCtx);
     this.cachedToken = fresh.accessToken;
     this.appCtx.accessToken = fresh.accessToken;
     this.appCtx.refreshToken = fresh.refreshToken ?? this.appCtx.refreshToken;
-    await persistAppToken(this.appCtx, fresh.expiresAt);
     return fresh.accessToken;
   }
 
@@ -229,7 +157,8 @@ export class GitHubClient {
         admin: !!p.admin,
         pull: !!p.pull,
       };
-    } catch {
+    } catch (error) {
+      if (error instanceof GithubSessionExpired) throw error;
       return null;
     }
   }
