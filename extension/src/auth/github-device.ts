@@ -151,6 +151,8 @@ export async function refreshAccessToken(
   refreshToken: string
 ): Promise<GitHubToken> {
   const res = await fetch(ACCESS_TOKEN_URL, {
+    // Refresh owns a shared credential lock; stalled requests must release it.
+    signal: AbortSignal.timeout(15_000),
     method: "POST",
     headers: {
       Accept: "application/json",

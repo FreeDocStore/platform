@@ -4,7 +4,8 @@ import { bundle } from './_bundle.mjs';
 const { refreshGithubSession, patchStoredSettings, resetStoredSettings, loadStoredSettings, SETTINGS_KEY } = await import(await bundle('tests/fixtures/github-session.ts'));
 const originalChrome = globalThis.chrome;
 const originalFetch = globalThis.fetch;
-afterEach(() => { globalThis.chrome = originalChrome; globalThis.fetch = originalFetch; });
+const originalTimeout = AbortSignal.timeout;
+afterEach(() => { globalThis.chrome = originalChrome; globalThis.fetch = originalFetch; AbortSignal.timeout = originalTimeout; });
 const ctx = { clientId: 'test-client', accessToken: 'old-access', refreshToken: 'old-refresh', username: 'reader' };
 const fresh = () => Response.json({ access_token: 'new-access', refresh_token: 'new-refresh', expires_in: 28800 });
 const deferred = () => { let resolve; const promise = new Promise(r => { resolve = r; }); return { promise, resolve }; };
@@ -60,6 +61,31 @@ test('transient failures retain the credential and allow a later retry', async (
   install(); globalThis.fetch = async () => new Response('bad_refresh_token', { status: 503 });
   await assert.rejects(refreshGithubSession({ ...ctx }), /HTTP 503/);
   assert.equal((await loadStoredSettings()).claude.githubApp.accessToken, 'old-access');
+  globalThis.fetch = async () => fresh();
+  assert.equal((await refreshGithubSession({ ...ctx })).accessToken, 'new-access');
+});
+
+test('a timed-out refresh releases its shared promise, preserves credentials and can retry', async () => {
+  install();
+  const controller = new AbortController();
+  const started = deferred();
+  AbortSignal.timeout = milliseconds => {
+    assert.equal(milliseconds, 15_000);
+    return controller.signal;
+  };
+  globalThis.fetch = async (_url, init) => new Promise((_resolve, reject) => {
+    assert.equal(init.signal, controller.signal);
+    init.signal.addEventListener('abort', () => reject(init.signal.reason), { once: true });
+    started.resolve();
+  });
+  const pending = refreshGithubSession({ ...ctx });
+  const shared = refreshGithubSession({ ...ctx });
+  assert.equal(pending, shared);
+  await started.promise;
+  controller.abort(new DOMException('Refresh timed out', 'TimeoutError'));
+  await assert.rejects(pending, { name: 'TimeoutError' });
+  assert.equal((await loadStoredSettings()).claude.githubApp.refreshToken, ctx.refreshToken);
+  AbortSignal.timeout = originalTimeout;
   globalThis.fetch = async () => fresh();
   assert.equal((await refreshGithubSession({ ...ctx })).accessToken, 'new-access');
 });
