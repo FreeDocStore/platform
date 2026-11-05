@@ -144,6 +144,7 @@ jobs:
             templates/robots.txt
             templates/_headers
             templates/search/scripts/
+            templates/read-aloud/
 
       # Compliance lint - fails deploy on violations (before any side effects)
       - name: Run docs compliance lint
@@ -223,6 +224,9 @@ jobs:
       # opt-in; security headers are not. Tying them together caused the
       # playbook itself to ship a stale CSP that blocked Pagefind's WASM
       # because fetch-brand-assets:false skipped this step.
+      - name: Install published-page read aloud
+        run: node _playbook/templates/read-aloud/install.mjs "${{ inputs.deploy-dir }}"
+
       - name: Copy security headers into deploy dir
         run: cp _playbook/templates/_headers "${{ inputs.deploy-dir }}/_headers"
 

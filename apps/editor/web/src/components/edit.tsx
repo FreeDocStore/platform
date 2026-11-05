@@ -13,6 +13,7 @@ import {
   githubEditUrl,
 } from '../model'
 import { Field } from './ui'
+import { printProposal } from '../lib/print-proposal'
 
 export function EditPanel({
   form,
@@ -24,6 +25,7 @@ export function EditPanel({
   applyMode,
   setApplyMode,
   proposal,
+  source,
 }: {
   form: EditForm
   setForm: (form: EditForm) => void
@@ -34,6 +36,7 @@ export function EditPanel({
   applyMode: ApplyMode
   setApplyMode: (mode: ApplyMode) => void
   proposal: Proposal | null
+  source: string
 }) {
   const update = <K extends keyof EditForm>(key: K, value: EditForm[K]) => setForm({ ...form, [key]: value })
   const githubEdit = githubEditUrl(form)
@@ -93,6 +96,12 @@ export function EditPanel({
         </button>
       </div>
       <div className="action-row compact-actions">
+        <button className="secondary-action" type="button" disabled={!proposal} onClick={() => {
+          if (proposal) {
+            try { printProposal(form.repo, form.path, source, proposal) }
+            catch (error) { window.alert(error instanceof Error ? error.message : String(error)) }
+          }
+        }}>Print proposal</button>
         <a className="secondary-action as-link" href={githubEdit} target="_blank" rel="noreferrer">
           <Github size={16} />
           GitHub editor

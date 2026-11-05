@@ -47,7 +47,7 @@ export function SettingsPanel({
       <div className="connection-grid">
         <ConnectionBadge label="GitHub" state={connections.github} detail="Repository create/read/write through the platform proxy" />
         <ConnectionBadge label={providerSpec.label} state={connections.ai} detail="AI generation through your saved BYOK key" />
-        <ConnectionBadge label="Cloudflare" state={connections.cloudflare} detail="Deploy credentials held by platform/org secrets" />
+        <ConnectionBadge label="Cloudflare" state={connections.cloudflare} detail="Check deployment credentials and results in the repository build logs." />
       </div>
       <p className="connection-detail">{connections.detail}</p>
       <div className="field-grid two">

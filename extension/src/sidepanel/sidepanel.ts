@@ -2,6 +2,7 @@
 // chat turns, asks the active tab's content script for page context.
 
 import type { ChatMessage, PendingProposal } from "../types";
+import { initNarration } from './narration';
 import { openBoard } from "./board-nav";
 import { appendLinkified } from "./linkify";
 import {
@@ -83,6 +84,7 @@ setPopMenuCloseHook(disarmClear);
 initPopMenuDismissal();
 wirePopToggle(moreBtn, moreMenuEl, closeThreadMenu);
 initSelectionChip();
+initNarration();
 initSettingsSync();
 initDictation((content) => void appendMessage({ role: "assistant", content }));
 initMessageView();

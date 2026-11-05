@@ -91,14 +91,16 @@ jobs:
         run: |
           set -euo pipefail
           TAG="${GITHUB_REF#refs/tags/v}"
-          # --generate-notes builds release notes from merged PRs +
-          # commits since the previous tag. --verify-tag refuses to
-          # create a release if the tag doesn't actually exist on
-          # remote (defensive against a partially-pushed tag).
+          # Prefer reviewed product notes when supplied for this version.
+          NOTES="releases/v${TAG}.md"
+          NOTE_ARGS=(--generate-notes)
+          if [ -f "$NOTES" ]; then
+            NOTE_ARGS=(--notes-file "$NOTES")
+          fi
           gh release create "v${TAG}" \
             "${{ steps.zip.outputs.path }}" \
             --title "v${TAG}" \
-            --generate-notes \
+            "${NOTE_ARGS[@]}" \
             --verify-tag
 
       - name: Check Chrome Web Store automation config

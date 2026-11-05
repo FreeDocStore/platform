@@ -7,7 +7,8 @@
     "src/options/options.ts",
     "src/board/board.ts",
     "scripts/*.mjs",
-    "tests/*.test.mjs"
+    "tests/*.test.mjs",
+    "tests/browser/*.mjs"
   ],
   "project": ["src/**/*.ts"],
   "rules": {

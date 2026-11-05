@@ -14,6 +14,15 @@ Users describe what should change. The AI drafts the change. The user reviews th
 
 ## Current Scope
 
+FreeDocStore provides public knowledge-base publishing. Premium organisation and
+private capabilities belong in ProDocStore. The [feature roadmap](docs/FEATURE-ROADMAP.md)
+tracks the feature split and delivery status.
+
+Published pages and the extension support local-voice listening. The console
+adds local English audio generation, reviewed audio publication, repository/build
+diagnostics and printable proposal reviews. See the
+[reader and publishing guide](docs/READER-AND-PUBLISHING.md) for setup and limits.
+
 - Product site in `site/`.
 - Legacy AI-first web workbench at `site/editor.html`.
 - FreeDocStore-owned React console app in `apps/editor/`.
@@ -21,7 +30,7 @@ Users describe what should change. The AI drafts the change. The user reviews th
 - Remote MCP Worker in `workers/mcp/`.
 - Browser extension in `extension/` for editing published docs pages from the side panel.
 - Reusable docs templates, deploy workflows, generators, and lint rules in `templates/`.
-- GitHub-backed proposal, PR, and extension workflows inherited from the seed engine and kept under FreeDocStore ownership.
+- GitHub-backed proposal, PR, and extension workflows.
 - KB publishing supports Zensical-format Markdown repos only for now.
 
 ## Local Preview
@@ -86,7 +95,7 @@ workers/mcp/          Cloudflare Worker remote MCP server
 docs/                 Product and engine docs
 extension/            MV3 Chrome extension for AI-first docs editing
 templates/            Reusable docs templates, add-ons, lint, and generators
-brand/                Brand assets inherited from the seed repo
+brand/                FreeDocStore brand assets
 .github/workflows/    Deploy, release, lint, and test workflows
 ```
 

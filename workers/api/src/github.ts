@@ -2,9 +2,9 @@
  * Git Data commit helper — write files to a KB repo as the signed-in user,
  * either as a direct commit to the base branch or a reviewable pull request.
  *
- * Vendored from the FreeDocStore MCP worker (workers/mcp/src/github.ts) so the
- * console's server-side edit path and the MCP `update_files` tool share one
- * commit implementation. Keep the two in sync when either changes.
+ * The API adds reviewed-source version checks and binary audio blobs to the
+ * standard Git Data commit flow. The MCP worker's text-only helper lives in
+ * workers/mcp/src/github.ts.
  */
 
 const UA = "freedocstore-api";
@@ -12,6 +12,7 @@ const UA = "freedocstore-api";
 export interface FileChange {
   path: string;
   content: string;
+  encoding?: "utf-8" | "base64";
 }
 
 export interface CommitResult {
@@ -65,6 +66,7 @@ export async function commitFiles(input: {
   mode: "pr" | "direct";
   prTitle?: string;
   prBody?: string;
+  expectedFiles?: Record<string, string>;
 }): Promise<CommitResult> {
   const base = `https://api.github.com/repos/${input.repoFullName}`;
   const baseBranch = input.baseBranch ?? "main";
@@ -78,9 +80,17 @@ export async function commitFiles(input: {
   const baseTreeSha = headCommit?.tree?.sha;
   if (!baseTreeSha) return { ok: false, error: `Could not read head commit tree: ${headCommit?.message ?? "unknown"}` };
 
+  // Check against this exact parent commit so narration cannot attach to a
+  // newer source version between preview and publication.
+  for (const [path, sha] of Object.entries(input.expectedFiles ?? {})) {
+    const encodedPath = path.split('/').map(encodeURIComponent).join('/');
+    const file = await gh(`${base}/contents/${encodedPath}?ref=${headSha}`, { token });
+    if (file.__status || file.sha !== sha) return { ok: false, error: `Source changed or is unavailable: ${path}. Reload the page and regenerate narration.` };
+  }
+
   const treeItems: any[] = [];
   for (const file of input.files) {
-    const blob = await gh(`${base}/git/blobs`, { token, method: "POST", body: { content: textToB64(file.content), encoding: "base64" } });
+    const blob = await gh(`${base}/git/blobs`, { token, method: "POST", body: { content: file.encoding === "base64" ? file.content : textToB64(file.content), encoding: "base64" } });
     if (!blob?.sha) return { ok: false, error: `Blob create failed for ${file.path}: ${blob?.message ?? "unknown"}` };
     treeItems.push({ path: file.path, mode: "100644", type: "blob", sha: blob.sha });
   }

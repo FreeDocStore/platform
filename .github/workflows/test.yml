@@ -4,6 +4,8 @@ on:
   pull_request:
     paths:
       - 'templates/search/scripts/**'
+      - 'templates/read-aloud/**'
+      - 'apps/editor/**'
       - 'tests/**'
       - 'extension/**'
       - 'workers/api/**'
@@ -13,6 +15,8 @@ on:
     branches: [main]
     paths:
       - 'templates/search/scripts/**'
+      - 'templates/read-aloud/**'
+      - 'apps/editor/**'
       - 'tests/**'
       - 'extension/**'
       - 'workers/api/**'
@@ -73,6 +77,10 @@ jobs:
         with:
           node-version: '24'
 
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 10.30.3
+
       - name: Configure git identity (needed for generate-changelog fixtures)
         run: |
           git config --global user.email "ci@example.com"
@@ -87,6 +95,20 @@ jobs:
 
       - name: Build
         run: npm run build
+
+      - name: Rebuild and verify published reader
+        run: |
+          node ../templates/read-aloud/build.mjs
+          git diff --exit-code -- ../templates/read-aloud/read-aloud.js
+
+      - name: Install browser
+        run: npx playwright install --with-deps chromium
+
+      - name: Reader browser checks
+        run: |
+          pnpm --dir ../apps/editor install --frozen-lockfile
+          pnpm --dir ../apps/editor build
+          npm run test:browser
 
       - name: Test
         run: npm test

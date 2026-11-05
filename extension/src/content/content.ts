@@ -5,6 +5,7 @@ import type { FeatureConfig, NavConfig, RuntimeMessage, PageContext, Task } from
 import { parseFeatureConfig, parseNavConfig, resolveContext } from "../resolver";
 import { listTasks, TASKS_KEY } from "../lib/tasks";
 import { sendToBg } from "../lib/messaging";
+import { isReadAloudSignal, postReadAloudSignal, READ_ALOUD_STARTED, READ_ALOUD_STOP, readableBlocks, mainContentRoot } from '../../../templates/read-aloud/src/reader.js';
 
 // Idempotency guard. This script is declared for *.pages.dev in the manifest
 // AND may be programmatically injected by the side panel (for tabs opened
@@ -19,6 +20,9 @@ declare global {
 }
 const alreadyInjected = window.__freedocstoreInjected === true;
 window.__freedocstoreInjected = true;
+if (!alreadyInjected) window.addEventListener('message', event => {
+  if (isReadAloudSignal(event, READ_ALOUD_STARTED)) void sendToBg({ type: 'PAGE_NARRATION_STARTED' }).catch(() => {});
+});
 
 type RepoRef = { owner: string; name: string } | null;
 
@@ -231,7 +235,8 @@ async function getPageContext(): Promise<PageContext> {
   // the page text we send the model in read mode. (The marker/highlight hosts
   // are closed shadow roots - their content isn't cloned - so they don't leak.)
   clone.querySelectorAll("script, style, nav, #freedocstore-edit-btn").forEach((n) => n.remove());
-  const text = (clone.textContent ?? "").replace(/\s+/g, " ").trim();
+  const text = readableBlocks(mainContentRoot({ querySelector: (s: string) => clone.querySelector(s), body: clone } as Document))
+    .filter(block => block.kind !== 'code').map(block => block.text).join('\n\n');
   // Resolve the repo up front so both fetches share the fallback target.
   const shell = resolveContext(location.href, html, text, document.title);
   // Parallel: the two fetches are independent, usually resolve in one
@@ -569,6 +574,11 @@ if (!alreadyInjected) {
 
 if (!alreadyInjected)
   chrome.runtime.onMessage.addListener((msg: RuntimeMessage, _sender, sendResponse) => {
+  if (msg.type === 'STOP_PAGE_NARRATION') {
+    postReadAloudSignal(READ_ALOUD_STOP);
+    sendResponse({ ok: true });
+    return;
+  }
   if (msg.type === "GET_PAGE_CONTEXT") {
     // Async response: return true to keep the message channel open until
     // sendResponse is called. A rejected promise here would hang the

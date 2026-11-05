@@ -35,6 +35,19 @@
 
 <!-- Shown when the current page has no linked GitHub repo (no source-repo meta
      tag): the chat + composer are hidden and this explains why. -->
+<details id="narration" class="narration">
+  <summary>Listen</summary>
+  <label>Read <select data-target aria-label="Read"><option value="page">Current page</option><option value="selection">Selected text</option><option value="answer">Latest answer</option></select></label>
+  <div class="action-row">
+    <button type="button" data-play>Listen</button>
+    <button type="button" data-skip="-1" aria-label="Previous sentence">Previous</button>
+    <button type="button" data-skip="1" aria-label="Next sentence">Next</button>
+    <button type="button" data-stop>Stop</button>
+  </div>
+  <label>Speed <input data-rate type="range" min="0.5" max="2" step="0.1" value="1" aria-label="Listening speed"></label>
+  <label>Voice <select data-voice aria-label="Local voice"><option value="">Default local voice</option></select></label>
+  <p role="status" aria-live="polite">Ready</p>
+</details>
 <div id="no-repo-state" class="no-repo-state" hidden>
   <div class="no-repo-inner">
     <div class="no-repo-icon" aria-hidden="true">&#128279;</div>

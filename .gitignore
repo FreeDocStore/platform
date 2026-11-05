@@ -30,3 +30,5 @@ workers/mcp/dist/
 # Logs
 *.log
 npm-debug.log*
+extension/test-results/
+extension/playwright-report/

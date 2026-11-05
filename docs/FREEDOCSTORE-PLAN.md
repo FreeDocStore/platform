@@ -1,5 +1,10 @@
 # FreeDocStore Plan
 
+The feature scope includes public publishing, AI-first editing and reader tools,
+with premium organisation and private capabilities in ProDocStore. The MVP sections
+below describe the original foundation, not the final scope. See
+[the feature roadmap](FEATURE-ROADMAP.md) for the feature split and delivery status.
+
 ## Goal
 
 Create a free public knowledge-base publishing platform with AI-first content updates.

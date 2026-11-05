@@ -9,7 +9,9 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@huggingface/transformers": "3.8.1",
     "dompurify": "^3.4.12",
+    "kokoro-js": "1.2.1",
     "lucide-react": "^0.562.0",
     "marked": "^18.0.6",
     "react": "^19.2.5",

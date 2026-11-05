@@ -438,6 +438,8 @@ export const DEFAULT_SETTINGS: Settings = {
 
 /** Messages passed between content script, sidepanel, and background. */
 export type RuntimeMessage =
+  | { type: "STOP_PAGE_NARRATION" }
+  | { type: "PAGE_NARRATION_STARTED" }
   | { type: "GET_PAGE_CONTEXT" }
   | { type: "PAGE_CONTEXT_RESULT"; payload: PageContext }
   // Side panel -> content script: read the page's current/pinned selection.

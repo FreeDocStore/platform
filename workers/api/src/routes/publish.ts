@@ -3,10 +3,25 @@ import { type Env, type Variables } from "../types";
 import { requireSession } from "../lib/session";
 import { publishKb, type PublishFile } from "../publish";
 import { commitFiles } from "../github";
+import { MAX_AUDIO_BYTES, validateAudio } from '../audio';
+import { bodyLimit } from 'hono/body-limit';
 
 type App = Hono<{ Bindings: Env; Variables: Variables }>;
 
 export function registerPublishRoutes(app: App) {
+  app.post('/api/audio', bodyLimit({ maxSize: Math.ceil(MAX_AUDIO_BYTES / 3) * 4 + 4096, onError: c => c.json({ error: 'Audio exceeds 12 MiB' }, 413) }), async c => {
+    const session = requireSession(c);
+    if (!session.githubAccessToken) return c.json({ error: 'Sign in with GitHub to propose narration.' }, 403);
+    let audio;
+    try { audio = await validateAudio(await c.req.json()); }
+    catch (error) { return c.json({ error: error instanceof Error ? error.message : 'Invalid narration' }, 400); }
+    const result = await commitFiles({ token: session.githubAccessToken, repoFullName: audio.repo, baseBranch: audio.branch, mode: 'pr',
+      message: `Add narration for ${audio.sourcePath}`, files: audio.files,
+      expectedFiles: { [audio.sourcePath]: audio.sourceSha },
+      prBody: `Locally generated English narration for ${audio.sourcePath}. Source blob: ${audio.sourceSha}. Review the WAV recording and metadata before merging. Install the current FreeDocStore reader in the publishing workflow to enable playback.`,
+    });
+    return c.json(result, result.ok ? 200 : 409);
+  });
   app.post("/api/publish", async (c) => {
     const session = requireSession(c);
     if (!session.githubAccessToken) {
@@ -65,6 +80,7 @@ export function registerPublishRoutes(app: App) {
       message?: string;
       mode?: string;
       branch?: string;
+      expectedSourceSha?: string;
     } = await c.req.json().catch(() => ({}));
     const repo = (body.repo ?? "").trim();
     const path = (body.path ?? "").trim();
@@ -75,6 +91,7 @@ export function registerPublishRoutes(app: App) {
     if (!content.trim()) return c.json({ error: "content is required" }, 400);
     if (content.length > 512 * 1024) return c.json({ error: "content too large" }, 400);
     const message = (body.message ?? `Update ${path} via FreeDocStore`).slice(0, 120);
+    if (body.expectedSourceSha !== undefined && !/^[0-9a-f]{40}$/.test(body.expectedSourceSha)) return c.json({ error: 'Invalid expected source version' }, 400);
     const result = await commitFiles({
       token: session.githubAccessToken,
       repoFullName: repo,
@@ -84,6 +101,7 @@ export function registerPublishRoutes(app: App) {
       mode,
       prTitle: message,
       prBody: `Proposed through the FreeDocStore console by ${session.user.login}.`,
+      expectedFiles: body.expectedSourceSha ? { [path]: body.expectedSourceSha } : undefined,
     });
     return c.json(result, result.ok ? 200 : 502);
   });

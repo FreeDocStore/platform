@@ -1,7 +1,7 @@
 {
   "name": "freedocstore-extension",
   "private": true,
-  "version": "0.47.3",
+  "version": "0.48.0",
   "description": "FreeDocStore browser extension - AI-first editing for GitHub-backed public knowledge bases.",
   "type": "module",
   "scripts": {
@@ -9,10 +9,12 @@
     "dev": "node build.mjs --watch",
     "typecheck": "tsc --noEmit",
     "test": "node --test tests/*.test.mjs",
+    "test:browser": "playwright test --config playwright.config.mjs",
     "deadcode": "knip",
     "package": "node scripts/package.mjs"
   },
   "devDependencies": {
+    "@playwright/test": "^1.60.0",
     "@types/chrome": "^0.0.268",
     "esbuild": "^0.24.0",
     "knip": "^5.88.1",

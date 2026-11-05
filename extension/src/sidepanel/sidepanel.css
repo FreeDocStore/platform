@@ -788,3 +788,15 @@ header { justify-content: space-between; }
 .menu-item:hover { background: var(--surface2); }
 /* The banner "⋯" trigger: a plain icon button sitting at the row's right end. */
 .t-more { flex: 0 0 auto; line-height: 1; }
+/* Listening controls remain available independently of editing permissions. */
+.narration { padding: 10px 12px; border-bottom: 1px solid var(--border); font-size: 12px; flex-shrink: 0; max-height: 45vh; overflow: auto; }
+.narration summary { cursor: pointer; font-weight: 600; }
+.narration label { display: flex; align-items: center; gap: 8px; margin: 8px 0; }
+.narration select { max-width: 100%; min-width: 0; }
+.narration button,
+.narration select { background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 5px; font: inherit; padding: 5px 7px; }
+.narration button { margin: 4px 2px; cursor: pointer; }
+.narration button:hover { border-color: var(--accent); }
+.narration [data-play] { color: var(--accent); }
+.narration input { accent-color: var(--accent); }
+.narration [role=status] { font-size: 11px; color: var(--text-muted); margin-bottom: 2px; }

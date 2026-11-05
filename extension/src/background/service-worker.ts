@@ -319,6 +319,10 @@ async function dispatchMessage(
     sendResponse({ type: "IS_PANEL_OPEN_RESULT", payload: { open } });
     return;
   }
+  if (msg.type === "PAGE_NARRATION_STARTED") {
+    sendResponse({ ok: true });
+    return;
+  }
   if (msg.type === "FOCUS_EDIT_THREAD") {
     // Panel-directed (the side panel's own onMessage handles it); the SW just
     // acks so the sender's channel closes cleanly.

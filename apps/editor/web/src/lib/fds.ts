@@ -71,6 +71,8 @@ function applyTheme(preference: ThemePreference) {
 }
 
 export const fds = {
+  publishAudio: (body: { repo: string; branch: string; path: string; sourceSha: string; audio: string; modelRevision: string }) =>
+    apiJson<EditResult>('/api/audio', { method: 'POST', body: JSON.stringify(body) }),
   apiBase: API_BASE,
   kv: {
     async get<T>(key: string): Promise<T | null> {
@@ -110,6 +112,7 @@ export const fds = {
     message?: string
     mode: 'pr' | 'direct'
     branch?: string
+    expectedSourceSha?: string
   }): Promise<EditResult> {
     const res = await apiFetch('/api/edit', { method: 'POST', body: JSON.stringify(input) })
     const data = (await res.json().catch(() => null)) as (EditResult & { error?: string }) | null

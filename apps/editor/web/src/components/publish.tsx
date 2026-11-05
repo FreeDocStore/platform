@@ -10,7 +10,6 @@ import {
   type KnowledgeBaseDraft,
   type PublishForm,
   type PublishStep,
-  normalizeDomain,
   slugify,
 } from '../model'
 import { Field } from './ui'
@@ -61,7 +60,7 @@ export function PublishPanel({
         <Field label="Title" value={form.title} onChange={(v) => update('title', v)} />
         <Field label="Slug / Pages project" value={form.slug} onChange={(v) => update('slug', slugify(v))} />
         <Field label="GitHub owner" value={form.owner} onChange={(v) => update('owner', v)} />
-        <Field label="Custom domain" value={form.customDomain} onChange={(v) => update('customDomain', normalizeDomain(v))} placeholder="docs.example.com" />
+        <Field label="Custom domain" value={form.customDomain} onChange={(v) => update('customDomain', v)} placeholder="docs.example.com" />
       </div>
       <div className="target-grid">
         <div>

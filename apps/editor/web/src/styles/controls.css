@@ -540,3 +540,15 @@ h1 {
   width: 100%;
 }
 
+.repository-panel summary,
+.audio-panel summary { cursor: pointer; font-size: 14px; font-weight: 700; padding: 4px 0; }
+.repository-panel[open] summary,
+.audio-panel[open] summary { margin-bottom: 14px; }
+.repository-panel p,
+.audio-panel p { margin: 10px 0; color: var(--muted); font-size: 13px; line-height: 1.6; }
+.repository-panel h3 { font-size: 13px; margin: 18px 0 8px; }
+.repository-panel ul { padding-left: 18px; font-size: 13px; }
+.repository-panel li { margin: 7px 0; overflow-wrap: anywhere; }
+.repository-panel .field { margin-top: 14px; }
+.audio-panel audio { width: 100%; margin: 12px 0; }
+.audio-panel [role=status] { color: var(--ink); }

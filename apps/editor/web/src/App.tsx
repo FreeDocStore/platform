@@ -53,6 +53,9 @@ import { MobileTabBar, StoreHeader } from './components/header'
 import { DashboardPage } from './components/dashboard'
 import { PublishPanel, SelectedKbHeader } from './components/publish'
 import { EditPanel } from './components/edit'
+import { AudioPanel } from './components/audio'
+import { RepositoryPanel } from './components/repository'
+import { sourceBlobSha } from './audio/format'
 import { EditPreview, FilesPreview, PreviewTabs } from './components/preview'
 import { SettingsPanel } from './components/settings'
 import { ProfilePage } from './components/profile'
@@ -76,7 +79,9 @@ function EditorApp() {
   const [activeKbId, setActiveKbId] = useState('')
   const [editForm, setEditForm] = useState<EditForm>(starterEdit)
   const [source, setSource] = useState('')
+  const [sourceKey, setSourceKey] = useState('')
   const [proposal, setProposal] = useState<Proposal | null>(null)
+  const [proposalKey, setProposalKey] = useState('')
   const [diff, setDiff] = useState('')
   const [activePreview, setActivePreview] = useState<'files' | 'source' | 'proposal' | 'diff' | 'live'>('files')
   const [library, setLibrary] = useState<RegistryKb[]>([])
@@ -85,6 +90,10 @@ function EditorApp() {
   const [busy, setBusy] = useState(false)
   const { installPrompt, pwaReady, updateAvailable, installApp, activateUpdate } = usePwa()
   const connectionCheckStarted = useRef(false)
+  const editIdentity = `${editForm.repo}:${editForm.branch}:${editForm.path}`
+  const editIdentityRef = useRef(editIdentity)
+  editIdentityRef.current = editIdentity
+  const visibleProposal = proposalKey === editIdentity ? proposal : null
 
   const activeKb = kbs.find((kb) => kb.id === activeKbId) ?? kbs[0] ?? createKnowledgeBase(starterPublish)
   const publishForm = toPublishForm(activeKb)
@@ -417,12 +426,17 @@ function EditorApp() {
 
   async function loadSource(formOverride?: EditForm) {
     const form = formOverride ?? editForm
+    const key = `${form.repo}:${form.branch}:${form.path}`
     setBusy(true)
+    setProposal(null)
+    setSourceKey('')
     setStatus('Loading source')
     try {
       validatePlatformAccess(user)
       const content = await readGitHubFile(form.repo, form.path, form.branch)
+      if (editIdentityRef.current !== key) return
       setSource(content)
+      setSourceKey(`${form.repo}:${form.branch}:${form.path}`)
       setProposal(null)
       setDiff('Source loaded. Ask AI for a proposal.')
       setActivePreview('source')
@@ -432,6 +446,8 @@ function EditorApp() {
         replaceLocation({ route: 'edit', kbId: editKbId, file: form.path })
       }
     } catch (error) {
+      if (editIdentityRef.current !== key) return
+      setSourceKey('')
       const message = messageOf(error)
       setStatus(message)
       setSource(`Could not load ${form.repo}/${form.path}\n\n${message}\n\nIf this is a 404/403, the FreeDocStore GitHub App may not have access to this repo — check that it's installed on the org with Contents read/write.`)
@@ -442,21 +458,27 @@ function EditorApp() {
   }
 
   async function askForEditProposal() {
+    const key = editIdentity
     setBusy(true)
     setStatus('Asking AI for proposal')
     const active = usableSettings()
     try {
       validatePlatformAccess(user)
       validateAi(active)
-      const current = source || (await readGitHubFile(editForm.repo, editForm.path, editForm.branch))
+      const current = sourceKey === key ? source : await readGitHubFile(editForm.repo, editForm.path, editForm.branch)
+      if (editIdentityRef.current !== key) return
       setSource(current)
+      setSourceKey(key)
       const { proposal: next, usage } = await generateEditProposal(active, editForm, current)
+      if (editIdentityRef.current !== key) return
       setLastUsage(usage)
       setProposal(next)
+      setProposalKey(key)
       setDiff(buildLineDiff(current, next.content))
       setActivePreview('diff')
       setStatus('Proposal ready')
     } catch (error) {
+      if (editIdentityRef.current !== key) return
       const message = messageOf(error)
       setStatus(message)
       setProposal(null)
@@ -468,7 +490,8 @@ function EditorApp() {
   }
 
   async function applyProposal(mode: 'pr' | 'direct') {
-    if (!proposal) return
+    if (!visibleProposal || sourceKey !== editIdentity) return
+    const key = editIdentity
     setBusy(true)
     setStatus(mode === 'pr' ? 'Opening a pull request' : 'Committing to the base branch')
     try {
@@ -476,13 +499,15 @@ function EditorApp() {
       const result = await app.editFile({
         repo: editForm.repo,
         path: editForm.path,
-        content: proposal.content,
-        message: proposal.summary || `Update ${editForm.path} via FreeDocStore`,
+        content: visibleProposal.content,
+        message: visibleProposal.summary || `Update ${editForm.path} via FreeDocStore`,
         mode,
         branch: editForm.branch,
+        expectedSourceSha: await sourceBlobSha(source),
       })
+      if (editIdentityRef.current !== key) return
       const link = result.prUrl || result.commitUrl
-      setSource(proposal.content)
+      if (mode === 'direct') setSource(visibleProposal.content)
       setProposal(null)
       setDiff(mode === 'pr' ? `Opened PR #${result.prNumber}. Merge it to publish.` : 'Committed to the base branch. GitHub Actions will redeploy.')
       setStatus(result.prUrl ? `Opened PR #${result.prNumber}` : 'Committed to the base branch')
@@ -593,16 +618,16 @@ function EditorApp() {
       setConnections({
         github: github.ok ? 'ready' : 'needs-setup',
         ai: ai?.ok ? 'ready' : 'needs-setup',
-        cloudflare: 'ready',
+        cloudflare: 'unchecked',
         detail: ai?.ok && github.ok
-          ? `Connections are ready. GitHub uses platform OAuth/proxy and ${label} ${free ? 'runs on your GitHub sign-in' : 'uses your BYOK key'}.`
+          ? `GitHub and AI are ready. ${label} ${free ? 'runs on your GitHub sign-in' : 'uses your BYOK key'}. Check the repository build logs to verify deployment.`
           : ready
             ? `GitHub ${github.status}; ${label} check failed. ${ai?.error || 'Check your account/key.'}`
             : `GitHub ${github.status}; ${label} needs your BYOK key in Profile → API keys.`,
       })
-      setStatus(github.ok && ai?.ok ? 'Platform connections ready' : 'Some platform connections need setup')
+      setStatus(github.ok && ai?.ok ? 'GitHub and AI ready; deployment is checked in build logs' : 'Some platform connections need setup')
     } catch (error) {
-      setConnections({ github: 'error', ai: aiReady(secrets, provider) ? 'error' : 'needs-setup', cloudflare: 'ready', detail: messageOf(error) })
+      setConnections({ github: 'error', ai: aiReady(secrets, provider) ? 'error' : 'needs-setup', cloudflare: 'unchecked', detail: messageOf(error) })
       setStatus(messageOf(error))
     }
   }
@@ -685,15 +710,20 @@ function EditorApp() {
           onApply={applyProposal}
           applyMode={settings.applyMode}
           setApplyMode={(mode) => setSettings({ ...settings, applyMode: mode })}
-          proposal={proposal}
+          proposal={visibleProposal}
+          source={source}
         />
+        <RepositoryPanel repo={editForm.repo} branch={editForm.branch} onFile={path => {
+          const next = { ...editForm, path }; setEditForm(next); void loadSource(next)
+        }} />
+        <AudioPanel key={`${editForm.repo}:${editForm.branch}:${editForm.path}`} repo={editForm.repo} branch={editForm.branch} path={editForm.path} source={sourceKey === `${editForm.repo}:${editForm.branch}:${editForm.path}` ? source : ''} />
       </section>
       <section className="panel preview-panel">
-        <PreviewTabs active={editPreview} setActive={setActivePreview} hasProposal={!!proposal} hasLive={!!livePageUrl(library, editForm)} />
+        <PreviewTabs active={editPreview} setActive={setActivePreview} hasProposal={!!visibleProposal} hasLive={!!livePageUrl(library, editForm)} />
         <EditPreview
           active={editPreview}
           source={source}
-          proposal={proposal}
+          proposal={visibleProposal}
           diff={diff}
           path={editForm.path}
           liveUrl={livePageUrl(library, editForm)}

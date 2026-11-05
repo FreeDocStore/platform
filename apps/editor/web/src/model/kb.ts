@@ -130,6 +130,14 @@ jobs:
           node-version: 22
       - run: python -m pip install zensical
       - run: python -m zensical build --strict
+      - name: Fetch FreeDocStore reader
+        uses: actions/checkout@v7
+        with:
+          repository: FreeDocStore/platform
+          path: _freedocstore
+          sparse-checkout: templates/read-aloud
+      - name: Install published-page read aloud
+        run: node _freedocstore/templates/read-aloud/install.mjs site
       - name: Inject FreeDocStore source metadata
         run: |
           node <<'NODE'

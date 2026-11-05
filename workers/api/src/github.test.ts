@@ -47,6 +47,13 @@ afterEach(() => vi.unstubAllGlobals());
 const baseInput = { token: "gho_user", repoFullName: REPO, message: "Edit docs/index.md", files: [{ path: "docs/index.md", content: "# New\n" }] };
 
 describe("commitFiles", () => {
+  it('creates binary blobs without UTF-8 re-encoding', async () => {
+    const gh = mockGitHub();
+    const binary = btoa(String.fromCharCode(0, 128, 255));
+    const result = await commitFiles({ ...baseInput, mode: 'direct', files: [{ path: 'docs/audio/sample.wav', content: binary, encoding: 'base64' }] });
+    expect(result.ok).toBe(true);
+    expect(gh.calls.find(call => call.path.endsWith('/git/blobs'))?.body).toEqual({ content: binary, encoding: 'base64' });
+  });
   it("opens a PR in pr mode (branch + pull request)", async () => {
     const gh = mockGitHub();
     const result = await commitFiles({ ...baseInput, mode: "pr" });

@@ -1,5 +1,12 @@
 # FreeDocStore
 
+## Delivery mode
+
+**Straight to `main`. No branches, no pull requests.** Declared 2026-08-16.
+
+Commit directly to `main`. Do not run `git checkout -b`, `git switch -c`, or
+`gh pr create`. If on a non-`main` branch, stop and report it.
+
 FreeDocStore is the free public knowledge-base publisher for the OFO store ecosystem.
 
 ## Identity
@@ -37,6 +44,10 @@ prompt -> proposal -> diff -> GitHub commit/PR
 Manual edits happen in GitHub.
 
 ## Current State
+
+Keep repository documentation, code comments, tests and product copy focused on
+FreeDocStore and ProDocStore. Do not name unrelated source products or describe
+cross-product migration history in this repository.
 
 This platform is the FreeDocStore-owned knowledge-base publishing monorepo. Keep useful engine internals, but product-facing copy should say FreeDocStore.
 

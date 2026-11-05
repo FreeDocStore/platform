@@ -11,6 +11,7 @@ export const CONTENT_SCRIPT_ALLOWED: ReadonlySet<string> = new Set([
   "SELECTION_RESULT",
   "OPEN_BOARD", // in-page marker click; just opens an extension page
   "IS_PANEL_OPEN", // read-only: only reveals whether the panel is open here
+  "PAGE_NARRATION_STARTED", // may only stop narration for this tab
   "FOCUS_EDIT_THREAD", // in-page highlight button; asks the panel to open a thread
 ]);
 
