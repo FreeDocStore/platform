@@ -32,7 +32,7 @@ function githubToken(c: Context<Bindings>) {
 
 export function registerProvisioningRoutes(app: App) {
   app.use('/api/provisioning/*', async (c, next) => { githubToken(c); await next(); });
-  app.use('/api/provisioning/*', bodyLimit({ maxSize: 8192, onError: c => c.json({ error: 'Setup request exceeds 8 KiB.' }, 413) }));
+  app.use('/api/provisioning/*', bodyLimit({ maxSize: 2 * 1024 * 1024, onError: c => c.json({ error: 'Setup request exceeds 2 MiB.' }, 413) }));
 
   app.get('/api/provisioning/installations', async c => {
     const items = await installations(githubToken(c), c.env);
@@ -59,7 +59,7 @@ export function registerProvisioningRoutes(app: App) {
     const id = Number(c.req.query('installation'));
     if (!Number.isSafeInteger(id) || id <= 0) throw new ProvisioningError(400, 'Select an app installation.');
     const result = await repositories(githubToken(c), c.env, id);
-    return c.json({ repositories: result.repositories.map(repo => ({ fullName: repo.full_name, name: repo.name, branch: repo.default_branch, canConfigure: repo.permissions?.admin === true && repo.permissions.push === true })) });
+    return c.json({ repositories: result.repositories.map(repo => ({ fullName: repo.full_name, name: repo.name, branch: repo.default_branch, canConfigure: repo.permissions?.push === true })) });
   });
   app.get('/api/provisioning/connection', async c => {
     const repo = await managedRepository(githubToken(c), c.req.query('repo') ?? '');
@@ -93,7 +93,12 @@ export function registerProvisioningRoutes(app: App) {
     const repo = await managedRepository(token, field(input, 'repo'));
     const connection = await c.env.FDS_API_KV.get<HostingConnection>(hostingKey(repo.full_name), 'json');
     if (connection?.status !== 'ready' || !connection.version) throw new ProvisioningError(409, 'Stage a hosting credential version before reviewing this deployment setup.');
-    const plan = await setupPlan(token, repo.full_name, field(input, 'project'), field(input, 'domain').toLowerCase(), connection.version);
+    if (input.draftFiles !== undefined && (!Array.isArray(input.draftFiles) || input.draftFiles.some(file => !file || typeof file !== 'object' || typeof file.path !== 'string' || typeof file.content !== 'string'))) throw new ProvisioningError(400, 'Draft files must contain text paths and content.');
+    const title = field(input, 'title');
+    if (title.length > 120) throw new ProvisioningError(400, 'Draft title must be 120 characters or fewer.');
+    const draftSlug = field(input, 'draftSlug');
+    if (draftSlug && !/^[a-z][a-z0-9-]{1,57}$/.test(draftSlug)) throw new ProvisioningError(400, 'Draft slug must use lowercase letters, numbers and hyphens.');
+    const plan = await setupPlan(token, repo.full_name, field(input, 'project'), field(input, 'domain').toLowerCase(), connection.version, (input.draftFiles ?? []) as Array<{path:string;content:string}>, title, draftSlug);
     const previous = await c.env.FDS_API_KV.get<DeploymentSetup>(deploymentKey(plan.repo), 'json');
     const configuredProject = previous?.accountId === connection.accountId && previous.project === plan.project ? { name: previous.project, production_branch: previous.branch } : undefined;
     const existingProject = connection.projects?.find(project => project.name === plan.project) ?? configuredProject;
@@ -115,6 +120,7 @@ export function registerProvisioningRoutes(app: App) {
     const repo = await managedRepository(token, plan.repo);
     if (repo.default_branch !== plan.branch) throw new ProvisioningError(409, 'The default branch changed. Review setup again.');
     if (plan.replacesWorkflow && input.confirmReplaceWorkflow !== true) throw new ProvisioningError(409, 'Confirm replacement of the existing deployment workflow after reviewing its diff.');
+    if (plan.hasDraftChanges && input.confirmDraftContent !== true) throw new ProvisioningError(409, 'Confirm the generated draft content after reviewing its diff.');
     if (input.mode !== 'pr' && input.mode !== 'direct') throw new ProvisioningError(400, 'Choose a setup pull request or a reviewed direct commit.');
     const connection = await c.env.FDS_API_KV.get<HostingConnection>(hostingKey(plan.repo), 'json');
     if (!plan.credentialVersion || connection?.status !== 'ready' || connection.version !== plan.credentialVersion || connection.accountId !== plan.accountId || connection.updatedAt !== plan.connectedAt) throw new ProvisioningError(409, 'The Cloudflare connection changed. Review setup again.');

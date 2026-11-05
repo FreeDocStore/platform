@@ -1,14 +1,20 @@
 import { parse } from 'yaml';
 import type { Env } from './types';
-import { managedRepository, readSource } from './provisioning';
+import { managedRepository, readSource, type Repository } from './provisioning';
 import { githubRequest as gh, ProvisioningError } from './lib/provisioning-http';
 import { hostingVersionKey, hostingVersionPrefix, type HostingConnection } from './hosting';
 import { credentialNames } from '../../../templates/publishing/workflow';
 
 const removedKey = (repo: string, version: string) => `hosting-removed:${repo.toLowerCase()}:${version}`;
 
-export async function failedHostingVersions(env: Env, token: string, name: string, cursor?: string) {
+async function assertRepositoryAdministrator(token: string, name: string): Promise<Repository> {
   const repo = await managedRepository(token, name);
+  if (repo.permissions?.admin !== true) throw new ProvisioningError(403, 'Repository administrator access is required to inspect or remove failed staging credentials.');
+  return repo;
+}
+
+export async function failedHostingVersions(env: Env, token: string, name: string, cursor?: string) {
+  const repo = await assertRepositoryAdministrator(token, name);
   const page = await env.FDS_API_KV.list({ prefix: hostingVersionPrefix(repo.full_name), limit: 100, ...(cursor ? { cursor } : {}) });
   const records = await Promise.all(page.keys.map(key => env.FDS_API_KV.get<HostingConnection>(key.name, 'json')));
   const removed = new Set((await Promise.all(records.map(async record => record?.version && await env.FDS_API_KV.get(removedKey(repo.full_name, record.version)) ? record.version : null))).filter(Boolean));
@@ -29,7 +35,7 @@ async function repositoryRefs(token: string, repo: string) {
 /** Only failed, never-ready attempts can be removed; ready versions preserve rollback. */
 export async function removeFailedHostingVersion(env: Env, token: string, name: string, version: string) {
   if (!/^[A-F0-9]{32}$/.test(version)) throw new ProvisioningError(400, 'Select a valid failed credential version.');
-  const repo = await managedRepository(token, name);
+  const repo = await assertRepositoryAdministrator(token, name);
   const key = hostingVersionKey(repo.full_name, version);
   const connection = await env.FDS_API_KV.get<HostingConnection>(key, 'json');
   if (await env.FDS_API_KV.get(removedKey(repo.full_name, version)) || connection?.status !== 'failed' || connection.version !== version || connection.repo.toLowerCase() !== repo.full_name.toLowerCase()) throw new ProvisioningError(409, 'Only failed staging attempts can be cleaned up. Ready versions are retained for active workflows, reviews and rollback.');

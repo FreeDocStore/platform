@@ -35,7 +35,7 @@ async function setupMock(page, options = {}) {
     }
     if (endpoint === 'staging') { await reply({ versions: [{ ...connection, version: 'B'.repeat(32), status: 'failed' }], cursor: null }); return true; }
     if (endpoint === 'cleanup') { await reply({ removed: true }); return true; }
-    if (endpoint === 'plan') { await reply(plan); return true; }
+    if (endpoint === 'plan') { await reply(options.plan ?? plan); return true; }
     if (endpoint === 'apply') {
       applied = true;
       await reply(options.pullRequest ? { ok: true, prUrl: `https://github.com/${repo}/pull/42`, prNumber: 42 } : { ok: true, commitSha: 'a'.repeat(40) }); return true;
@@ -73,7 +73,7 @@ async function reviewPlan(page) {
   await page.getByRole('combobox', { name: 'Pages project', exact: true }).selectOption('customer-docs');
   await page.getByLabel('Publish this repository to the selected existing Pages project.', { exact: false }).check();
   await page.getByRole('button', { name: 'Review setup changes' }).click();
-  await expect(page.getByText('Setup review · Customer Cloudflare', { exact: true })).toBeVisible();
+  await expect(page.getByText('Setup and draft review · Customer Cloudflare', { exact: true })).toBeVisible();
 }
 
 test('customer organization setup connects hosting, reviews changes, recovers a failed build and verifies publication', async ({ page }) => {
@@ -106,6 +106,36 @@ test('customer organization setup connects hosting, reviews changes, recovers a 
   await expect(page).toHaveURL(/edit\/customerorg-knowledge\/docs\/index.md/);
   await expect(page.getByText('# Original source', { exact: false }).first()).toBeVisible();
   expect(errors).toEqual([]);
+});
+
+test('workspace AI draft enters setup review, applies with content confirmation and verifies live', async ({ page }) => {
+  const generated = [{ path: 'docs/index.md', content: '# Reviewed workspace draft\n' }, { path: 'docs/guide.md', content: '# Guide\n' }];
+  const setupPlan = { ...plan, hasDraftChanges: true, files: [...plan.files, ...generated.map(file => ({ ...file, before: file.path.endsWith('index.md') ? '# Existing page\n' : '', expectedSha: file.path.endsWith('index.md') ? 'b'.repeat(40) : null }))] };
+  const requests = await setupMock(page, { connected: true, plan: setupPlan });
+  await page.addInitScript(({ user, files }) => {
+    localStorage.setItem(`fds:account:${user}:drafts`, JSON.stringify([{ id: 'draft-1', title: 'Launch Guide', slug: 'launch-guide', owner: 'CustomerOrg', customDomain: '', visibility: 'public', prompt: 'Create a launch guide', files, liveUrl: '', repoUrl: '', lastStatus: 'Files generated', createdAt: '', updatedAt: '', steps: [] }]));
+    localStorage.setItem(`fds:account:${user}:active`, 'draft-1');
+  }, { user: 'user', files: generated });
+  await page.goto('/publish');
+  await expect(page.getByText('Launch Guide', { exact: true }).first()).toBeVisible();
+  await page.getByRole('button', { name: 'Continue to setup', exact: true }).click();
+  await page.getByLabel('GitHub organization or account').selectOption('7');
+  await expect(page.getByLabel('Public repository')).toContainText(repo);
+  await page.getByLabel('Public repository').selectOption(repo);
+  await expect(page.getByText('Launch Guide', { exact: false })).toBeVisible();
+  await page.getByRole('combobox', { name: 'Pages project', exact: true }).selectOption('customer-docs');
+  await page.getByLabel('Publish this repository to the selected existing Pages project.', { exact: false }).check();
+  await page.getByRole('button', { name: 'Review setup changes' }).click();
+  await expect(page.getByText('Setup and draft review · Customer Cloudflare', { exact: true })).toBeVisible();
+  expect(requests.find(request => request.endpoint === 'plan').body.draftFiles).toEqual(generated);
+  const guideReview = page.locator('.setup-review details').filter({ has: page.getByText('docs/guide.md · new file', { exact: true }) });
+  await guideReview.locator('summary').click();
+  await expect(guideReview.locator('pre')).toContainText('+ # Guide');
+  await page.getByLabel('I reviewed and approve the generated content changes', { exact: false }).check();
+  await page.getByLabel('Replace the existing deploy.yml workflow', { exact: false }).check();
+  await page.getByRole('button', { name: 'Open setup pull request' }).click();
+  await expect(page.getByRole('link', { name: 'Open published knowledge base' })).toBeVisible({ timeout: 15000 });
+  expect(requests.find(request => request.endpoint === 'apply').body.confirmDraftContent).toBe(true);
 });
 
 test('setup pull requests stay reviewable and cannot deploy before merge', async ({ page }) => {
@@ -171,7 +201,7 @@ test('a reloaded configured target can be reviewed without pasting hosting crede
   await expect(page.getByRole('combobox', { name: 'Pages project', exact: true })).toContainText('configured target');
   await page.getByLabel('Publish this repository to the selected configured Pages project.', { exact: false }).check();
   await page.getByRole('button', { name: 'Review setup changes' }).click();
-  await expect(page.getByText('Setup review · Customer Cloudflare', { exact: true })).toBeVisible();
+  await expect(page.getByText('Setup and draft review · Customer Cloudflare', { exact: true })).toBeVisible();
   expect(requests.filter(request => ['accounts', 'connect'].includes(request.endpoint))).toHaveLength(0);
 });
 

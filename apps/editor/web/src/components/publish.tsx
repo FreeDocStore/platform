@@ -52,26 +52,16 @@ export function PublishPanel({
       <div className="section-title">
         <BookOpen size={18} />
         <div>
-          <h2>Publish selected KB</h2>
-          <p>Generates a Zensical Markdown repo and deploy workflow.</p>
+          <h2>Draft a knowledge base</h2>
+          <p>Generate and review Markdown here, then choose a customer repository and hosting target in Set up.</p>
         </div>
       </div>
       <div className="field-grid two">
         <Field label="Title" value={form.title} onChange={(v) => update('title', v)} />
         <Field label="Slug / Pages project" value={form.slug} onChange={(v) => update('slug', slugify(v))} />
-        <Field label="GitHub owner" value={form.owner} onChange={(v) => update('owner', v)} />
         <Field label="Custom domain" value={form.customDomain} onChange={(v) => update('customDomain', v)} placeholder="docs.example.com" />
       </div>
-      <div className="target-grid">
-        <div>
-          <span>Pages URL</span>
-          <strong>https://{form.slug || 'project'}.pages.dev/</strong>
-        </div>
-        <div className={form.customDomain ? 'target-domain active' : 'target-domain'}>
-          <span>Custom domain</span>
-          <strong>{form.customDomain ? `https://${form.customDomain}/` : 'Not attached'}</strong>
-        </div>
-      </div>
+      <p>The repository and publication address will be shown after you select them in Set up.</p>
       <label className="field">
         <span>Knowledge-base prompt</span>
         <textarea value={form.prompt} onChange={(e) => update('prompt', e.target.value)} rows={8} />
@@ -91,7 +81,7 @@ export function PublishPanel({
         </button>
         <button className="primary-action" type="button" onClick={onPublish} disabled={busy}>
           {busy ? <Loader2 className="spin" size={17} /> : <LibraryBig size={17} />}
-          Publish repo
+          Continue to setup
         </button>
       </div>
       <div className="steps" aria-label="Publish progress">

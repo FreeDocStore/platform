@@ -3,8 +3,9 @@ import { fds, type User } from '../lib/fds'
 import { buildLineDiff, messageOf, type RegistryKb } from '../model'
 import { startDeploymentPolling } from '../services/deployment-polling'
 import { provisioning, type OrganizationInstallation, type SetupRepository, type HostingConnection, type HostingProject, type SetupPlan, type DeploymentStatus } from '../services/provisioning'
+import type { KnowledgeBaseDraft } from '../model/types'
 
-export function ProvisioningPage({ user, onEdit }: { user: User; onEdit: (entry: RegistryKb) => void }) {
+export function ProvisioningPage({ user, draft, onEdit, onInstallationSelected }: { user: User; draft: KnowledgeBaseDraft; onEdit: (entry: RegistryKb) => void; onInstallationSelected: (owner: string) => void }) {
   const [installations, setInstallations] = useState<OrganizationInstallation[]>([])
   const [installation, setInstallation] = useState(Number(new URLSearchParams(location.search).get('installation')) || 0)
   const [repos, setRepos] = useState<SetupRepository[]>([])
@@ -21,7 +22,12 @@ export function ProvisioningPage({ user, onEdit }: { user: User; onEdit: (entry:
     provisioning.installations().then(result => {
       if (cancelled) return
       setInstallations(result.installations); setInstallUrl(result.installUrl); setInstallationWarning(result.installationWarning)
-      setInstallation(current => result.installations.some(item => item.id === current) ? current : result.installations[0]?.id || 0)
+      setInstallation(current => {
+        const id = result.installations.some(item => item.id === current) ? current : result.installations[0]?.id || 0
+        const account = result.installations.find(item => item.id === id)
+        if (account) onInstallationSelected(account.account.login)
+        return id
+      })
     }).catch(error => { if (!cancelled) setError(messageOf(error)) }).finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
   }, [user.provider, refresh])
@@ -48,22 +54,22 @@ export function ProvisioningPage({ user, onEdit }: { user: User; onEdit: (entry:
         {installationWarning && <p role="status">{installationWarning}</p>}
         {error && <p role="alert">{error}</p>}
         {!loading && !installations.length && !error && <p>No accessible app installations yet. Ask an organization owner to install FreeDocStore, then refresh.</p>}
-        <label className="field"><span>GitHub organization or account</span><select value={installation || ''} disabled={loading} onChange={event => { setInstallation(Number(event.target.value)); setRepo('') }}><option value="">Choose an installation…</option>{installations.map(item => <option key={item.id} value={item.id}>{item.account.login}</option>)}</select></label>
+        <label className="field"><span>GitHub organization or account</span><select value={installation || ''} disabled={loading} onChange={event => { const id = Number(event.target.value); setInstallation(id); setRepo(''); const account = installations.find(item => item.id === id); if (account) onInstallationSelected(account.account.login) }}><option value="">Choose an installation…</option>{installations.map(item => <option key={item.id} value={item.id}>{item.account.login}</option>)}</select></label>
         {org && <a href={`https://github.com/new?owner=${encodeURIComponent(org.account.login)}`} target="_blank" rel="noreferrer">Create a public repository on GitHub</a>}
         {missing.length > 0 && <p role="alert">The app installation needs these write permissions: {missing.join(', ')}. Ask an organization owner to approve the updated app permissions, then refresh.</p>}
         <label className="field"><span>Public repository</span><select value={selected ? repo : ''} disabled={loading || !installation} onChange={event => {
           const next = event.target.value; setRepo(next)
           const url = new URL(location.href); url.searchParams.set('installation', String(installation)); url.searchParams.set('repo', next); history.replaceState(null, '', url)
-        }}><option value="">Choose a repository…</option>{repos.map(item => <option key={item.fullName} value={item.fullName} disabled={!item.canConfigure}>{item.fullName}{item.canConfigure ? '' : ' (administrator required)'}</option>)}</select></label>
+        }}><option value="">Choose a repository…</option>{repos.map(item => <option key={item.fullName} value={item.fullName} disabled={!item.canConfigure}>{item.fullName}{item.canConfigure ? '' : ' (write access required)'}</option>)}</select></label>
         {loading && <p role="status">Checking GitHub access…</p>}
         {!loading && installation > 0 && !repos.length && !error && <p>No active public repositories are available to this installation. Check repository selection and your organization permissions, then refresh.</p>}
       </section>
-      {selected?.canConfigure && <RepositorySetup key={selected.fullName} repo={selected} onEdit={onEdit} />}
+      {selected?.canConfigure && <RepositorySetup key={selected.fullName} repo={selected} draft={draft} onEdit={onEdit} />}
     </>}
   </section>
 }
 
-function RepositorySetup({ repo, onEdit }: { repo: SetupRepository; onEdit: (entry: RegistryKb) => void }) {
+function RepositorySetup({ repo, draft, onEdit }: { repo: SetupRepository; draft: KnowledgeBaseDraft; onEdit: (entry: RegistryKb) => void }) {
   const [connection, setConnection] = useState<HostingConnection | null>(null)
   const [token, setToken] = useState('')
   const [accounts, setAccounts] = useState<Array<{ id: string; name: string }>>([])
@@ -71,7 +77,7 @@ function RepositorySetup({ repo, onEdit }: { repo: SetupRepository; onEdit: (ent
   const [projects, setProjects] = useState<HostingProject[]>([])
   const [project, setProject] = useState('')
   const [newProject, setNewProject] = useState(false)
-  const [domain, setDomain] = useState('')
+  const [domain, setDomain] = useState(draft.customDomain)
   const [failedVersions, setFailedVersions] = useState<HostingConnection[]>([])
   const [stagingCursor, setStagingCursor] = useState<string | null>(null)
   const [stagingLoaded, setStagingLoaded] = useState(false)
@@ -81,6 +87,7 @@ function RepositorySetup({ repo, onEdit }: { repo: SetupRepository; onEdit: (ent
   const [confirmRepoint, setConfirmRepoint] = useState(false)
   const [previousTarget, setPreviousTarget] = useState<{ project: string; domain: string; accountId: string } | null>(null)
   const [confirmWorkflow, setConfirmWorkflow] = useState(false)
+  const [confirmDraft, setConfirmDraft] = useState(false)
   const [mode, setMode] = useState<'pr' | 'direct'>('pr')
   const [plan, setPlan] = useState<SetupPlan | null>(null)
   const [hasSetup, setHasSetup] = useState(false)
@@ -92,7 +99,7 @@ function RepositorySetup({ repo, onEdit }: { repo: SetupRepository; onEdit: (ent
   const [busy, setBusy] = useState('Checking repository setup…')
   const operating = useRef(false)
   const mounted = useRef(true)
-  const suggested = repo.fullName.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 58).replace(/-$/, '')
+  const suggested = draft.slug || repo.fullName.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 58).replace(/-$/, '')
   useEffect(() => {
     mounted.current = true
     provisioning.connection(repo.fullName).then(result => {
@@ -158,13 +165,14 @@ function RepositorySetup({ repo, onEdit }: { repo: SetupRepository; onEdit: (ent
     setFailedVersions(current => cursor ? [...current, ...result.versions.filter(item => !current.some(existing => existing.version === item.version))] : result.versions)
     setStagingCursor(result.cursor); setStagingLoaded(true); setCleanupVersion('')
   }
-  function changeTarget() { setPlan(null); setConfirmWorkflow(false); setConfirmCreate(false); setConfirmUseProject(false); setConfirmRepoint(false) }
+  function changeTarget() { setPlan(null); setConfirmWorkflow(false); setConfirmDraft(false); setConfirmCreate(false); setConfirmUseProject(false); setConfirmRepoint(false) }
   const repoints = previousTarget && connection && (previousTarget.project !== project || previousTarget.domain !== domain || previousTarget.accountId !== connection.accountId)
   return <>
     <section className="section-block"><h2>2. Connect your Cloudflare account</h2>
       <p>Deployments use your account and billing. Credentials are encrypted into this repository’s GitHub Actions secrets; they are never saved in browser storage. Staging uses new secret names and leaves existing deployments intact until you approve the workflow change.</p>
       {connection?.status === 'ready' && <p>{connection.version ? 'Staged credentials for' : 'Connected to'} <strong>{connection.accountName}</strong> · checked {new Date(connection.updatedAt).toLocaleString()}</p>}
       {connection?.status === 'ready' && !connection.version && <p>Stage a fresh credential version to review a new setup. Your existing deployment can still be checked or retried below.</p>}
+      {!connection && <p role="status">Connect and stage a Cloudflare credential before setup can be reviewed. This draft is saved in your workspace and is not published yet.</p>}
       {connection?.status === 'failed' && <p role="alert">The previous connection was incomplete. Reconnect before deploying.</p>}
       <p>Create a token with Account Settings:read and Cloudflare Pages:edit for the chosen account. Custom domains also need Zone:read and DNS:edit scoped to their zone.</p>
       <a href="https://dash.cloudflare.com/profile/api-tokens" target="_blank" rel="noreferrer">Create a Cloudflare API token</a>
@@ -175,7 +183,7 @@ function RepositorySetup({ repo, onEdit }: { repo: SetupRepository; onEdit: (ent
       </>}
     </section>
     {connection?.status === 'ready' && connection.version && !token && <section className="section-block"><h2>3. Review the publishing setup</h2>
-      <p>Repository: <strong>{repo.fullName}</strong> · default branch: <strong>{repo.branch}</strong>. Existing source files are preserved.</p><p><a href={`https://github.com/${repo.fullName}/tree/${encodeURIComponent(repo.branch)}/.github/workflows`} target="_blank" rel="noreferrer">View existing workflows on GitHub</a></p>
+      <p>Draft: <strong>{draft.title}</strong> · {draft.files.length} AI generated files remain in workspace draft storage until you review and apply setup. Target repository: <strong>{repo.fullName}</strong> · default branch: <strong>{repo.branch}</strong>.</p><p><a href={`https://github.com/${repo.fullName}/tree/${encodeURIComponent(repo.branch)}/.github/workflows`} target="_blank" rel="noreferrer">View existing workflows on GitHub</a></p>
       <label className="field"><span>Pages project</span><select value={newProject ? '__new' : project} disabled={Boolean(busy)} onChange={event => { const create = event.target.value === '__new'; setNewProject(create); setProject(create ? suggested : event.target.value); changeTarget() }}><option value="">Choose an existing project…</option>{projects.map(item => <option key={item.name} value={item.name}>{item.name} · {item.configured ? 'configured target' : item.production_branch}</option>)}<option value="__new">Create a new Pages project</option></select></label>
       {newProject && <label className="field"><span>New Pages project name</span><input value={project} disabled={Boolean(busy)} onChange={event => { setProject(event.target.value.toLowerCase()); changeTarget() }} /></label>}
       <label className="field"><span>Custom domain (optional)</span><input value={domain} disabled={Boolean(busy)} placeholder="docs.example.com" onChange={event => { setDomain(event.target.value.toLowerCase()); changeTarget() }} /></label>
@@ -183,14 +191,15 @@ function RepositorySetup({ repo, onEdit }: { repo: SetupRepository; onEdit: (ent
       {newProject && <label className="setup-checkbox"><input type="checkbox" checked={confirmCreate} disabled={Boolean(busy)} onChange={event => setConfirmCreate(event.target.checked)} />Create a new Pages project in {connection.accountName}. This will not move an existing site.</label>}
       {!newProject && project && <label className="setup-checkbox"><input type="checkbox" checked={confirmUseProject} disabled={Boolean(busy)} onChange={event => setConfirmUseProject(event.target.checked)} />Publish this repository to the selected {projects.find(item => item.name === project)?.configured ? 'configured' : 'existing'} Pages project. This can replace the site currently hosted there.</label>}
       {repoints && <label className="setup-checkbox"><input type="checkbox" checked={confirmRepoint} disabled={Boolean(busy)} onChange={event => setConfirmRepoint(event.target.checked)} />Change the previous publishing target ({previousTarget.project}) to the account, project and domain shown above.</label>}
-      <button className="secondary-action" type="button" disabled={Boolean(busy) || !project || (newProject ? !confirmCreate : !confirmUseProject) || Boolean(repoints && !confirmRepoint)} onClick={() => void run('Preparing setup review…', async () => { const next = await provisioning.plan(repo.fullName, project, domain, confirmCreate, confirmUseProject, confirmRepoint); if (mounted.current) { setPlan(next); setConfirmWorkflow(false) } })}>Review setup changes</button>
-      {plan && <div className="setup-review"><h3>Setup review · {plan.accountName}</h3><p>{plan.repo} → {plan.url}</p><p>Credential version: <code>{plan.credentialVersion}</code>. Activation happens through this reviewed workflow commit or pull-request merge.</p>{plan.warning && <p role="status">{plan.warning}</p>}
+      <button className="secondary-action" type="button" disabled={Boolean(busy) || !project || (newProject ? !confirmCreate : !confirmUseProject) || Boolean(repoints && !confirmRepoint)} onClick={() => void run('Preparing setup review…', async () => { const markdown = draft.files.filter(file => /^docs\/(?:[^/]+\/)*[^/]+\.md$/.test(file.path)).map(({ path, content }) => ({ path, content })); const next = await provisioning.plan(repo.fullName, project, domain, confirmCreate, confirmUseProject, confirmRepoint, markdown, draft.title, draft.slug); if (mounted.current) { setPlan(next); setConfirmWorkflow(false); setConfirmDraft(false) } })}>Review setup changes</button>
+      {plan && <div className="setup-review"><h3>Setup and draft review · {plan.accountName}</h3><p>{draft.title} ({draft.slug}) · {plan.repo} · {plan.branch} → {plan.url}</p><p>Credential version: <code>{plan.credentialVersion}</code>. Activation happens through this reviewed workflow commit or pull-request merge. Drafts are not published until reviewed changes are applied and deployment is verified live.</p>{plan.warning && <p role="status">{plan.warning}</p>}
         {!plan.files.length && <p>The reviewed publishing files are already installed. Apply to resume deployment tracking.</p>}
         {plan.files.map(file => <details key={file.path}><summary>{file.path} · {file.expectedSha ? 'update' : 'new file'}</summary><pre className="setup-diff">{buildLineDiff(file.before, file.content)}</pre></details>)}
         {plan.replacesWorkflow && <label className="setup-checkbox"><input type="checkbox" checked={confirmWorkflow} disabled={Boolean(busy)} onChange={event => setConfirmWorkflow(event.target.checked)} />Replace the existing deploy.yml workflow with the reviewed workflow and selected hosting target.</label>}
+        {plan.hasDraftChanges && <label className="setup-checkbox"><input type="checkbox" checked={confirmDraft} disabled={Boolean(busy)} onChange={event => setConfirmDraft(event.target.checked)} />I reviewed and approve the generated content changes shown above, including any existing documents they replace.</label>}
         <label className="field"><span>Apply setup</span><select value={mode} disabled={Boolean(busy)} onChange={event => setMode(event.target.value as 'pr' | 'direct')}><option value="pr">Open a setup pull request for review</option><option value="direct">Commit reviewed setup to the default branch</option></select></label>
-        <button className="primary-action" type="button" disabled={Boolean(busy) || (plan.replacesWorkflow && !confirmWorkflow)} onClick={() => void run('Applying reviewed setup…', async () => {
-          const result = await provisioning.apply(plan.planId, mode, confirmWorkflow)
+        <button className="primary-action" type="button" disabled={Boolean(busy) || (plan.replacesWorkflow && !confirmWorkflow) || (plan.hasDraftChanges && !confirmDraft)} onClick={() => void run('Applying reviewed setup…', async () => {
+          const result = await provisioning.apply(plan.planId, mode, confirmWorkflow, confirmDraft)
           if (!mounted.current) return
           setPreviousTarget({ project: plan.project, domain: plan.domain, accountId: connection.accountId }); setPlan(null); setHasSetup(true); poller.current?.refresh()
           setDeployment(result.prUrl ? { state: 'awaiting-review', prUrl: result.prUrl, message: 'Review and merge the setup pull request. The first build starts when it is merged.' } : { state: 'waiting', message: 'Setup applied. Check the first deployment or trigger it below.' })

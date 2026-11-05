@@ -48,6 +48,7 @@ import {
 import { usePwa } from './hooks/usePwa'
 import { generateEditProposal, generateKbFiles, pingAi } from './services/ai'
 import { readGitHubFile } from './services/github'
+import { provisioning } from './services/provisioning'
 import { LoadingScreen, SignedOutLanding } from './components/signin'
 import { MobileTabBar, StoreHeader } from './components/header'
 import { DashboardPage } from './components/dashboard'
@@ -92,6 +93,7 @@ function EditorApp({ auth }: { auth: ReturnType<typeof useAuth> }) {
   const [platformLoaded, setPlatformLoaded] = useState(false)
   const [cloudReady, setCloudReady] = useState(false)
   const [connections, setConnections] = useState<PlatformConnections>(initialConnections)
+  const [customerOwner, setCustomerOwner] = useState('')
   const [activeKbId, setActiveKbId] = useState('')
   const [editForm, setEditForm] = useState<EditForm>(starterEdit)
   const [source, setSource] = useState('')
@@ -233,6 +235,24 @@ function EditorApp({ auth }: { auth: ReturnType<typeof useAuth> }) {
     refreshSecrets().catch((error) => setStatus(`Could not load BYOK key status: ${messageOf(error)}`))
   }, [user])
 
+  // New drafts belong to the customer's selected GitHub App account. This
+  // never imports the platform sample account into a fresh workspace.
+  useEffect(() => {
+    if (user?.provider !== 'github') return
+    let cancelled = false
+    provisioning.installations().then(({ installations }) => {
+      if (cancelled) return
+      const requested = Number(new URLSearchParams(location.search).get('installation'))
+      const account = installations.find(item => item.id === requested) ?? installations[0]
+      if (!account) return
+      setCustomerOwner(account.account.login)
+      setKbs(current => current.map((kb, index) => index === 0 && !kb.owner
+        ? { ...kb, owner: account.account.login }
+        : kb))
+    }).catch(() => { /* Setup screen presents the actionable GitHub access error. */ })
+    return () => { cancelled = true }
+  }, [user])
+
   useEffect(() => {
     if (kbs[0] && (!activeKbId || !kbs.some((kb) => kb.id === activeKbId))) setActiveKbId(kbs[0].id)
   }, [activeKbId, kbs])
@@ -306,7 +326,7 @@ function EditorApp({ auth }: { auth: ReturnType<typeof useAuth> }) {
   }
 
   function createNewKb() {
-    const owner = activeKb?.owner || starterPublish.owner
+    const owner = activeKb?.owner || customerOwner
     const next = createKnowledgeBase({
       ...starterPublish,
       title: 'Untitled Knowledge Base',
@@ -379,58 +399,12 @@ function EditorApp({ auth }: { auth: ReturnType<typeof useAuth> }) {
 
   async function publishToGitHub() {
     if (!activeKb) return
-    const kbId = activeKb.id
-    const form = toPublishForm(activeKb)
-    setBusy(true)
-    setStatus('Publishing KB repo')
-    setKbPatch(kbId, { lastStatus: 'Publishing' })
-    try {
-      let readyFiles = activeKb.files
-      if (!readyFiles.length) {
-        validatePublishForm(form)
-        validatePlatformAccess(user)
-        const active = usableSettings()
-        validateAi(active)
-        setKbSteps(kbId, resetSteps('plan', 'busy'))
-        setKbSteps(kbId, updateStep('plan', 'ok', 'Zensical contract ready'))
-        setKbSteps(kbId, updateStep('ai', 'busy', 'Asking AI for source files'))
-        const generated = await generateKbFiles(active, form)
-        setLastUsage(generated.usage)
-        readyFiles = generated.files
-        validateKbFiles(readyFiles)
-        setKbPatch(kbId, { files: readyFiles })
-        setKbSteps(kbId, updateStep('ai', 'ok', `${readyFiles.length} files generated`))
-      }
-      validatePublishForm(form)
-      validateKbFiles(readyFiles)
-      validatePlatformAccess(user)
-
-      setKbSteps(kbId, updateStep('repo', 'busy', 'Publishing through the platform'))
-      const result = await app.publishKb({
-        title: form.title,
-        slug: form.slug,
-        owner: form.owner,
-        customDomain: form.customDomain || undefined,
-        description: form.prompt,
-        files: readyFiles,
-      })
-      for (const step of result.steps) {
-        setKbSteps(kbId, updateStep(step.id, step.ok ? 'ok' : 'error', step.detail))
-      }
-      const failed = result.steps.find((step) => !step.ok)
-      if (failed) throw new Error(failed.detail)
-
-      setKbPatch(kbId, { repoUrl: result.repoUrl, liveUrl: result.liveUrl, lastStatus: 'Submitted' })
-      setKbSteps(kbId, updateStep('deploy', 'idle', 'Check GitHub Actions to verify deployment'))
-      setStatus('Source submitted. Check GitHub Actions to confirm the build and deployment.')
-      window.open(`${result.repoUrl}/actions`, '_blank', 'noopener,noreferrer')
-    } catch (error) {
-      setStatus(messageOf(error))
-      setKbPatch(kbId, { lastStatus: messageOf(error) })
-      setKbSteps(kbId, markCurrentError)
-    } finally {
-      setBusy(false)
+    if (!activeKb.files.length) {
+      setStatus('Generate and review the AI draft before setting up a customer repository.')
+      return
     }
+    setStatus('AI files remain in this draft for review. Select the customer installation, public repository and Cloudflare target in Set up before publishing.')
+    navigate('provision')
   }
 
   async function loadSource(formOverride?: EditForm) {
@@ -667,7 +641,7 @@ function EditorApp({ auth }: { auth: ReturnType<typeof useAuth> }) {
   // 'files' is a publish-only preview tab; never let it leak into the edit view.
   const editPreview = activePreview === 'files' ? 'source' : activePreview
 
-  const content = route === 'provision' ? <ProvisioningPage user={user} onEdit={entry => { setLibrary(current => [...current.filter(kb => kb.id !== entry.id), entry]); goEdit(entry.id) }} /> : route === 'dashboard' ? (
+  const content = route === 'provision' ? <ProvisioningPage key={activeKb.id} user={user} draft={activeKb} onInstallationSelected={setCustomerOwner} onEdit={entry => { setLibrary(current => [...current.filter(kb => kb.id !== entry.id), entry]); goEdit(entry.id) }} /> : route === 'dashboard' ? (
     <DashboardPage
       kbs={kbs}
       activeId={activeKb?.id ?? ''}

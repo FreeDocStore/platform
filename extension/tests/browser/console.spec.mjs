@@ -51,7 +51,7 @@ test('account caches stay isolated and unowned legacy drafts are never uploaded'
     return false;
   });
   await page.goto('/');
-  await expect(page.getByText('True Non-Profit', { exact: true }).first()).toBeVisible();
+  await expect(page.getByText('Untitled Knowledge Base', { exact: true }).first()).toBeVisible();
   await expect.poll(() => writes.length).toBeGreaterThan(0);
   expect(writes.every(write => write.account === 'account-a')).toBe(true);
   expect(JSON.stringify(writes)).not.toContain('Unowned legacy draft');
@@ -63,7 +63,7 @@ test('account caches stay isolated and unowned legacy drafts are never uploaded'
   });
   account = 'account-b'; writes.length = 0;
   await page.reload();
-  await expect(page.getByText('True Non-Profit', { exact: true }).first()).toBeVisible();
+  await expect(page.getByText('Untitled Knowledge Base', { exact: true }).first()).toBeVisible();
   await expect.poll(() => writes.length).toBeGreaterThan(0);
   expect(writes.every(write => write.account === 'account-b')).toBe(true);
   expect(JSON.stringify(writes)).not.toContain('Only account A');
@@ -80,7 +80,7 @@ test('failed cloud hydration permits local drafts without overwriting cloud data
     return false;
   });
   await page.goto('/');
-  await expect(page.getByText('True Non-Profit', { exact: true }).first()).toBeVisible();
+  await expect(page.getByText('Untitled Knowledge Base', { exact: true }).first()).toBeVisible();
   await page.getByRole('button', { name: 'Create KB', exact: true }).click();
   await expect(page.getByText('Untitled Knowledge Base', { exact: true }).first()).toBeVisible();
   await expect.poll(() => page.evaluate(() => localStorage.getItem('fds:account:user:drafts'))).toContain('Untitled Knowledge Base');

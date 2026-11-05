@@ -1,7 +1,7 @@
 import { parse as parseToml } from 'smol-toml';
 import type { Env } from './types';
 import { githubRequest as gh, ProvisioningError } from './lib/provisioning-http';
-import { validBranch, validDomain, validRepo } from './lib/validation';
+import { validBranch, validDomain, validPath, validRepo } from './lib/validation';
 import { deployWorkflow } from '../../../templates/publishing/workflow';
 
 export const SETUP_WORKFLOW = '.github/workflows/deploy.yml';
@@ -41,7 +41,7 @@ export async function managedRepository(token: string, name: string) {
   const repo = await gh<Repository>(token, `/repos/${name}`);
   if (!repo || repo.full_name?.toLowerCase() !== name.toLowerCase()) throw new ProvisioningError(409, 'This repository was renamed. Refresh and select its current name before continuing.');
   if (repo.private !== false) throw new ProvisioningError(403, 'FreeDocStore publishes public repositories. Private knowledge bases belong in ProDocStore.');
-  if (repo.archived || repo.disabled || repo.permissions?.admin !== true || repo.permissions.push !== true) throw new ProvisioningError(403, 'An administrator of an active, writable repository must configure publishing.');
+  if (repo.archived || repo.disabled || repo.permissions?.push !== true) throw new ProvisioningError(403, 'The selected GitHub account needs write access to this active repository.');
   if (!validBranch(repo.default_branch) || repo.default_branch.includes('${{')) throw new ProvisioningError(422, 'The repository needs a valid default branch before setup.');
   return repo;
 }
@@ -61,7 +61,7 @@ export function publishingTarget(project: string, domain: string) {
   return { project, domain, url: `https://${domain || `${project}.pages.dev`}/` };
 }
 
-export async function setupPlan(token: string, repoName: string, project: string, domain: string, credentialVersion: string) {
+export async function setupPlan(token: string, repoName: string, project: string, domain: string, credentialVersion: string, draftFiles: Array<{ path: string; content: string }> = [], title?: string, draftSlug?: string) {
   const target = publishingTarget(project, domain);
   const repo = await managedRepository(token, repoName);
   const branch = repo.default_branch;
@@ -86,17 +86,31 @@ export async function setupPlan(token: string, repoName: string, project: string
   }
   const generated: Record<string, string> = {
     [SETUP_WORKFLOW]: deployWorkflow(project, domain, { branch, managed: true, credentialVersion }),
-    'zensical.toml': `[project]\nsite_name = ${JSON.stringify(repo.name)}\nsite_url = ${JSON.stringify(target.url)}\nrepo_url = ${JSON.stringify(`https://github.com/${repo.full_name}`)}\ndocs_dir = "docs"\nsite_dir = "site"\n`,
+    'zensical.toml': `[project]\nsite_name = ${JSON.stringify(title?.slice(0, 120) || repo.name)}\nsite_url = ${JSON.stringify(target.url)}\nrepo_url = ${JSON.stringify(`https://github.com/${repo.full_name}`)}\ndocs_dir = "docs"\nsite_dir = "site"\n`,
     'docs/index.md': `# ${repo.name}\n\nWelcome to your public knowledge base. Propose content changes through FreeDocStore or edit this page on GitHub.\n`,
   };
+  const requestedDraftPaths = new Set(draftFiles.map(file => file.path));
   const files = paths.flatMap((path, index) => {
     // Existing source/configuration belongs to the customer. Only the reviewed
     // deployment workflow is replaced; scaffolding fills absent files only.
+    if (path === 'docs/index.md' && requestedDraftPaths.has(path)) return [];
     if (existing[index] && path !== SETUP_WORKFLOW) return [];
     if (existing[index]?.content === generated[path]) return [];
     return [{ path, content: generated[path], before: existing[index]?.content ?? '', expectedSha: existing[index]?.sha ?? null }];
   });
-  return { repo: repo.full_name, branch, headSha: sha, project, domain, url: target.url, workflow: generated[SETUP_WORKFLOW], files,
+  if (draftFiles.length > 100) throw new ProvisioningError(413, 'A setup draft can contain at most 100 files.');
+  const draftPaths = new Set<string>();
+  let draftBytes = 0;
+  for (const file of draftFiles) {
+    draftBytes += new TextEncoder().encode(file.content).byteLength;
+    if (!validPath(file.path) || !file.path.startsWith('docs/') || !/\.md$/.test(file.path) || file.path === 'docs/zensical.toml' || file.path === SETUP_WORKFLOW || draftPaths.has(file.path)) throw new ProvisioningError(400, `Invalid or duplicate draft path: ${file.path}`);
+    if (draftBytes > 1_500_000 || new TextEncoder().encode(file.content).byteLength > 256_000) throw new ProvisioningError(413, 'Draft files are limited to 256 KiB each and 1.5 MiB total.');
+    draftPaths.add(file.path);
+    const current = await readSource(token, repo.full_name, file.path, sha);
+    if (current?.content === file.content) continue;
+    files.push({ path: file.path, content: file.content, before: current?.content ?? '', expectedSha: current?.sha ?? null });
+  }
+  return { repo: repo.full_name, branch, headSha: sha, project, domain, url: target.url, workflow: generated[SETUP_WORKFLOW], files, draftTitle: title ?? '', draftSlug: draftSlug ?? '', hasDraftChanges: files.some(file => draftPaths.has(file.path)),
     replacesWorkflow: Boolean(existing[0] && files.some(file => file.path === SETUP_WORKFLOW)),
     warning: config ? 'Existing Zensical configuration is preserved. Check its canonical site_url against the selected hosting address.' : null };
 }

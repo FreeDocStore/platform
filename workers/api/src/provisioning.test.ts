@@ -58,6 +58,7 @@ function fixture(options: { private?: boolean; admin?: boolean; branch?: string;
       return json({ repo: options.publishedRepo ?? REPO, commit: options.publishedCommit ?? HEAD, project: 'customer-docs' });
     }
     if (url.hostname !== 'api.github.com') throw new Error(`Unexpected host ${url.hostname}`);
+    if (path === '/repos/FreeDocStore/platform/contents/site/registry.json') return method === 'PUT' ? json({ content: { sha: 'registry-sha' } }) : json({ content: base64('{"knowledge_bases":[]}'), sha: 'registry-old' });
     if (path === '/apps/freedocstore') return options.privateApp ? json({}, 404) : json({ id: 4278932 });
     if (path === '/user/installations') return json({ installations: [{ id: 7, app_id: 4278932, app_slug: 'freedocstore', account: { login: 'ExampleOrg', type: 'Organization' }, permissions: { contents: 'write', actions: 'write', secrets: 'write', workflows: 'write' } }] });
     if (path === '/user/installations/7/repositories') return json({ repositories: [{ full_name: REPO, name: 'knowledge', private: false, default_branch: 'release', permissions: { admin: true, push: true } }] });
@@ -112,10 +113,15 @@ describe('organization-owned setup', () => {
     expect((await f.request('repositories?installation=999')).status).toBe(403);
     expect(f.calls.some(call => call.url.pathname.includes('/999/'))).toBe(false);
   });
-  it.each([{ private: true }, { admin: false }])('refuses credentials for an ineligible repository %j before contacting Cloudflare', async options => {
-    const f = fixture(options);
+  it('refuses credentials for a private repository before contacting Cloudflare', async () => {
+    const f = fixture({ private: true });
     expect((await f.connect()).status).toBe(403);
     expect(f.calls).toHaveLength(1);
+  });
+  it('allows a writable selected repository without repository administration or repo creation permission', async () => {
+    const f = fixture({ admin: false });
+    expect((await f.connect()).status).toBe(200);
+    expect(f.calls.some(call => call.url.pathname === `/repos/${REPO}/actions/secrets/public-key`)).toBe(true);
   });
   it('seals credentials for the selected repository and stores metadata only', async () => {
     const f = fixture();
@@ -169,6 +175,41 @@ describe('organization-owned setup', () => {
     expect((await f.request('apply', { planId: plan.planId, mode: 'pr' })).status).toBe(200);
     const tree = f.calls.find(call => call.url.pathname.endsWith('/git/trees'))!;
     expect(tree.body.tree.map((item: any) => item.path)).toEqual(['.github/workflows/deploy.yml']);
+  });
+  it.each(['pr', 'direct'] as const)('attaches reviewed draft files with current source SHAs for %s apply', async mode => {
+    const f = fixture({ sourceFiles: { 'docs/index.md': '# Existing customer content\n' } }); await f.connect();
+    const draft = [{ path: 'docs/index.md', content: '# Reviewed draft\n' }, { path: 'docs/guide.md', content: '# Guide\n' }];
+    const response = await f.request('plan', { repo: REPO, project: 'customer-docs', title: 'Customer KB', confirmUseProject: true, draftFiles: draft });
+    expect(response.status).toBe(200);
+    const plan = await response.json() as any;
+    expect(plan.files.map((file: any) => [file.path, file.expectedSha])).toEqual(expect.arrayContaining([['docs/index.md', SOURCE_SHA], ['docs/guide.md', null]]));
+    expect(plan.files.find((file: any) => file.path === 'zensical.toml').content).toContain('Customer KB');
+    expect((await f.request('apply', { planId: plan.planId, mode, confirmDraftContent: true })).status).toBe(200);
+    const tree = f.calls.find(call => call.url.pathname.endsWith('/git/trees'))!;
+    expect(tree.body.tree.map((item: any) => item.path)).toEqual(['.github/workflows/deploy.yml', 'zensical.toml', 'docs/index.md', 'docs/guide.md']);
+    const contentChecks = f.calls.filter(call => call.url.pathname.includes('/contents/') && call.url.searchParams.get('ref') === HEAD);
+    expect(contentChecks.some(call => call.url.pathname.endsWith('/docs/index.md'))).toBe(true);
+  });
+  it('requires explicit draft content confirmation and validates draft paths', async () => {
+    const f = fixture(); await f.connect();
+    const plan = await (await f.request('plan', { repo: REPO, project: 'customer-docs', confirmUseProject: true, draftFiles: [{ path: 'docs/index.md', content: '# Replacement' }] })).json() as any;
+    expect((await f.request('apply', { planId: plan.planId, mode: 'pr' })).status).toBe(409);
+    expect((await f.request('plan', { repo: REPO, project: 'customer-docs', confirmUseProject: true, draftFiles: [{ path: '../oops.md', content: 'x' }] })).status).toBe(400);
+  });
+  it('blocks registration until deployment verification is live, then registers', async () => {
+    const before = fixture({ publishedCommit: 'c'.repeat(40) }); await before.connect();
+    const plan = await (await before.request('plan', { repo: REPO, project: 'customer-docs', confirmUseProject: true })).json() as any;
+    await before.request('apply', { planId: plan.planId, mode: 'direct' });
+    expect((await before.request('register', { repo: REPO })).status).toBe(409);
+
+    const live = fixture(); await live.connect();
+    const livePlan = await (await live.request('plan', { repo: REPO, project: 'customer-docs', confirmUseProject: true })).json() as any;
+    await live.request('apply', { planId: livePlan.planId, mode: 'direct' });
+    const registered = await live.request('register', { repo: REPO });
+    expect(registered.status).toBe(200);
+    const result = await registered.json() as any;
+    expect(result.state).toBe('live');
+    expect(result.registryKbId).toBeTruthy();
   });
   it('scaffolds absent source/configuration only and requires a new-project decision', async () => {
     const f = fixture({ sourceFiles: {} }); await f.connect();

@@ -1,5 +1,5 @@
 export class ProvisioningError extends Error {
-  constructor(public status: 400 | 401 | 403 | 404 | 409 | 422 | 502 | 503, message: string, public retryAfterSeconds?: number) { super(message); }
+  constructor(public status: 400 | 401 | 403 | 404 | 409 | 413 | 422 | 502 | 503, message: string, public retryAfterSeconds?: number) { super(message); }
 }
 
 export function retryDelay(headers: Headers, now = Date.now()): number {

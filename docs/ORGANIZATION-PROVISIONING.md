@@ -6,11 +6,12 @@ ownership of the repository or supply its own hosting credentials.
 
 ## User flow
 
-1. Sign in with GitHub. Create an initialized public repository in your
-   organization, then install the FreeDocStore GitHub App on the selected
-   repository. Refresh GitHub access in the console after installation.
-2. Select the installation and an active public repository you administer.
-   The server independently checks access and the actual default branch.
+1. Sign in with GitHub. Install the FreeDocStore GitHub App with access to an
+   initialized public repository. You can use a repository that already exists;
+   repository creation is optional. Refresh GitHub access after installation.
+2. Select the installation and an active public repository where your GitHub
+   account can write. Repository creation and organization administration are
+   not required. The server checks access and the actual default branch.
 3. Enter a Cloudflare API token, inspect accessible accounts and select the
    account. The token needs Account Settings read and Pages edit; a custom
    domain also needs Zone read and DNS edit restricted to its zone. Account
@@ -46,6 +47,22 @@ check the reviewed source versions before application. A changed hosting
 connection or default branch requires a new review. Deployed metadata is
 stored per repository, with authorization rechecked against GitHub before it
 can be inspected or changed.
+
+## Setup and AI content review
+
+AI generated files stay in the workspace draft until the user chooses a
+repository and Pages target. The setup plan then includes those files alongside
+the shared managed workflow and missing scaffolding. Its diff shows current
+repository content and requires explicit approval for generated content and
+workflow replacement. Existing docs and configuration are never silently
+replaced. Plan data is bound to the initiating session, expires after 15
+minutes, validates paths and input sizes, and checks each source blob again
+before applying by PR or direct commit. A draft is not published until a live
+deployment is verified and registered.
+
+New workspace drafts start blank. Once GitHub installations load, the first
+accessible installation account becomes the default owner for a new draft. The
+setup page allows selecting another installation and repository.
 
 ## GitHub App configuration
 

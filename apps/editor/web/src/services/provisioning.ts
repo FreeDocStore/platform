@@ -7,7 +7,7 @@ export interface HostingConnection { repo: string; accountId: string; accountNam
 export interface SetupPlan {
   planId: string; credentialVersion: string; repo: string; branch: string; project: string; domain: string; url: string; accountName: string;
   files: Array<{ path: string; content: string; before: string; expectedSha: string | null }>;
-  replacesWorkflow: boolean; warning: string | null;
+  replacesWorkflow: boolean; warning: string | null; hasDraftChanges: boolean; draftTitle: string; draftSlug: string;
 }
 export interface DeploymentStatus { state: 'awaiting-review' | 'setup-closed' | 'waiting' | 'building' | 'failed' | 'verifying' | 'live'; message: string; prUrl?: string; runUrl?: string; url?: string; pagesUrl?: string; pagesReady?: boolean; domainReady?: boolean; failedSteps?: string[]; registryKbId?: string; registrationWarning?: string }
 const post = <T>(path: string, body: unknown, signal?: AbortSignal) => apiJson<T>(`/api/provisioning/${path}`, { method: 'POST', body: JSON.stringify(body), signal })
@@ -19,8 +19,8 @@ export const provisioning = {
   connect: (repo: string, token: string, accountId: string) => post<{ connection: HostingConnection }>('connect', { repo, token, accountId }),
   staging: (repo: string, cursor = '') => apiJson<{ versions: HostingConnection[]; cursor: string | null }>(`/api/provisioning/staging?repo=${encodeURIComponent(repo)}&cursor=${encodeURIComponent(cursor)}`),
   cleanup: (repo: string, version: string) => post<{ removed: boolean }>('cleanup', { repo, version, confirm: true }),
-  plan: (repo: string, project: string, domain: string, confirmCreateProject: boolean, confirmUseProject: boolean, confirmRepoint: boolean) => post<SetupPlan>('plan', { repo, project, domain, confirmCreateProject, confirmUseProject, confirmRepoint }),
-  apply: (planId: string, mode: 'pr' | 'direct', confirmReplaceWorkflow: boolean) => post<EditResult>('apply', { planId, mode, confirmReplaceWorkflow }),
+  plan: (repo: string, project: string, domain: string, confirmCreateProject: boolean, confirmUseProject: boolean, confirmRepoint: boolean, draftFiles: Array<{path:string;content:string}> = [], title = '', draftSlug = '') => post<SetupPlan>('plan', { repo, project, domain, title, draftSlug, confirmCreateProject, confirmUseProject, confirmRepoint, draftFiles }),
+  apply: (planId: string, mode: 'pr' | 'direct', confirmReplaceWorkflow: boolean, confirmDraftContent: boolean) => post<EditResult>('apply', { planId, mode, confirmReplaceWorkflow, confirmDraftContent }),
   deploy: (repo: string) => post<{ ok: boolean }>('deploy', { repo }),
   register: (repo: string, signal?: AbortSignal) => post<DeploymentStatus>('register', { repo }, signal),
   status: (repo: string, signal?: AbortSignal) => apiJson<DeploymentStatus>(`/api/provisioning/status?repo=${encodeURIComponent(repo)}`, { signal }),
