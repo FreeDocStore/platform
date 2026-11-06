@@ -51,6 +51,10 @@ claude mcp add --scope user --transport http freedocstore https://mcp.freedocsto
 | `deploy_status` | none | Last GitHub Actions runs for a KB repo |
 | `publish_plan` | none | Turn a prompt/topic into a repo, Zensical, Cloudflare, and domain plan |
 | `update_files` | GitHub OAuth + write | Edit KB repo files as the signed-in user. Opens a proposal PR by default; `mode: "direct"` commits straight to the base branch |
+| `search_documents` | read | Search a registered public KB with bounded excerpts |
+| `list_proposals` | read | List open, closed or all proposal PRs for a registered KB |
+| `inspect_pr` | read | Inspect proposal status, summary and changed files |
+| `move_document` | read; write to confirm | Preview or open a reviewable move PR, including detected links to the old path |
 
 `update_files` uses the signed-in user's GitHub token (the OAuth flow requests `public_repo`), so commits and PRs are authored by that user. Sessions created before this scope existed must reconnect to grant it.
 
@@ -113,7 +117,7 @@ A missing file returns a `null` baseline only after the source branch and commit
 are resolved. `list_files` includes blob/tree SHAs; only a file's blob SHA is a
 valid replacement/deletion baseline. Truncated trees are reported as errors.
 
-Clients upgrading to MCP server 0.3.0 should refresh tool discovery or reconnect.
+Clients upgrading to MCP server 0.4.0 should refresh tool discovery or reconnect.
 Every path in `files` or `delete_paths` requires an entry in `expected_files`:
 
 ```json

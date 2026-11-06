@@ -80,7 +80,9 @@ async function gh(url: string, init?: { method?: string; token?: string; body?: 
 function b64ToText(b64: string): string {
   const bin = atob(b64.replace(/\n/g, ""));
   const bytes = Uint8Array.from(bin, (c) => c.charCodeAt(0));
-  return new TextDecoder().decode(bytes);
+  // Preserve a UTF-8 BOM for byte-faithful document moves. Reject malformed
+  // UTF-8 rather than silently replacing bytes before a reviewed write.
+  return new TextDecoder("utf-8", { ignoreBOM: true, fatal: true }).decode(bytes);
 }
 
 export async function readRegistry(registryUrl: string): Promise<Registry> {

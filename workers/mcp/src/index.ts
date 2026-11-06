@@ -7,11 +7,14 @@ import { type Env, type McpProps } from "./tools/helpers.js";
 import { registerAccountTools } from "./tools/account.js";
 import { registerKbTools } from "./tools/kb.js";
 import { registerWriteTools } from "./tools/write.js";
+import { registerSearchTools } from "./tools/search.js";
+import { registerProposalTools } from "./tools/proposals.js";
+import { registerMoveTools } from "./tools/move.js";
 
 export class FreeDocStoreMcp extends McpAgent<Env, unknown, McpProps> {
   server = new McpServer({
     name: "FreeDocStore",
-    version: "0.3.0",
+    version: "0.4.0",
   });
 
   declare props: McpProps;
@@ -27,6 +30,9 @@ export class FreeDocStoreMcp extends McpAgent<Env, unknown, McpProps> {
     registerAccountTools(agent);
     registerKbTools(agent);
     registerWriteTools(agent);
+    registerSearchTools(agent);
+    registerProposalTools(agent);
+    registerMoveTools(agent);
   }
 }
 
@@ -37,7 +43,7 @@ export default {
       if (isProtocolClient(request)) return wrongEndpoint();
       return new Response(
         [
-          "FreeDocStore MCP Server (0.3.0)",
+          "FreeDocStore MCP Server (0.4.0)",
           "",
           "Connect: npx mcp-remote https://mcp.freedocstore.online/mcp",
           "",
@@ -48,7 +54,7 @@ export default {
           "- Cloudflare Pages project per KB",
           "- custom domains per KB",
           "",
-          "Tools: whoami, workspace_summary, list_workspace_drafts, create_workspace_draft, create_sample_knowledge_base, platform_guide, list_knowledge_bases, knowledge_base_info, check_zensical_repo, list_files, read_file, deploy_status, publish_plan, update_files",
+          "Tools: whoami, workspace_summary, list_workspace_drafts, create_workspace_draft, create_sample_knowledge_base, platform_guide, list_knowledge_bases, knowledge_base_info, check_zensical_repo, list_files, read_file, deploy_status, publish_plan, update_files, search_documents, list_proposals, inspect_pr, move_document",
           "",
           "Source reads include blob SHAs. update_files requires expected_files for every changed path.",
           "",
