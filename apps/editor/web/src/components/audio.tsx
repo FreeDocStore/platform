@@ -4,6 +4,9 @@ import { renderMarkdown } from '../lib/markdown'
 import { audioBase64, sourceBlobSha } from '../audio/format'
 import { fds } from '../lib/fds'
 import manifest from '../audio/model-manifest.json'
+import { inventoryPages, KBQueueManager, type PageInventory, type PageSpec } from '../audio/kb-queue'
+import { getStorageStats } from '../audio/checkpoint'
+import { listGitHubMarkdownSources, readGitHubFileVersion } from '../services/github'
 
 export function AudioPanel({ repo, branch, path, source }: { repo: string; branch: string; path: string; source: string }) {
   const [status, setStatus] = useState('Generate narration locally, preview it, then publish a reviewed proposal.')
@@ -13,6 +16,13 @@ export function AudioPanel({ repo, branch, path, source }: { repo: string; branc
   const worker = useRef<Worker | null>(null)
   const run = useRef(0)
   const operating = useRef(false)
+  const [showKb, setShowKb] = useState(false)
+  const [inventory, setInventory] = useState<PageInventory[]>([])
+  const [queue] = useState(() => new KBQueueManager())
+  const [queueStates, setQueueStates] = useState(queue.getStates())
+  const [queueProgress, setQueueProgress] = useState(queue.getProgress())
+  const [storage, setStorage] = useState({ usedBytes: 0, limitBytes: 0, available: true })
+  const [inventoryBusy, setInventoryBusy] = useState(false)
   useEffect(() => {
     run.current++
     operating.current = false
@@ -21,6 +31,41 @@ export function AudioPanel({ repo, branch, path, source }: { repo: string; branc
     return () => { run.current++; worker.current?.terminate() }
   }, [repo, branch, path, source])
   useEffect(() => () => { if (audio) URL.revokeObjectURL(audio.url) }, [audio])
+  useEffect(() => {
+    const update = () => { setQueueStates(queue.getStates()); setQueueProgress(queue.getProgress()); void getStorageStats().then(setStorage) }
+    queue.addEventListener('change', update)
+    update()
+    return () => queue.removeEventListener('change', update)
+  }, [queue])
+  async function loadInventory() {
+    setInventoryBusy(true)
+    try {
+      const sources = await listGitHubMarkdownSources(repo, branch)
+      const pages: PageSpec[] = sources.map(item => {
+        const heading = item.sourceText.match(/^#\s+(.+)$/m)?.[1]?.trim()
+        const frontmatter = item.sourceText.match(/^---\r?\n([\s\S]*?)\r?\n---/m)?.[1] ?? ''
+        return {
+          title: heading || item.path.split('/').pop()!.replace(/\.md$/, ''), slug: item.path, path: item.path,
+          sourceText: item.sourceText, sourceVersion: item.sourceVersion,
+          disabled: /^audio:\s*(false|disabled)\s*$/im.test(frontmatter),
+          verifySourceVersion: () => readGitHubFileVersion(repo, item.path, branch),
+          publish: async (wav, sourceVersion) => {
+            const result = await fds.publishAudio({ repo, branch, path: item.path, sourceSha: sourceVersion, audio: audioBase64(wav), modelRevision: manifest.revision })
+            if (!result.unchanged && !result.prUrl) throw new Error(`No review link was returned for ${item.path}.`)
+          },
+        }
+      })
+      setInventory(await inventoryPages(pages))
+      setShowKb(true)
+    } catch (error) { setStatus(error instanceof Error ? error.message : String(error)) }
+    finally { setInventoryBusy(false) }
+  }
+  function queuePages(pages: PageSpec[]) { queue.enqueue(pages); void queue.start() }
+  async function clearPage(entry: PageInventory) {
+    if (!window.confirm(`Delete saved audio checkpoints for “${entry.page.title}”?`)) return
+    await queue.clearPage(entry.page)
+    setInventory(await inventoryPages(inventory.map(row => row.page)))
+  }
   async function generate() {
     if (operating.current) return
     operating.current = true
@@ -79,5 +124,40 @@ export function AudioPanel({ repo, branch, path, source }: { repo: string; branc
     </div></>}
     <p role="status" aria-live="polite">{status}</p>
     {resultUrl && <a href={resultUrl} target="_blank" rel="noreferrer">Review narration proposal</a>}
+    <section className="kb-recordings">
+      <h3>Knowledge base recordings</h3>
+      <button type="button" className="secondary-action" disabled={inventoryBusy || !repo} onClick={() => void loadInventory()}>{inventoryBusy ? 'Loading inventory…' : 'Load KB recording inventory'}</button>
+      {showKb && <>
+        <p>{storage.available ? `Device storage: ${(storage.usedBytes / 1024 / 1024).toFixed(1)} MB / ${(storage.limitBytes / 1024 / 1024).toFixed(0)} MB` : 'Device storage is unavailable.'}</p>
+        <div className="action-row">
+          <button type="button" className="primary-action" disabled={queueStates.some(item => item.state === 'generating') || !inventory.some(row => row.status !== 'disabled')} onClick={() => queuePages(inventory.filter(row => row.status !== 'disabled').map(row => row.page))}>Generate All</button>
+          {queueStates.some(item => item.state === 'generating') && <>
+            <button type="button" className="secondary-action" onClick={() => queue.pause()}>Pause</button>
+            <button type="button" className="secondary-action" onClick={() => queue.resume()}>Resume</button>
+            <button type="button" className="secondary-action" onClick={() => queue.cancel()}>Cancel</button>
+          </>}
+          <button type="button" className="secondary-action" onClick={async () => {
+            if (!window.confirm('Clear all completed audio checkpoints?')) return
+            for (const row of inventory) if (row.status === 'current') await queue.clearPage(row.page)
+            setInventory(await inventoryPages(inventory.map(row => row.page)))
+          }}>Clear completed</button>
+        </div>
+        {queueStates.length > 0 && <div aria-live="polite">
+          <progress value={queueProgress.completed} max={Math.max(queueProgress.total, 1)} />
+          <p>{queueProgress.current ? `Generating ${queueProgress.current}` : 'Queue ready'} · {queueProgress.estimatedSecondsRemaining}s remaining ({queueProgress.throughputCalibrated ? 'calibrated' : 'estimated'}) · {queueProgress.reusedChunks} saved chunks reused</p>
+          {queueStates.filter(item => item.state === 'failed').map(item => <p key={item.page.slug} role="alert">{item.page.title}: {item.error}</p>)}
+        </div>}
+        <table><thead><tr><th>Page</th><th>Status</th><th>Last generated</th><th>Size</th><th>Actions</th></tr></thead><tbody>
+          {inventory.map(entry => <tr key={entry.page.slug}>
+            <td>{entry.page.title}</td><td><span data-status={entry.status}>{entry.status}</span>{entry.error && <small>{entry.error}</small>}</td>
+            <td>{entry.updatedAt ? new Date(entry.updatedAt).toLocaleString() : '—'}</td><td>{entry.fileSize ? `${(entry.fileSize / 1024).toFixed(0)} KB` : '—'}</td>
+            <td><button type="button" className="secondary-action" disabled={entry.status === 'disabled' || queueStates.some(item => item.state === 'generating')} onClick={() => {
+              if (entry.status === 'stale' && !window.confirm(`${entry.page.title} has a different source version. Regenerate from the currently verified source?`)) return
+              queuePages([entry.page])
+            }}>Generate</button> <button type="button" className="secondary-action" onClick={() => void clearPage(entry)}>Delete</button></td>
+          </tr>)}
+        </tbody></table>
+      </>}
+    </section>
   </details>
 }
