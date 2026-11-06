@@ -14,6 +14,7 @@ export const messagesEl = $(".messages");
 export const newBelowChip = $<HTMLButtonElement>("#new-below-chip");
 export const startCardEl = $<HTMLElement>("#start-card");
 export const promptEl = $<HTMLTextAreaElement>("#prompt");
+export const draftChipEl = $<HTMLDivElement>("#draft-chip");
 export const formEl = $<HTMLFormElement>("#chat-form");
 // `button[type="submit"]` is explicit - the form now contains the mic button
 // (type="button") which would otherwise win the bare selector.

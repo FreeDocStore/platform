@@ -23,6 +23,7 @@ import {
   commitModeToggle,
   contextSectionEl,
   editsBtn,
+  draftChipEl,
   editsListEl,
   messagesEl,
   promptEl,
@@ -45,6 +46,9 @@ import { closeAllPopMenus } from "./pop-menu";
 import { statusColor, statusLabelFor } from "./format";
 import { getTask, listTasks, TASKS_KEY } from "../lib/tasks";
 import { repoFromScope } from "../lib/history";
+import { beginEditFromReply, getAttachedDraft, removeAttachedDraft } from "./draft-attachment";
+import { stopSharedPlayback } from "./shared-playback";
+import { renderDraftChip } from "./message-actions";
 
 // Archive/unarchive an edit via the SW (single-writer). On archiving the active
 // thread, drop back to the edits list so we're not sitting on a hidden thread.
@@ -82,7 +86,23 @@ export function renderActiveThread(): void {
   state.bulkRendering = false;
   messagesEl.scrollTop = messagesEl.scrollHeight;
   hideNewBelowChip();
+  renderDraftAttachment();
   void renderThreadHeader();
+}
+
+export function renderDraftAttachment(): void {
+  const draft = getAttachedDraft(state.currentScope, state.activeThread);
+  renderDraftChip(draftChipEl, draft, () => {
+    removeAttachedDraft(state.currentScope, state.activeThread);
+    renderDraftAttachment();
+  });
+}
+
+export function startEditWithDraft(text: string): void {
+  beginEditFromReply(state.currentScope, text, startNewEdit, () => state.activeThread, () => {
+    renderDraftAttachment();
+    promptEl.focus();
+  });
 }
 
 // The thread selector button + its pop-up list, and the contextual banner.
@@ -204,6 +224,7 @@ function renderThreadBanner(task: Task | null, taskId?: string): void {
 // ── selection / navigation ───────────────────────────────────────────
 
 export function selectAsk(compose = false): void {
+  stopSharedPlayback();
   state.activeThread = { kind: "ask" };
   // `compose` = reached via the start card's Ask toggle: keep the card up (now
   // in Ask mode). Any other path (dropdown, permission bounce) exits composing.
@@ -217,6 +238,7 @@ export function selectAsk(compose = false): void {
 }
 
 export function selectEdit(taskId: string): void {
+  stopSharedPlayback();
   state.activeThread = { kind: "edit", taskId };
   state.composing = false; // viewing an existing edit thread, not composing
   state.autoContinueStreak = 0; // the cap is per-thread; don't carry it across a switch
@@ -228,6 +250,7 @@ export function selectEdit(taskId: string): void {
 }
 
 export function startNewEdit(): void {
+  stopSharedPlayback();
   // Don't let a read-only user start an edit, type a whole request, and only
   // get bounced to Ask on Send. Tell them up front and stay on Ask.
   if (state.canEditCurrentRepo === false) {

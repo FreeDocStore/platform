@@ -48,7 +48,6 @@ import {
   currentTurnId,
   history,
   inFlightProposals,
-  messageBelongsToActive,
   state,
 } from "./state";
 import { sendBgChatMsg, setTaskStatus } from "./rpc";
@@ -65,6 +64,7 @@ import {
   persistHistory,
   setLinkNavigator,
   setPreviewActions,
+  setReplyDraftAction,
 } from "./message-view";
 import {
   closeThreadMenu,
@@ -73,7 +73,10 @@ import {
   renderThreadHeader,
   selectAsk,
   startNewEdit,
+  startEditWithDraft,
+  renderDraftAttachment,
 } from "./thread-ui";
+import { completeDraftSend, getAttachedDraft } from "./draft-attachment";
 import { initScope, refreshContext } from "./scope";
 
 
@@ -101,6 +104,7 @@ setPreviewActions({
   },
   onCancel: (proposalId, container) => void resolvePreview(proposalId, "cancel", container),
 });
+setReplyDraftAction(startEditWithDraft);
 initThreadUi();
 initScope();
 
@@ -340,7 +344,11 @@ function setSending(v: boolean): void {
 
 formEl.addEventListener("submit", (e) => {
   e.preventDefault();
-  const prompt = promptEl.value.trim();
+  const typedPrompt = promptEl.value.trim();
+  const attachedDraft = getAttachedDraft(state.currentScope, state.activeThread);
+  const prompt = typedPrompt
+    ? attachedDraft ? `${typedPrompt}\n\nAttached draft:\n\n${attachedDraft}` : typedPrompt
+    : attachedDraft ?? "";
   if (!prompt) return;
   // Duplicate-submit guard. A send stays in flight across several awaits
   // (initialReady, context resolve, the model round-trip); without a lock set
@@ -351,10 +359,13 @@ formEl.addEventListener("submit", (e) => {
   // forget.
   if (state.sending) return;
   setSending(true);
-  void runChatTurn(prompt).finally(() => setSending(false));
+  void runChatTurn(prompt, typedPrompt, attachedDraft).finally(() => setSending(false));
 });
 
-async function runChatTurn(prompt: string): Promise<void> {
+async function runChatTurn(prompt: string, typedPrompt = prompt, attachedDraft: string | null = null): Promise<void> {
+  await initialReady;
+  const sentThread = state.activeThread;
+  const sentScope = state.currentScope;
   // Distinguish an automated follow-up from a user-typed send: reset the
   // streak on a real user turn, grow it on each chained auto-continue so the
   // cap in triggerAutoContinue can stop a runaway.
@@ -364,8 +375,8 @@ async function runChatTurn(prompt: string): Promise<void> {
 
   // Thread type decides the mode: Ask = read (never edits), edit thread =
   // edit (and a follow-up revises that same task via turnTaskId).
-  const isEdit = state.activeThread.kind === "edit";
-  const turnTaskId = activeTaskId() ?? undefined;
+  const isEdit = sentThread.kind === "edit";
+  const turnTaskId = sentThread.kind === "edit" ? sentThread.taskId : undefined;
 
   // Edit threads need write access; otherwise bounce to Ask.
   if (isEdit && state.canEditCurrentRepo === false) {
@@ -385,29 +396,19 @@ async function runChatTurn(prompt: string): Promise<void> {
   // Wait for init's first refreshContext to settle state.currentScope.
   // Without this, submitting during the first ~200ms after the panel
   // opens captures `NO_CONTEXT_SCOPE`, and init's later loadScope swap
-  // either trips the drift bail (silent prompt-restore) or routes the
-  // reply to the no-context bucket where the user never sees it.
-  await initialReady;
-
-  // Snapshot scope BEFORE any await. getActiveTabContext can take
-  // hundreds of ms (it injects the content script if needed), and a
-  // tab switch during that window would silently rebind state.currentScope
-  // and route the user's typed prompt to the wrong site's history.
-  // Captured here so the drift check below is meaningful.
-  const sentScope = state.currentScope;
-
+  // either trips the drift bail or routes the reply to a scope the user never sees.
   let context = await getActiveTabContext();
 
-  if (state.currentScope !== sentScope) {
+  if (state.currentScope !== sentScope || JSON.stringify(state.activeThread) !== JSON.stringify(sentThread)) {
     // User navigated away while we were resolving context. Restore
     // the prompt so they don't lose what they typed and bail. We can't
     // safely append a "switch back" hint to either scope without
     // muddying one of them, so the dlog line is the only trace. An
     // auto-continue carries no user-typed text, so clear the box instead
     // of leaving the machine prompt in it.
-    promptEl.value = isAutoContinue ? "" : prompt;
+    promptEl.value = isAutoContinue ? "" : typedPrompt;
     dlog("submit aborted (tab scope changed during context resolve)", {
-      sentScope, scope: state.currentScope, auto: isAutoContinue,
+      sentScope, scope: state.currentScope, sentThread, thread: state.activeThread, auto: isAutoContinue,
     });
     return;
   }
@@ -457,9 +458,16 @@ async function runChatTurn(prompt: string): Promise<void> {
     }
   }
 
+  if (state.currentScope !== sentScope || JSON.stringify(state.activeThread) !== JSON.stringify(sentThread)) {
+    promptEl.value = typedPrompt;
+    return;
+  }
+
   // The adapter receives THIS thread's prior transcript (not other threads'),
   // capped at the last 40 turns. Older turns stay visible in the UI.
-  const priorHistory = history.filter(messageBelongsToActive).slice(-40);
+  const priorHistory = history
+    .filter((message) => sentThread.kind === "ask" ? !message.taskId : message.taskId === sentThread.taskId)
+    .slice(-40);
   // Stamp this turn so the reply handler can detect a clear-during-flight
   // and drop the orphan response. Per-scope counter so a send on tab B
   // doesn't invalidate tab A's pending reply.
@@ -493,14 +501,32 @@ async function runChatTurn(prompt: string): Promise<void> {
   }
   // The in-flight lock (state.sending) is released by the caller's .finally on
   // every exit path, so no reset is needed here.
-  const resp = await sendBgChatMsg({
-    type: "CHAT_TURN",
-    prompt,
-    context,
-    history: priorHistory,
-    mode: isEdit ? "edit" : "read",
-    taskId: turnTaskId,
-  });
+  let resp: { payload: ChatMessage };
+  try {
+    resp = await sendBgChatMsg({
+      type: "CHAT_TURN",
+      prompt,
+      context,
+      history: priorHistory,
+      mode: isEdit ? "edit" : "read",
+      taskId: turnTaskId,
+    });
+  } catch (error) {
+    if (attachedDraft) completeDraftSend(sentScope, sentThread, false);
+    promptEl.value = typedPrompt;
+    const failed: ChatMessage = {
+      role: "assistant",
+      content: `The message could not be sent. Your attached draft is still available. ${error instanceof Error ? error.message : "Try again."}`,
+      taskId: turnTaskId,
+    };
+    if (state.currentScope === sentScope && JSON.stringify(state.activeThread) === JSON.stringify(sentThread)) await appendMessage(failed);
+    else await appendToScope(sentScope, failed);
+    return;
+  }
+  if (attachedDraft && sentThread.kind === "edit") {
+    completeDraftSend(sentScope, sentThread, true);
+    if (state.currentScope === sentScope && JSON.stringify(state.activeThread) === JSON.stringify(sentThread)) renderDraftAttachment();
+  }
   // Tag the reply to this thread so it renders/persists in the right view.
   const reply: ChatMessage = { ...resp.payload, taskId: turnTaskId };
   if (turnId !== currentTurnId(sentScope)) {

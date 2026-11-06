@@ -1,5 +1,14 @@
 import { createSpeechSourceWith, readableBlocks, resolveVoiceChoices, type Source } from '../../../templates/read-aloud/src/reader.js';
 import { getActiveTabContext, activeTabId, querySelectionFromTab } from './tab-messaging';
+import { registerPlaybackStop } from './shared-playback';
+
+let playMessage: ((text: string, button: HTMLButtonElement) => Promise<void>) | null = null;
+
+/** Play one assistant reply through the same source and preference controller as page narration. */
+export async function listenToAssistantMessage(text: string, button: HTMLButtonElement): Promise<void> {
+  if (!playMessage) throw new Error('Local listening is not ready yet.');
+  await playMessage(text, button);
+}
 
 /** Panel playback owns its own preferences and always stops at a tab change. */
 export function initNarration(): void {
@@ -16,6 +25,7 @@ export function initNarration(): void {
   let windowId: number | undefined;
   let tabId: number | null = null;
   let current = 0;
+  let messageButton: HTMLButtonElement | null = null;
   const key = 'freedocstore.panel-narration.v1';
   const reset = () => {
     generation++;
@@ -23,7 +33,37 @@ export function initNarration(): void {
     source = null;
     paused = false;
     play.textContent = 'Listen';
+    if (messageButton) messageButton.textContent = 'Listen';
+    messageButton = null;
     status.textContent = 'Ready';
+  };
+  registerPlaybackStop(reset);
+  playMessage = async (text, button) => {
+    if (messageButton === button && source) { reset(); return; }
+    reset();
+    const mine = generation;
+    const voices = await resolveVoiceChoices();
+    if (mine !== generation) return;
+    const prefs = (await chrome.storage.local.get(key))[key];
+    const chosen = voices.choose(prefs?.voice ?? voice.value);
+    if (!chosen) throw new Error('Install an on-device speech voice to listen.');
+    try { tabId = await activeTabId(); } catch { tabId = null; }
+    if (mine !== generation) return;
+    if (tabId != null) try { await chrome.tabs.sendMessage(tabId, { type: 'STOP_PAGE_NARRATION' }); } catch { /* tab may have closed */ }
+    if (mine !== generation) return;
+    const next = createSpeechSourceWith([{ kind: 'para', text }], chosen, undefined, () => {
+      const savedRate = Number(prefs?.rate);
+      return Number.isFinite(savedRate) ? Math.min(2, Math.max(0.5, savedRate)) : Number(rate.value);
+    });
+    if (!next) throw new Error('Nothing to read.');
+    source = next;
+    messageButton = button;
+    button.textContent = 'Stop';
+    status.textContent = 'Reading reply with local voice';
+    next.onEnded(reset);
+    next.onYielded?.(reset);
+    next.onError((message) => { reset(); status.textContent = message; });
+    next.start();
   };
   void chrome.windows.getCurrent().then(w => { windowId = w.id; });
   void chrome.storage.local.get(key).then(result => {

@@ -18,6 +18,9 @@ import { renderMarkdown } from "../lib/markdown";
 import { renderPreview, type PreviewActions } from "./preview-card";
 import { dlog, postDebug } from "./debug-bridge";
 import { sendToBg } from "../lib/messaging";
+import { listenToAssistantMessage } from "./narration";
+import { stopSharedPlayback } from "./shared-playback";
+import { copyWithFeedback, messageAsMarkdown } from "./message-actions";
 import {
   HISTORY_LIMIT,
   repoFromScope,
@@ -29,9 +32,11 @@ import {
 // What the preview Apply/Cancel buttons do. Injected once at boot (the actions
 // call into the conversation core + thread header, which live elsewhere).
 let previewActions: PreviewActions | null = null;
+let replyDraftAction: ((text: string) => void) | null = null;
 export function setPreviewActions(actions: PreviewActions): void {
   previewActions = actions;
 }
+export function setReplyDraftAction(action: (text: string) => void): void { replyDraftAction = action; }
 
 // In-place navigation for same-site links in message bodies. Injected at boot
 // (the actual chrome.tabs navigation lives in tab-messaging, a non-leaf module);
@@ -110,6 +115,54 @@ export function renderMessage(msg: ChatMessage): void {
     appendLinkified(body, msg.content);
   }
   div.appendChild(body);
+
+  if (msg.role === "assistant" || msg.role === "user") {
+    const messageRole = msg.role;
+    const actions = document.createElement("div");
+    actions.className = "message-actions";
+    const feedback = document.createElement("span");
+    feedback.className = "message-action-feedback";
+    feedback.setAttribute("role", "status");
+    const copy = document.createElement("button");
+    copy.type = "button";
+    copy.className = "msg-action-btn";
+    copy.textContent = "Copy";
+    copy.setAttribute("aria-label", "Copy message as Markdown");
+    copy.addEventListener("click", () => {
+      void (async () => {
+        await copyWithFeedback(messageAsMarkdown(messageRole, msg.content), navigator.clipboard, feedback);
+      })();
+    });
+    actions.append(copy);
+    if (msg.role === "assistant") {
+      const listen = document.createElement("button");
+      listen.type = "button";
+      listen.className = "msg-action-btn";
+      listen.textContent = "Listen";
+      listen.setAttribute("aria-label", "Listen to this reply");
+      listen.addEventListener("click", () => {
+        if (listen.textContent === "Stop") {
+          stopSharedPlayback();
+        } else {
+          void listenToAssistantMessage(msg.content, listen).catch((error) => {
+            feedback.textContent = error instanceof Error ? error.message : "Could not start local voice.";
+          });
+        }
+      });
+      actions.append(listen);
+      if (!msg.taskId && replyDraftAction) {
+        const edit = document.createElement("button");
+        edit.type = "button";
+        edit.className = "msg-action-btn";
+        edit.textContent = "Edit this draft";
+        edit.setAttribute("aria-label", "Start a new edit with this reply attached");
+        edit.addEventListener("click", () => replyDraftAction?.(msg.content));
+        actions.append(edit);
+      }
+    }
+    actions.append(feedback);
+    div.appendChild(actions);
+  }
 
   // Preview attachments get a structured diff + Apply/Cancel UI below the prose.
   // The message is replaced wholesale when the user clicks either button (the
