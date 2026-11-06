@@ -1,0 +1,14 @@
+{
+  "name": "Northstar Studio",
+  "colors": {
+    "primary": "#17324D",
+    "accent": "#D27A42",
+    "text": "#243244",
+    "muted": "#657487",
+    "rule": "#D8E0E8"
+  },
+  "fonts": {
+    "body": "Arial, sans-serif",
+    "heading": "Georgia, serif"
+  }
+}

@@ -1,0 +1,29 @@
+@page { size: A4; margin: 18mm 19mm 20mm; }
+* { box-sizing: border-box; }
+html { color: var(--proposal-text); background: #eef1f4; font-family: var(--proposal-body); }
+body { width: 210mm; min-height: 297mm; margin: 20px auto; padding: 18mm 19mm 20mm; background: #fff; box-shadow: 0 4px 24px #18202b20; font-size: 10.5pt; line-height: 1.55; }
+.brand { display: flex; align-items: center; gap: 12px; padding-bottom: 14px; margin-bottom: 28px; border-bottom: 2px solid var(--proposal-primary); color: var(--proposal-primary); }
+.brand img { max-width: 38mm; max-height: 18mm; object-fit: contain; }
+.brand-name { font-size: 10pt; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+h1, h2, h3 { color: var(--proposal-primary); font-family: var(--proposal-heading); line-height: 1.2; break-after: avoid-page; }
+h1 { font-size: 27pt; margin: 0 0 14px; }
+h2 { font-size: 17pt; margin: 28px 0 10px; }
+h3 { font-size: 12pt; margin: 16px 0 6px; }
+p { margin: 0 0 10px; }
+ul, ol { padding-left: 22px; }
+li { margin: 3px 0; }
+a { color: var(--proposal-primary); overflow-wrap: anywhere; }
+table { width: 100%; border-collapse: collapse; margin: 12px 0 20px; font-size: 9.5pt; }
+thead { display: table-header-group; }
+tr { break-inside: avoid; }
+th, td { border-bottom: 1px solid var(--proposal-rule); padding: 8px 9px; text-align: left; vertical-align: top; }
+th { background: color-mix(in srgb, var(--proposal-primary) 8%, white); color: var(--proposal-primary); font-weight: 700; }
+td[style*="text-align:right"], th[style*="text-align:right"] { text-align: right; }
+.proposal-summary { margin: 22px 0; padding: 18px 20px; border-left: 4px solid var(--proposal-accent); background: #f5f7f9; font-size: 12pt; }
+.proposal-scope { padding: 1px 18px 4px; border: 1px solid var(--proposal-rule); border-radius: 3px; break-inside: avoid; }
+.proposal-total { display: flex; justify-content: space-between; gap: 16px; padding: 13px 0; border-top: 2px solid var(--proposal-primary); border-bottom: 1px solid var(--proposal-rule); font-size: 13pt; color: var(--proposal-primary); break-inside: avoid; }
+.proposal-signature { margin-top: 26px; break-inside: avoid; }
+.proposal-signature table { margin-top: 0; }
+.proposal-pagebreak { break-before: page; page-break-before: always; height: 0; }
+@media screen { .proposal-summary, .proposal-scope, .proposal-total, .proposal-signature { break-inside: avoid; } }
+@media print { html { background: white; } body { width: auto; min-height: 0; margin: 0; padding: 0; box-shadow: none; } a { color: inherit; text-decoration: none; } }
