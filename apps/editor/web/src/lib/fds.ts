@@ -82,8 +82,8 @@ function applyTheme(preference: ThemePreference) {
 }
 
 export const fds = {
-  publishAudio: (body: { repo: string; branch: string; path: string; sourceSha: string; audio: string; modelRevision: string }) =>
-    apiJson<EditResult>('/api/audio', { method: 'POST', body: JSON.stringify(body) }),
+  publishAudio: (body: { repo: string; branch: string; path: string; sourceSha: string; audio: string; format?: 'wav' | 'opus'; modelRevision: string }, signal?: AbortSignal) =>
+    apiJson<EditResult>('/api/audio', { method: 'POST', body: JSON.stringify(body), signal }),
   apiBase: API_BASE,
   kv: {
     async get<T>(key: string): Promise<T | null> {

@@ -12,7 +12,8 @@ createServer((req, res) => {
     let html = fixture;
     if (url.searchParams.has('audio')) {
       const sha = (url.searchParams.get('audio') === 'fresh' ? 'a' : 'b').repeat(40);
-      html = html.replace('</head>', `<meta name="audio-file" content="/audio/fds-audio-${'1'.repeat(20)}.wav"><meta name="audio-sha" content="${sha}"></head>`);
+      const extension = url.searchParams.get('format') === 'opus' ? 'opus' : 'wav';
+      html = html.replace('</head>', `<meta name="audio-file" content="/audio/fds-audio-${'1'.repeat(20)}.${extension}"><meta name="audio-sha" content="${sha}"></head>`);
     }
     if (url.searchParams.has('chain')) {
       const first = url.searchParams.get('chain') === 'start';

@@ -39,12 +39,12 @@ function pageMetadata(html, relative, sourceDir, report, siteDir, repo) {
     try {
       if (lstatSync(manifestPath).size > 8192) throw new Error('manifest too large');
       const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
-      if (manifest.version !== 1 || manifest.sourcePath !== `docs/${source.candidate}` || !/^[0-9a-f]{40}$/.test(manifest.sourceSha) || !/^[0-9a-f]{64}$/.test(manifest.audioSha256) || !/^\/audio\/fds-audio-[0-9a-f]{20}\.wav$/.test(manifest.audioFile)) throw new Error('invalid metadata');
+      if (manifest.version !== 1 || manifest.sourcePath !== `docs/${source.candidate}` || !/^[0-9a-f]{40}$/.test(manifest.sourceSha) || !/^[0-9a-f]{64}$/.test(manifest.audioSha256) || !/^\/audio\/fds-audio-[0-9a-f]{20}\.(?:wav|opus)$/.test(manifest.audioFile) || (manifest.audioFile.endsWith('.opus') && (manifest.container !== 'opus' || !Number.isFinite(manifest.durationSeconds) || manifest.durationSeconds <= 0))) throw new Error('invalid metadata');
       if (manifest.sourceSha !== sha) throw new Error('source changed; regenerate narration');
       const file = safeFile(sourceDir, manifest.audioFile.slice(1));
-      if (!file || lstatSync(file).size > 12 * 1024 * 1024) throw new Error('audio missing or too large');
+      if (!file || lstatSync(file).size > (manifest.audioFile.endsWith('.opus') ? 1_572_864 : 12 * 1024 * 1024)) throw new Error('audio missing or too large');
       const digest = createHash('sha256').update(readFileSync(file)).digest('hex');
-      if (digest !== manifest.audioSha256 || manifest.audioFile !== `/audio/fds-audio-${digest.slice(0, 20)}.wav`) throw new Error('audio integrity check failed');
+      if (digest !== manifest.audioSha256 || manifest.audioFile !== `/audio/fds-audio-${digest.slice(0, 20)}.${manifest.audioFile.endsWith('.opus') ? 'opus' : 'wav'}`) throw new Error('audio integrity check failed');
       const outputDir = path.join(siteDir, 'audio');
       if (existsSync(outputDir) && lstatSync(outputDir).isSymbolicLink()) throw new Error('audio output directory is a symbolic link');
       mkdirSync(outputDir, { recursive: true });

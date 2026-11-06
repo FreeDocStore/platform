@@ -81,6 +81,17 @@ test('current recordings are offered and stale recordings use the device voice',
   expect(await page.evaluate(() => window.__speech.calls[0].voice)).toBe('device');
 });
 
+test('published Ogg Opus recordings use the Opus MIME type in the reader', async ({ page }) => {
+  await page.addInitScript(() => {
+    window.__mimeProbed = [];
+    HTMLMediaElement.prototype.canPlayType = function(type) { window.__mimeProbed.push(type); return 'probably'; };
+  });
+  await speech(page);
+  await page.goto('/_fixture?audio=fresh&format=opus');
+  await expect(page.locator('.freedocstore-ra-ai-dot')).toHaveCount(1);
+  expect(await page.evaluate(() => window.__mimeProbed)).toContain('audio/ogg; codecs=opus');
+});
+
 test('reader resumes the remembered sentence and character after a reload', async ({ page }) => {
   await speech(page);
   await page.goto('/_fixture');

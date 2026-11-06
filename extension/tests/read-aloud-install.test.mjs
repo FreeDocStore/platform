@@ -54,6 +54,29 @@ test('only publishes verified narration for the exact current source blob', () =
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
 
+test('installs verified Ogg Opus narration with its digest-bound path', () => {
+  const root = mkdtempSync(path.join(tmpdir(), 'fds-opus-'));
+  try {
+    const site = path.join(root, 'site');
+    const docs = path.join(root, 'docs');
+    mkdirSync(path.join(site, 'guide'), { recursive: true });
+    mkdirSync(path.join(docs, 'audio'), { recursive: true });
+    const source = '# Longer guide\n';
+    const sha = createHash('sha1').update(`blob ${Buffer.byteLength(source)}\0`).update(source).digest('hex');
+    const audio = Buffer.from('OggS Opus fixture');
+    const digest = createHash('sha256').update(audio).digest('hex');
+    const file = `fds-audio-${digest.slice(0, 20)}.opus`;
+    writeFileSync(path.join(docs, 'guide.md'), source);
+    writeFileSync(path.join(docs, 'audio', file), audio);
+    writeFileSync(path.join(docs, 'guide.md.audio.json'), JSON.stringify({ version: 1, container: 'opus', durationSeconds: 42.3, sourcePath: 'docs/guide.md', sourceSha: sha, audioFile: `/audio/${file}`, audioSha256: digest }));
+    const output = path.join(site, 'guide/index.html');
+    writeFileSync(output, '<html><head></head><body><main><h1>Guide</h1></main></body></html>');
+    assert.equal(installReadAloud(site, { sourceDir: docs }), 1);
+    assert.equal(readFileSync(path.join(site, 'audio', file)).toString(), audio.toString());
+    assert.ok(readFileSync(output, 'utf8').includes(`name="audio-file" content="/audio/${file}"`));
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
 test('refuses symlinked assets rather than overwriting outside the site', () => {
   const root = mkdtempSync(path.join(tmpdir(), 'fds-link-'));
   try {

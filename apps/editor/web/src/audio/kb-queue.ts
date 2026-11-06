@@ -3,11 +3,12 @@ import { clearCheckpoints, deleteCheckpoint, listCheckpoints, loadChunk, saveChu
 import { readableBlocks, toChunks } from '../../../../../templates/read-aloud/src/reader.js'
 import { renderMarkdown } from '../lib/markdown'
 import { encodeWav } from './format'
+import { prepareNarration, type NarrationFormat } from '../../../../../templates/read-aloud/src/opus-encoder.js'
 
 export const AUDIO_VOICE = 'af_heart'
 export type RecordingStatus = 'current' | 'missing' | 'stale' | 'disabled' | 'failed'
 export type QueuePageState = 'pending' | 'generating' | 'done' | 'failed' | 'cancelled'
-export interface PageSpec { title: string; slug: string; path: string; sourceText: string; sourceVersion: string; disabled?: boolean; verifySourceVersion?: () => Promise<string>; publish?: (audio: ArrayBuffer, sourceVersion: string) => Promise<void> }
+export interface PageSpec { title: string; slug: string; path: string; sourceText: string; sourceVersion: string; disabled?: boolean; verifySourceVersion?: () => Promise<string>; publish?: (audio: ArrayBuffer, format: NarrationFormat, sourceVersion: string, signal: AbortSignal) => Promise<void> }
 export interface PageInventory { page: PageSpec; status: RecordingStatus; chunksComplete: number; chunksTotal: number; updatedAt?: number; fileSize: number; error?: string }
 export interface QueueProgress { total: number; completed: number; reusedChunks: number; current: string | null; estimatedSecondsRemaining: number; throughputCalibrated: boolean }
 export interface QueueState { page: PageSpec; state: QueuePageState; error?: string }
@@ -79,6 +80,7 @@ export class KBQueueManager extends EventTarget {
   private queue: QueueState[] = []
   private paused = false
   private cancelled = false
+  private activeController?: AbortController
   private wake?: () => void
   private current: string | null = null
   private measured: number[] = []
@@ -103,7 +105,7 @@ export class KBQueueManager extends EventTarget {
   }
   pause() { this.paused = true; this.emit() }
   resume() { this.paused = false; this.wake?.(); this.emit() }
-  cancel() { this.cancelled = true; this.paused = false; this.wake?.(); for (const item of this.queue) if (item.state === 'pending') item.state = 'cancelled'; this.emit() }
+  cancel() { this.cancelled = true; this.paused = false; this.activeController?.abort(new Error('Narration generation cancelled.')); this.wake?.(); for (const item of this.queue) if (item.state === 'pending') item.state = 'cancelled'; this.emit() }
   async start() {
     this.cancelled = false
     for (const item of this.queue) {
@@ -111,6 +113,8 @@ export class KBQueueManager extends EventTarget {
       if (item.state === 'done' || item.state === 'cancelled') continue
       this.current = item.page.title; item.state = 'generating'; this.emit()
       const { page } = item
+      const controller = new AbortController()
+      this.activeController = controller
       try {
         const chunks = chunksFor(page.sourceText)
         if (!chunks.length || chunks.join('').length > 6000) throw new Error('Choose a page with 1–6,000 spoken characters.')
@@ -139,15 +143,25 @@ export class KBQueueManager extends EventTarget {
           try { localStorage.setItem(throughputKey, JSON.stringify(this.measured)) } catch { /* Calibration is optional. */ }
           this.emit()
         }
-        if (item.state === 'cancelled') continue
-        if (page.verifySourceVersion && await page.verifySourceVersion() !== page.sourceVersion) throw new Error('Source changed before publication. Checkpointed audio was preserved.')
-        if (page.publish) await page.publish(combineWav(output), page.sourceVersion)
-        await deleteCheckpoint(`${chunkKey(page, 0)}:failure`)
-        item.state = 'done'
+        if (item.state === 'cancelled' || this.cancelled) item.state = 'cancelled'
+        else {
+          if (page.verifySourceVersion && await page.verifySourceVersion() !== page.sourceVersion) throw new Error('Source changed before publication. Checkpointed audio was preserved.')
+          const prepared = await prepareNarration(combineWav(output), { signal: controller.signal })
+          if (this.cancelled) item.state = 'cancelled'
+          else {
+            if (page.publish) await page.publish(prepared.data, prepared.format, page.sourceVersion, controller.signal)
+            await deleteCheckpoint(`${chunkKey(page, 0)}:failure`)
+            item.state = 'done'
+          }
+        }
       } catch (error) {
-        item.state = 'failed'; item.error = error instanceof Error ? error.message : String(error)
-        try { await saveFailure(`${chunkKey(page, 0)}:failure`, item.error) } catch { /* The visible queue still reports the original failure. */ }
+        if (controller.signal.aborted || this.cancelled) item.state = 'cancelled'
+        else {
+          item.state = 'failed'; item.error = error instanceof Error ? error.message : String(error)
+          try { await saveFailure(`${chunkKey(page, 0)}:failure`, item.error) } catch { /* The visible queue still reports the original failure. */ }
+        }
       }
+      if (this.activeController === controller) this.activeController = undefined
       this.emit()
     }
     this.current = null; this.emit()

@@ -19,7 +19,7 @@ export function registerPublishRoutes(app: App) {
     const result = await commitFiles({ token: session.githubAccessToken, repoFullName: audio.repo, baseBranch: audio.branch, mode: 'pr',
       message: `Add narration for ${audio.sourcePath}`, files: audio.files,
       expectedFiles: { [audio.sourcePath]: audio.sourceSha },
-      prBody: `Locally generated English narration for ${audio.sourcePath}. Source blob: ${audio.sourceSha}. Review the WAV recording and metadata before merging. Install the current FreeDocStore reader in the publishing workflow to enable playback.`,
+      prBody: `Locally generated English narration for ${audio.sourcePath}. Source blob: ${audio.sourceSha}. Review the audio recording and metadata before merging. Install the current FreeDocStore reader in the publishing workflow to enable playback.`,
     });
     return c.json(result, result.ok ? 200 : result.errorCode === 'source_conflict' ? 409 : 502);
   });

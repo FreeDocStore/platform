@@ -7,13 +7,15 @@ import manifest from '../audio/model-manifest.json'
 import { inventoryPages, KBQueueManager, type PageInventory, type PageSpec } from '../audio/kb-queue'
 import { getStorageStats } from '../audio/checkpoint'
 import { listGitHubMarkdownSources, readGitHubFileVersion } from '../services/github'
+import { isOpusSupported, prepareNarration, type NarrationFormat } from '../../../../../templates/read-aloud/src/opus-encoder.js'
 
 export function AudioPanel({ repo, branch, path, source }: { repo: string; branch: string; path: string; source: string }) {
   const [status, setStatus] = useState('Generate narration locally, preview it, then publish a reviewed proposal.')
   const [busy, setBusy] = useState(false)
-  const [audio, setAudio] = useState<{ wav: ArrayBuffer; url: string; sha: string } | null>(null)
+  const [audio, setAudio] = useState<{ data: ArrayBuffer; format: NarrationFormat; url: string; sha: string } | null>(null)
   const [resultUrl, setResultUrl] = useState('')
   const worker = useRef<Worker | null>(null)
+  const encoderAbort = useRef<AbortController | null>(null)
   const run = useRef(0)
   const operating = useRef(false)
   const [showKb, setShowKb] = useState(false)
@@ -26,6 +28,7 @@ export function AudioPanel({ repo, branch, path, source }: { repo: string; branc
   useEffect(() => {
     run.current++
     operating.current = false
+    encoderAbort.current?.abort(new Error('Narration cancelled.')); encoderAbort.current = null
     worker.current?.terminate(); worker.current = null
     setBusy(false); setAudio(null); setResultUrl('')
     return () => { run.current++; worker.current?.terminate() }
@@ -49,8 +52,8 @@ export function AudioPanel({ repo, branch, path, source }: { repo: string; branc
           sourceText: item.sourceText, sourceVersion: item.sourceVersion,
           disabled: /^audio:\s*(false|disabled)\s*$/im.test(frontmatter),
           verifySourceVersion: () => readGitHubFileVersion(repo, item.path, branch),
-          publish: async (wav, sourceVersion) => {
-            const result = await fds.publishAudio({ repo, branch, path: item.path, sourceSha: sourceVersion, audio: audioBase64(wav), modelRevision: manifest.revision })
+          publish: async (data, format, sourceVersion, signal) => {
+            const result = await fds.publishAudio({ repo, branch, path: item.path, sourceSha: sourceVersion, audio: audioBase64(data), format, modelRevision: manifest.revision }, signal)
             if (!result.unchanged && !result.prUrl) throw new Error(`No review link was returned for ${item.path}.`)
           },
         }
@@ -71,6 +74,7 @@ export function AudioPanel({ repo, branch, path, source }: { repo: string; branc
     operating.current = true
     const mine = ++run.current
     setAudio(null); setResultUrl(''); setBusy(true); setStatus('Preparing local narration…')
+    const controller = new AbortController(); encoderAbort.current = controller
     try {
       const root = document.createElement('article')
       // Narrate the article body; YAML frontmatter config is not reader content.
@@ -87,8 +91,16 @@ export function AudioPanel({ repo, branch, path, source }: { repo: string; branc
         const data = event.data
         if (data.type === 'progress') setStatus(data.message)
         if (data.type === 'complete') {
-          setAudio({ wav: data.wav, sha, url: URL.createObjectURL(new Blob([data.wav], { type: 'audio/wav' })) })
-          setStatus('Preview the narration before publishing.'); setBusy(false); operating.current = false; next.terminate(); worker.current = null
+          next.terminate(); worker.current = null
+          void prepareNarration(data.wav, { signal: controller.signal }).then(prepared => {
+            if (mine !== run.current) return
+            const mime = prepared.format === 'opus' ? 'audio/ogg; codecs=opus' : 'audio/wav'
+            const url = URL.createObjectURL(new Blob([prepared.data], { type: mime }))
+            setAudio({ data: prepared.data, format: prepared.format, sha, url })
+            const reduction = prepared.format === 'opus' ? ` Opus is ${Math.round((1 - prepared.data.byteLength / data.wav.byteLength) * 100)}% smaller than WAV.` : ''
+            setStatus(`${prepared.format === 'opus' ? 'Compact Opus' : 'WAV'} recording ready for preview.${reduction}`)
+          }).catch(error => { if (mine === run.current) setStatus(error instanceof Error ? error.message : String(error)) })
+            .finally(() => { if (mine === run.current) { setBusy(false); operating.current = false; encoderAbort.current = null } })
         }
         if (data.type === 'error') { setStatus(data.message); setBusy(false); operating.current = false; next.terminate(); worker.current = null }
       }
@@ -100,15 +112,16 @@ export function AudioPanel({ repo, branch, path, source }: { repo: string; branc
     if (!audio || operating.current) return
     operating.current = true
     const mine = run.current
+    const controller = new AbortController(); encoderAbort.current = controller
     setBusy(true); setStatus('Creating narration proposal…')
     try {
-      const result = await fds.publishAudio({ repo, branch, path, sourceSha: audio.sha, audio: audioBase64(audio.wav), modelRevision: manifest.revision })
+      const result = await fds.publishAudio({ repo, branch, path, sourceSha: audio.sha, audio: audioBase64(audio.data), format: audio.format, modelRevision: manifest.revision }, controller.signal)
       if (mine !== run.current) return
       if (result.unchanged) { setResultUrl(''); setStatus('This recording is already on the base branch. No proposal was needed.'); return }
       if (!result.prUrl) throw new Error('The server did not return a review link.')
       setResultUrl(result.prUrl); setStatus('Narration proposal created. Review and merge it to publish.')
     } catch (error) { if (mine === run.current) setStatus(String(error)) }
-    finally { if (mine === run.current) { setBusy(false); operating.current = false } }
+    finally { if (mine === run.current) { setBusy(false); operating.current = false; encoderAbort.current = null } }
   }
   return <details className="section-block audio-panel">
     <summary>Page narration</summary>
@@ -116,10 +129,10 @@ export function AudioPanel({ repo, branch, path, source }: { repo: string; branc
     <p>Publishing uploads the resulting recording to your public GitHub repository. Audio is offered to readers only while its source version matches.</p>
     <div className="action-row">
       <button type="button" className="secondary-action" disabled={busy || !source || !path.endsWith('.md')} onClick={generate}>Generate audio</button>
-      {busy && worker.current && <button type="button" className="secondary-action" onClick={() => { run.current++; worker.current?.terminate(); worker.current = null; setBusy(false); operating.current = false; setStatus('Generation cancelled.') }}>Cancel</button>}
+      {busy && <button type="button" className="secondary-action" onClick={() => { run.current++; encoderAbort.current?.abort(new Error('Narration cancelled.')); encoderAbort.current = null; worker.current?.terminate(); worker.current = null; setBusy(false); operating.current = false; setStatus('Generation cancelled.') }}>Cancel</button>}
     </div>
     {audio && <><audio controls src={audio.url} aria-label="Narration preview" /><div className="action-row">
-      <a className="secondary-action" href={audio.url} download="narration.wav">Download WAV</a>
+      <a className="secondary-action" href={audio.url} download={`narration.${audio.format === 'opus' ? 'opus' : 'wav'}`}>Download {audio.format === 'opus' ? 'Opus' : 'WAV'}</a>
       <button type="button" className="primary-action" disabled={busy} onClick={publish}>Propose audio publication</button>
     </div></>}
     <p role="status" aria-live="polite">{status}</p>
